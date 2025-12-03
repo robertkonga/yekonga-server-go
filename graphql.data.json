@@ -1,0 +1,281 @@
+{
+  "Kind": "Document",
+  "Loc": {
+    "Start": 0,
+    "End": 113,
+    "Source": {
+      "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+      "Name": "GraphQL request"
+    }
+  },
+  "Definitions": [
+    {
+      "Kind": "OperationDefinition",
+      "Loc": {
+        "Start": 0,
+        "End": 112,
+        "Source": {
+          "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+          "Name": "GraphQL request"
+        }
+      },
+      "Operation": "query",
+      "Name": null,
+      "VariableDefinitions": null,
+      "Directives": [],
+      "SelectionSet": {
+        "Kind": "SelectionSet",
+        "Loc": {
+          "Start": 0,
+          "End": 112,
+          "Source": {
+            "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+            "Name": "GraphQL request"
+          }
+        },
+        "Selections": [
+          {
+            "Kind": "Field",
+            "Loc": {
+              "Start": 4,
+              "End": 110,
+              "Source": {
+                "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                "Name": "GraphQL request"
+              }
+            },
+            "Alias": null,
+            "Name": {
+              "Kind": "Name",
+              "Loc": {
+                "Start": 4,
+                "End": 9,
+                "Source": {
+                  "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                  "Name": "GraphQL request"
+                }
+              },
+              "Value": "users"
+            },
+            "Arguments": [],
+            "Directives": [],
+            "SelectionSet": {
+              "Kind": "SelectionSet",
+              "Loc": {
+                "Start": 10,
+                "End": 110,
+                "Source": {
+                  "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                  "Name": "GraphQL request"
+                }
+              },
+              "Selections": [
+                {
+                  "Kind": "Field",
+                  "Loc": {
+                    "Start": 16,
+                    "End": 24,
+                    "Source": {
+                      "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                      "Name": "GraphQL request"
+                    }
+                  },
+                  "Alias": null,
+                  "Name": {
+                    "Kind": "Name",
+                    "Loc": {
+                      "Start": 16,
+                      "End": 24,
+                      "Source": {
+                        "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                        "Name": "GraphQL request"
+                      }
+                    },
+                    "Value": "username"
+                  },
+                  "Arguments": [],
+                  "Directives": [],
+                  "SelectionSet": null
+                },
+                {
+                  "Kind": "Field",
+                  "Loc": {
+                    "Start": 29,
+                    "End": 41,
+                    "Source": {
+                      "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                      "Name": "GraphQL request"
+                    }
+                  },
+                  "Alias": null,
+                  "Name": {
+                    "Kind": "Name",
+                    "Loc": {
+                      "Start": 29,
+                      "End": 41,
+                      "Source": {
+                        "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                        "Name": "GraphQL request"
+                      }
+                    },
+                    "Value": "usernameType"
+                  },
+                  "Arguments": [],
+                  "Directives": [],
+                  "SelectionSet": null
+                },
+                {
+                  "Kind": "Field",
+                  "Loc": {
+                    "Start": 46,
+                    "End": 50,
+                    "Source": {
+                      "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                      "Name": "GraphQL request"
+                    }
+                  },
+                  "Alias": null,
+                  "Name": {
+                    "Kind": "Name",
+                    "Loc": {
+                      "Start": 46,
+                      "End": 50,
+                      "Source": {
+                        "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                        "Name": "GraphQL request"
+                      }
+                    },
+                    "Value": "role"
+                  },
+                  "Arguments": [],
+                  "Directives": [],
+                  "SelectionSet": null
+                },
+                {
+                  "Kind": "Field",
+                  "Loc": {
+                    "Start": 55,
+                    "End": 106,
+                    "Source": {
+                      "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                      "Name": "GraphQL request"
+                    }
+                  },
+                  "Alias": null,
+                  "Name": {
+                    "Kind": "Name",
+                    "Loc": {
+                      "Start": 55,
+                      "End": 63,
+                      "Source": {
+                        "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                        "Name": "GraphQL request"
+                      }
+                    },
+                    "Value": "profiles"
+                  },
+                  "Arguments": [],
+                  "Directives": [],
+                  "SelectionSet": {
+                    "Kind": "SelectionSet",
+                    "Loc": {
+                      "Start": 64,
+                      "End": 106,
+                      "Source": {
+                        "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                        "Name": "GraphQL request"
+                      }
+                    },
+                    "Selections": [
+                      {
+                        "Kind": "Field",
+                        "Loc": {
+                          "Start": 72,
+                          "End": 77,
+                          "Source": {
+                            "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                            "Name": "GraphQL request"
+                          }
+                        },
+                        "Alias": null,
+                        "Name": {
+                          "Kind": "Name",
+                          "Loc": {
+                            "Start": 72,
+                            "End": 77,
+                            "Source": {
+                              "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                              "Name": "GraphQL request"
+                            }
+                          },
+                          "Value": "phone"
+                        },
+                        "Arguments": [],
+                        "Directives": [],
+                        "SelectionSet": null
+                      },
+                      {
+                        "Kind": "Field",
+                        "Loc": {
+                          "Start": 84,
+                          "End": 89,
+                          "Source": {
+                            "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                            "Name": "GraphQL request"
+                          }
+                        },
+                        "Alias": null,
+                        "Name": {
+                          "Kind": "Name",
+                          "Loc": {
+                            "Start": 84,
+                            "End": 89,
+                            "Source": {
+                              "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                              "Name": "GraphQL request"
+                            }
+                          },
+                          "Value": "email"
+                        },
+                        "Arguments": [],
+                        "Directives": [],
+                        "SelectionSet": null
+                      },
+                      {
+                        "Kind": "Field",
+                        "Loc": {
+                          "Start": 96,
+                          "End": 100,
+                          "Source": {
+                            "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                            "Name": "GraphQL request"
+                          }
+                        },
+                        "Alias": null,
+                        "Name": {
+                          "Kind": "Name",
+                          "Loc": {
+                            "Start": 96,
+                            "End": 100,
+                            "Source": {
+                              "Body": "ewogIHVzZXJzIHsKICAgIHVzZXJuYW1lCiAgICB1c2VybmFtZVR5cGUKICAgIHJvbGUKICAgIHByb2ZpbGVzIHsKICAgICAgcGhvbmUKICAgICAgZW1haWwKICAgICAgbmFtZQogICAgfQogIH0KfQo=",
+                              "Name": "GraphQL request"
+                            }
+                          },
+                          "Value": "name"
+                        },
+                        "Arguments": [],
+                        "Directives": [],
+                        "SelectionSet": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

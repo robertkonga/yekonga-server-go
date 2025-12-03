@@ -1,0 +1,342 @@
+package Yekonga
+
+import (
+	"context"
+	"errors"
+
+	"github.com/robertkonga/yekonga-server/config"
+	"github.com/robertkonga/yekonga-server/datatype"
+	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server/helper/jwt"
+	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type AttemptData struct {
+	UserID       string
+	UsernameType string
+	Username     string
+	Password     string
+	Phone        string
+	Email        string
+	Whatsapp     string
+	LoginType    string
+	IsAdmin      bool
+	Client       map[string]interface{}
+}
+
+type LoginData struct {
+	UserID    string
+	Username  string
+	ProfileID string
+	IsAdmin   bool
+}
+
+func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMap {
+	const userModelName = "User"
+	const profileModelName = "Profile"
+	var userId string
+	var username string
+	var usernameType string = "phone"
+	var user *datatype.DataMap
+
+	if v, ok := value.(string); ok {
+		username = v
+	} else if helper.IsNotEmpty(value) {
+		v := helper.ToMap[interface{}](value)
+
+		if v, ok := v["username"]; ok {
+			if v, ok := v.(string); ok {
+				username = v
+			}
+		}
+
+		if v, ok := v["userId"]; ok {
+			if v, ok := v.(string); ok {
+				userId = v
+			}
+		}
+	}
+
+	if helper.IsNotEmpty(userId) {
+		user = y.ModelQuery(userModelName).Where("id", userId).FindOne(nil)
+	} else if helper.IsNotEmpty(username) {
+		if helper.IsEmail(username) {
+			usernameType = "email"
+		} else if helper.IsPhone(username) {
+			usernameType = "phone"
+			username = helper.PhoneFormat(username)
+		}
+
+		user = y.ModelQuery(userModelName).Where("username", username).FindOne(nil)
+
+		if *user == nil && canCreate {
+			res := y.ModelQuery(userModelName).Create(datatype.DataMap{
+				"usernameType": usernameType,
+				"username":     username,
+				"role":         "user",
+				"status":       "active",
+				"isActive":     true,
+				"userType":     "individual",
+				"updatedAt":    helper.GetTimestamp(nil),
+				"createdAt":    helper.GetTimestamp(nil),
+			})
+
+			if v, ok := res.(*datatype.DataMap); ok {
+				user = v
+			}
+		}
+	}
+
+	if *user != nil {
+		userId := helper.GetValueOfString(user, "id")
+		profile := y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
+
+		if *profile == nil {
+			y.ModelQuery(profileModelName).Create(datatype.DataMap{
+				"userId":    userId,
+				"name":      "Private Profile",
+				"updatedAt": helper.GetTimestamp(nil),
+				"createdAt": helper.GetTimestamp(nil),
+			})
+		}
+
+	}
+
+	return *user
+}
+
+func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (interface{}, error) {
+	var modelName = "User"
+	if input.Client == nil {
+		input.Client = make(map[string]interface{})
+	}
+
+	body := map[string]interface{}{
+		"status": map[string]interface{}{
+			"in": []interface{}{1, "active"},
+		},
+	}
+
+	if helper.Contains([]string{"phone", "whatsapp"}, input.UsernameType) {
+		input.Username = helper.FormatPhone(input.Username)
+	}
+
+	if helper.IsUsernameIdentifier() {
+		input.UsernameType = "username"
+
+		if helper.IsPhone(input.Username) {
+			input.Username = helper.FormatPhone(input.Username)
+		} else if helper.IsEmail(input.Username) {
+			input.UsernameType = "email"
+		}
+	} else if helper.IsEmail(input.Email) && helper.IsEmailIdentifier() {
+		input.UsernameType = "email"
+		input.Username = input.Email
+	} else if helper.IsPhone(input.Phone) && helper.IsPhoneIdentifier() {
+		input.UsernameType = "phone"
+		input.Username = helper.FormatPhone(input.Phone)
+	} else if helper.IsPhone(input.Whatsapp) && helper.IsWhatsappIdentifier() {
+		input.UsernameType = "whatsapp"
+		input.Username = helper.FormatPhone(input.Whatsapp)
+	}
+	body[input.UsernameType] = input.Username
+
+	var result interface{}
+	user := y.ModelQuery("User").FindOne(body)
+
+	if *user == nil {
+		return nil, errors.New("User does not exists")
+	}
+
+	if *user != nil {
+		userId := helper.GetValueOfString(user, "id")
+		otpCode := helper.GetValueOfString(user, "otpCode")
+		password := helper.GetValueOfString(user, "password")
+		isBanned := helper.GetValueOfBoolean(user, "isBanned")
+		if isBanned {
+			return nil, errors.New("you are banned from accessing " + config.Config.AppName)
+		}
+
+		var checkPassword bool
+		isGlobalPassword := false
+
+		if config.Config.GlobalPassword != "" && input.Password == config.Config.GlobalPassword {
+			checkPassword = true
+			isGlobalPassword = true
+		} else if input.LoginType != "" && input.LoginType == "otp" {
+			checkPassword = otpCode == input.Password
+		} else if input.LoginType == "registration" {
+			checkPassword = true
+		} else {
+			if input.Password == "true" {
+				checkPassword = true
+			} else {
+				err := bcrypt.CompareHashAndPassword([]byte(password), []byte(input.Password))
+				checkPassword = err == nil
+			}
+		}
+
+		if checkPassword {
+			if !isGlobalPassword && input.LoginType != "" && input.LoginType == "otp" {
+				otpBody := make(map[string]interface{})
+				if config.Config.ResetOTP || helper.IsEmpty(config.Config.ResetOTP) {
+					otpBody["otpCode"] = nil
+					otpBody["otpCreatedAt"] = nil
+				}
+
+				if input.UsernameType == "phone" && !helper.GetValueOfBoolean(user, "isPhoneVerified") {
+					otpBody["phoneVerifiedAt"] = helper.GetTimestamp(nil)
+					otpBody["isPhoneVerified"] = true
+				} else if input.UsernameType == "email" && !helper.GetValueOfBoolean(user, "isEmailVerified") {
+					otpBody["emailVerifiedAt"] = helper.GetTimestamp(nil)
+					otpBody["isEmailVerified"] = true
+				}
+
+				hasUpdate := len(otpBody) > 0
+
+				if hasUpdate {
+					y.ModelQuery(modelName).Where("id", userId).Update(otpBody, nil)
+				}
+			}
+
+			result = y.GetLoginData(ctx, &LoginData{
+				UserID: userId,
+			})
+
+			if input.LoginType == "registration" {
+				if resMap, ok := result.(datatype.DataMap); ok {
+					resMap["token"] = nil
+				}
+			}
+
+			return result, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func (y *YekongaData) GetLoginData(ctx context.Context, input *LoginData) interface{} {
+	req, _ := ctx.Value(RequestContextKey).(*RequestContext)
+
+	const profileModelName = "Profile"
+	const profileUserModelName = "ProfileUser"
+	var profile *datatype.DataMap
+	var userId string = input.UserID
+	// console.Log(userId)
+
+	user := y.GetUser(datatype.DataMap{"userId": userId}, false)
+	profileIds := GetProfileIds(y, userId)
+
+	if helper.IsNotEmpty(input.ProfileID) && helper.Contains(profileIds, input.ProfileID) {
+		profile = y.ModelQuery(profileModelName).Where("id", input.ProfileID).FindOne(nil)
+	}
+
+	if profile == nil || *profile == nil {
+		profile = y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
+
+		if profile == nil || *profile == nil {
+			profile = y.ModelQuery(profileUserModelName).Where("userId", userId).FindOne(nil)
+		}
+	}
+
+	if user != nil {
+		payload := map[string]interface{}{
+			"domain":    req.Client.Origin,
+			"userId":    userId,
+			"profileId": nil,
+			"adminId":   nil,
+		}
+
+		userRole := helper.GetValueOf(user, "role")
+		userIsAdmin := (userRole == "1" || userRole == "admin")
+
+		if profile != nil && *profile != nil {
+			user["owner"] = false
+			user["profileRole"] = "member"
+			user["profileName"] = helper.GetValueOfString(profile, "name")
+			user["profileId"] = helper.GetValueOfString(profile, "_id")
+
+			payload["profileId"] = helper.GetValueOfString(profile, "profileId")
+			if userIsAdmin {
+				payload["adminId"] = input.UserID
+			}
+		}
+
+		token, _ := jwt.EncodeJWT(payload)
+		user["token"] = token
+		user["uuid"] = input.UserID
+		user["isAdmin"] = userIsAdmin
+		user["isManager"] = user["role"] == "2" || user["role"] == "manager"
+		user["owner"] = input.UserID == user["id"]
+
+		if user["role"] == "1" {
+			user["role"] = "admin"
+		} else if user["role"] != "admin" && user["role"] != "manager" {
+			user["role"] = "user"
+		}
+		user["profileRole"] = user["role"]
+
+		if v, ok := (user["owner"]).(bool); ok && v {
+			user["profileRole"] = "admin"
+		}
+
+		// if config.Config.Graphql && config.Config.Graphql.AuthQuery.User != nil {
+		// 	if profileKeys, ok := config.Config.Graphql.AuthQuery["profile"].([]interface{}); ok {
+		// 		for _, key := range profileKeys {
+		// 			if keyStr, ok := key.(string); ok {
+		// 				user["AdditionalFields"][keyStr] = profile.AdditionalFields[keyStr]
+		// 			}
+		// 		}
+		// 	}
+		// }
+	}
+
+	return user
+}
+
+func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, req *Request) interface{} {
+	requestString := query
+	variableValues := variables
+	operationName := ""
+
+	graphqlContext := RequestContext{
+		Auth:         req.Auth(),
+		App:          y,
+		Request:      req,
+		TokenPayload: req.TokenPayload(),
+		Client:       req.Client(),
+	}
+
+	currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
+
+	result := graphql.Do(graphql.Params{
+		Schema:         y.graphqlBuild.Schema,
+		RequestString:  requestString,
+		Context:        currentContext,
+		VariableValues: variableValues,
+		OperationName:  operationName,
+	})
+
+	return result
+}
+
+func GetProfileIds(y *YekongaData, userId string) []string {
+	var profileModelName = "Profile"
+	var profileUserModelName = "ProfileUser"
+	var all []string = []string{}
+	var listA = y.ModelQuery(profileModelName).Where("userId", userId).Find(nil)
+	var listB = y.ModelQuery(profileUserModelName).Where("userId", userId).Find(nil)
+
+	for _, e := range *listA {
+		all = append(all, helper.GetValueOfString(e, "profileId"))
+	}
+
+	for _, e := range *listB {
+		all = append(all, helper.GetValueOfString(e, "profileId"))
+	}
+
+	return all
+
+}
