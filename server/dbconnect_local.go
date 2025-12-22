@@ -3,7 +3,6 @@ package Yekonga
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/robertkonga/yekonga-server/datatype"
 	"github.com/robertkonga/yekonga-server/helper"
@@ -126,66 +125,50 @@ func (con *localDbConnection) graph() *datatype.DataMap {
 	return &datatype.DataMap{}
 }
 
-func (con *localDbConnection) create(data interface{}) (*datatype.DataMap, error) {
-	if v, ok := data.(datatype.DataMap); ok {
-		id, err := con.collection().Insert(v)
-		if err != nil {
-			return nil, err
-		}
-
-		return con.query.Where("id", id).FindOne(nil), nil
+func (con *localDbConnection) create(data datatype.DataMap) (*datatype.DataMap, error) {
+	id, err := con.collection().Insert(data)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("Fail")
+	return con.query.Where("id", id).FindOne(nil), nil
 }
 
-func (con *localDbConnection) createMany(data []interface{}) (*[]datatype.DataMap, error) {
+func (con *localDbConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result []datatype.DataMap = []datatype.DataMap{}
 
 	for _, d := range data {
-		if v, ok := d.(datatype.DataMap); ok {
-			id, err := con.collection().Insert(v)
-			if err != nil {
-				// return nil, err
-			} else {
-				result = append(result, *con.query.Where("id", id).FindOne(nil))
-			}
-
+		id, err := con.collection().Insert(d)
+		if err != nil {
+			// return nil, err
+		} else {
+			result = append(result, *con.query.Where("id", id).FindOne(nil))
 		}
 	}
 
 	return &result, nil
 }
 
-func (con *localDbConnection) update(data interface{}) (*datatype.DataMap, error) {
+func (con *localDbConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
 	con.query.FindOne(nil)
 	id := 1
-	if v, ok := data.(datatype.DataMap); ok {
-		err := con.collection().Update(id, v)
-		if err != nil {
-			return nil, err
-		}
-
-		return con.query.Where("id", id).FindOne(nil), nil
+	err := con.collection().Update(id, data)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("Fail")
-
+	return con.query.Where("id", id).FindOne(nil), nil
 }
 
-func (con *localDbConnection) updateMany(data interface{}) (*[]datatype.DataMap, error) {
+func (con *localDbConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
 	con.query.Find(nil)
 	id := 1
-	if v, ok := data.(datatype.DataMap); ok {
-		err := con.collection().Update(id, v)
-		if err != nil {
-			return nil, err
-		}
-
-		return con.query.Where("id", id).Find(nil), nil
+	err := con.collection().Update(id, data)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, errors.New("Fail")
+	return con.query.Where("id", id).Find(nil), nil
 
 }
 

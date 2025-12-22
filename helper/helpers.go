@@ -315,7 +315,7 @@ func ToSlug(s string) string {
 }
 
 func ToString(s interface{}) string {
-	return fmt.Sprint("v%", s)
+	return fmt.Sprintf("%v", s)
 }
 
 // camelToSnake converts camelCase or PascalCase to snake_case

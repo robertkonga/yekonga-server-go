@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 
@@ -1170,7 +1169,7 @@ func orderedFields(fields map[string][]*ast.Field) []*orderedField {
 		}
 	}
 
-	sort.Ints(startLocs)
+	// sort.Ints(startLocs)
 	for _, startLoc := range startLocs {
 		orderedFields = append(orderedFields, fieldMap[startLoc])
 	}

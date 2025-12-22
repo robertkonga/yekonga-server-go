@@ -87,11 +87,11 @@ func (con *mysqlConnection) graph() *datatype.DataMap {
 	return &datatype.DataMap{}
 }
 
-func (con *mysqlConnection) create(data interface{}) (*datatype.DataMap, error) {
+func (con *mysqlConnection) create(data datatype.DataMap) (*datatype.DataMap, error) {
 	return nil, nil
 }
 
-func (con *mysqlConnection) createMany(data []interface{}) (*[]datatype.DataMap, error) {
+func (con *mysqlConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result *[]datatype.DataMap
 	// res, err := con.collection().InsertMany(*con.ctx, data)
 
@@ -107,12 +107,12 @@ func (con *mysqlConnection) createMany(data []interface{}) (*[]datatype.DataMap,
 	return result, nil
 }
 
-func (con *mysqlConnection) update(data interface{}) (*datatype.DataMap, error) {
+func (con *mysqlConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
 	return nil, nil
 
 }
 
-func (con *mysqlConnection) updateMany(data interface{}) (*[]datatype.DataMap, error) {
+func (con *mysqlConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
 	return nil, nil
 
 }

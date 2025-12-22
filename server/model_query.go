@@ -74,6 +74,7 @@ func (m *DataModelQuery) NewInstance() *DataModelQuery {
 }
 
 func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
+	var newValue = value
 	if m.where == nil {
 		m.where = make(datatype.DataMap)
 	}
@@ -84,7 +85,7 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 		}
 
 		if v, ok := value.(string); ok {
-			value = helper.ObjectID(v)
+			newValue = helper.ObjectID(v)
 		} else if helper.IsArray(value) {
 			array := helper.ToList[interface{}](value)
 			count := len(array)
@@ -94,7 +95,7 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 				vpi = append(vpi, helper.ObjectID(array[i]))
 			}
 
-			value = vpi
+			newValue = vpi
 		} else if v, ok := value.(map[string]interface{}); ok {
 			vp := make(map[string]interface{})
 
@@ -112,27 +113,27 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 
 					vp[ki] = vpi
 				} else {
-					vp[ki] = vi
+					vp[ki] = helper.ObjectID(vi)
 				}
 			}
 
-			value = vp
+			newValue = vp
 		}
 	}
 
 	if w, ok := m.where[name]; ok {
 		w1, ok1 := w.(map[string]interface{})
-		w2, ok2 := value.(map[string]interface{})
+		w2, ok2 := newValue.(map[string]interface{})
 
 		if ok1 && ok2 {
 			for kii, vii := range w2 {
 				w1[kii] = vii
 			}
 		} else {
-			m.where[name] = value
+			m.where[name] = newValue
 		}
 	} else {
-		m.where[name] = value
+		m.where[name] = newValue
 	}
 
 	return m
@@ -248,7 +249,7 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		data = v
 	}
 
-	result, err := m.collection().create(m.formatInputData(data, CreateInputAction))
+	result, err := m.collection().create(*(m.formatInputData(data, CreateInputAction)))
 
 	if err != nil {
 		return err
@@ -273,7 +274,7 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		data = v
 	}
 
-	result, err := m.collection().update(m.formatInputData(data, UpdateInputAction))
+	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
 
 	if err != nil {
 		return err
@@ -306,8 +307,8 @@ func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interfa
 	}
 
 	result := map[string]interface{}{}
-	formattedCreateData := make([]interface{}, 0, len(data))
-	formattedUpdateData := make([]interface{}, 0, len(data))
+	formattedCreateData := make([]datatype.DataMap, 0, len(data))
+	formattedUpdateData := make([]datatype.DataMap, 0, len(data))
 	// inputIds := []string{}
 
 ParentLoop:
@@ -674,7 +675,7 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 
 	chartData, err := chart.BuildGraph(whereFilter, false)
 	if err != nil {
-		console.Log(err.Error())
+		return err
 	}
 
 	return helper.ToMap[interface{}](chartData)
@@ -738,6 +739,7 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 				formatInput[k] = m.formatInputDataField(k, v)
 			}
 		}
+
 	case ActionInputAction:
 		for k, v := range input {
 			formatInput[k] = m.formatInputDataField(k, v)
@@ -750,14 +752,18 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 func (m *DataModelQuery) formatInputDataField(key string, value interface{}) interface{} {
 	var v interface{}
 
-	if helper.Contains(m.Model.RelativeKeys, key) || key == "id" || key == "_id" {
-		v = helper.ObjectID(value)
-	} else if helper.Contains(m.Model.DateFields, key) {
-		v = helper.GetTimestamp(value)
-	} else if helper.Contains(m.Model.NumberFields, key) {
-		v = helper.ToInt(value)
-	} else if helper.Contains(m.Model.FloatFields, key) {
-		v = helper.ToFloat(value)
+	if helper.IsNotEmpty(value) {
+		if helper.Contains(m.Model.RelativeKeys, key) || key == "id" || key == "_id" {
+			v = helper.ObjectID(value)
+		} else if helper.Contains(m.Model.DateFields, key) {
+			v = helper.GetTimestamp(value)
+		} else if helper.Contains(m.Model.NumberFields, key) {
+			v = helper.ToInt(value)
+		} else if helper.Contains(m.Model.FloatFields, key) {
+			v = helper.ToFloat(value)
+		} else {
+			v = value
+		}
 	} else {
 		v = value
 	}

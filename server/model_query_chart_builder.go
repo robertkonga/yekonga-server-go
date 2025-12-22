@@ -1,6 +1,7 @@
 package Yekonga
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -95,6 +96,24 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 	groupBy := cb.getColumn(cb.getStringParam(context.Params, "dimensionBreakdown", cb.getStringParam(context.Params, "groupBy", "")))
 	chartType := cb.getStringParam(context.Params, "type", "LINEAR")
 	periodicity := cb.getStringParam(context.Params, "periodicity", "NONE")
+
+	if chartType != "PIE" {
+		if periodicity != "NONE" {
+			if !helper.Contains(cb.dataModel.Model.DateFields, xAxis) {
+				return nil, errors.New(`Field "dimension" must be date / time`)
+			}
+		} else {
+			if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
+				return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + ")")
+			} else if helper.IsEmpty(groupBy) {
+				return nil, errors.New(`Field "dimensionBreakdown" is required when "periodicity" is NONE`)
+			}
+		}
+	} else {
+		if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
+			return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + ")")
+		}
+	}
 
 	var yAxis string
 	if chartType == "PIE" {
@@ -206,13 +225,12 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 		}
 	}
 
-	// console.Log("periodicity", startDate)
 	// console.Log("periodicity", periodicity)
 	// console.Log("periodicity", string(PeriodicityMonthly))
 
 	// Configure grouping based on periodicity and parameters
 	cb.configureGrouping(periodicity, xAxis, groupBy, yAxis, TotalType(totalType))
-	// console.Success("cb.dataModel.where", cb.dataModel.where)
+
 	localList := cb.dataModel.Find(nil)
 	dataList := helper.ToMapList[interface{}](*localList)
 	// console.Log("dataList", dataList)
@@ -220,7 +238,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 	// Format data based on chart type
 	var err error
 	if data.Type == ChartTypePie {
-		data, err = cb.getPieChartFormat(dataList, context.Params, startDate, endDate, isAdmin, xAxis, yAxis, TotalType(totalType), Periodicity(periodicity), groupBy)
+		data, err = cb.getPieChartFormat(dataList, context.Params, startDate, endDate, isAdmin, xAxis, TotalType(totalType), Periodicity(periodicity))
 	} else {
 		data, err = cb.getLinearChartFormat(dataList, context.Params, startDate, endDate, isAdmin, xAxis, yAxis, TotalType(totalType), Periodicity(periodicity), groupBy)
 	}
@@ -281,15 +299,20 @@ func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis, groupBy, yA
 			xAxis: map[string]string{"$type": "date"},
 		})
 		cb.dataModel.GroupByRaw("_id", groupByConfig)
-	} else if xAxis != "" && periodicity == "NONE" {
+	} else if helper.IsNotEmpty(xAxis) && helper.IsNotEmpty(groupBy) && periodicity == "NONE" {
 		groupByConfig := map[string]interface{}{
 			"group":     fmt.Sprintf("$%s", groupBy),
 			"dimension": fmt.Sprintf("$%s", xAxis),
 		}
 		cb.dataModel.GroupByRaw("_id", groupByConfig)
-	} else if xAxis == "" && periodicity == "NONE" {
+	} else if helper.IsEmpty(xAxis) && helper.IsNotEmpty(groupBy) && periodicity == "NONE" {
 		groupByConfig := map[string]interface{}{
 			"group": fmt.Sprintf("$%s", groupBy),
+		}
+		cb.dataModel.GroupByRaw("_id", groupByConfig)
+	} else if helper.IsNotEmpty(xAxis) && helper.IsEmpty(groupBy) && periodicity == "NONE" {
+		groupByConfig := map[string]interface{}{
+			"dimension": fmt.Sprintf("$%s", xAxis),
 		}
 		cb.dataModel.GroupByRaw("_id", groupByConfig)
 	}
@@ -310,11 +333,12 @@ func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis, groupBy, yA
 }
 
 // getPieChartFormat formats data for pie charts
-func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, params map[string]interface{}, startDate, endDate time.Time, isAdmin bool, xAxis, yAxis string, totalType TotalType, periodicity Periodicity, groupBy string) (*ChartData, error) {
+func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, params map[string]interface{}, startDate, endDate time.Time, isAdmin bool, groupBy string, totalType TotalType, periodicity Periodicity) (*ChartData, error) {
 	data := &ChartData{
 		Type: ChartTypePie,
 	}
 
+	// console.Log("groupBy", groupBy, "xAxis", groupBy)
 	groups := cb.getGroups(params, groupBy, true, helper.GetFirst(helper.GetValueOfMap(params, "dimensionBreakdownWhere")))
 	// console.Log("groups", groups)
 
@@ -330,7 +354,7 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 	for _, row := range collection {
 		for key := range groups {
 			if id, ok := row["_id"].(map[string]interface{}); ok {
-				if group, exists := id["group"]; exists && group == key {
+				if group, exists := id["dimension"]; exists && group == key {
 					if total, ok := row["total"].(float64); ok {
 						groupValues[key] += total
 					} else if totalStr, ok := row["total"].(string); ok {
@@ -339,7 +363,7 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 						}
 					}
 				}
-			} else if group, ok := row["group"]; ok && group == key {
+			} else if group, ok := row["dimension"]; ok && group == key {
 				if total, ok := row["total"].(float64); ok {
 					groupValues[key] += total
 				} else if totalStr, ok := row["total"].(string); ok {
@@ -399,11 +423,6 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 	// Get periods
 	periods := cb.getPeriods(params, startDate, endDate, isAdmin, xAxis, yAxis, totalType, periodicity, groupBy)
 
-	// console.Log("periods", periods)
-	// console.Log("periods.startDate", startDate)
-	// console.Log("periods.endDate", endDate)
-	// Process data for each period
-	// for keyPeriod, currentPeriod := range periods {
 	periodKeys := make([]string, 0, len(periods))
 	for k := range periods {
 		periodKeys = append(periodKeys, k)
@@ -417,8 +436,11 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 
 		for key := range groups {
 			groupValues[key] = 0
+			// console.Log("keyPeriod", keyPeriod, "keyGroup", key)
 
 			for _, row := range collection {
+				// console.Log(key, keyPeriod, row)
+
 				if cb.matchesGroupAndPeriod(row, key, keyPeriod) {
 					if total, ok := row["total"].(float64); ok {
 						groupValues[key] = total
@@ -623,9 +645,14 @@ func (cb *ChartBuilder) getPeriods(params map[string]interface{}, startDate, end
 func (cb *ChartBuilder) matchesGroupAndPeriod(row map[string]interface{}, groupKey, periodKey string) bool {
 	period, periodOk := row["period"]
 	group, groupOk := row["group"]
+	dimension, dimensionOk := row["dimension"]
 
 	if periodOk && groupOk {
 		return period == periodKey && group == groupKey
+	}
+
+	if periodOk && dimensionOk {
+		return period == periodKey && dimension == groupKey
 	}
 
 	if id, ok := row["_id"].(map[string]interface{}); ok {
@@ -644,6 +671,10 @@ func (cb *ChartBuilder) matchesGroupAndPeriod(row map[string]interface{}, groupK
 
 			return dimension == periodKey && group == groupKey
 		}
+	}
+
+	if periodOk && !groupOk && !dimensionOk {
+		return period == periodKey
 	}
 
 	return false

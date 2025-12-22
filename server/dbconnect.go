@@ -55,10 +55,10 @@ type dataModelQueryStructure interface {
 	average(string) float64
 	graph() *datatype.DataMap
 
-	create(data interface{}) (*datatype.DataMap, error)
-	createMany(data []interface{}) (*[]datatype.DataMap, error)
-	update(data interface{}) (*datatype.DataMap, error)
-	updateMany(data interface{}) (*[]datatype.DataMap, error)
+	create(data datatype.DataMap) (*datatype.DataMap, error)
+	createMany(data []datatype.DataMap) (*[]datatype.DataMap, error)
+	update(data datatype.DataMap) (*datatype.DataMap, error)
+	updateMany(data datatype.DataMap) (*[]datatype.DataMap, error)
 	delete() (interface{}, error)
 }
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
@@ -258,12 +257,12 @@ func isValidInputValue(value interface{}, ttype Input) (bool, []string) {
 		for fieldName := range fields {
 			fieldNames = append(fieldNames, fieldName)
 		}
-		sort.Strings(fieldNames)
+		// sort.Strings(fieldNames)
 
 		for fieldName := range valueMap {
 			valueMapFieldNames = append(valueMapFieldNames, fieldName)
 		}
-		sort.Strings(valueMapFieldNames)
+		// sort.Strings(valueMapFieldNames)
 
 		// Ensure every provided field is defined.
 		for _, fieldName := range valueMapFieldNames {

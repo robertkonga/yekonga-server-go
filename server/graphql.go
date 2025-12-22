@@ -650,6 +650,8 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 	name := helper.ToCamelCase(helper.Singularize(collection))
 
 	enumKind := g.EnumTypes[helper.ToCamelCase(""+name+"_enum_fields")]
+	structureEnumKind := g.EnumTypes[helper.ToCamelCase(""+name+"_structured_enum_fields")]
+
 	whereKind := g.MutationTypes[helper.ToCamelCase("where_"+name+"_input")]
 	orderByKind := g.MutationTypes[helper.ToCamelCase("order_by_"+name+"_input")]
 	argsParams := graphql.FieldConfigArgument{
@@ -675,13 +677,13 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			Type: GeneralPeriodicityEnum,
 		},
 		"dimension": &graphql.ArgumentConfig{
-			Type: graphql.NewNonNull(enumKind),
+			Type: graphql.NewNonNull(structureEnumKind),
 		},
 		"dimensionSort": &graphql.ArgumentConfig{
 			Type: graphql.NewList(orderByKind),
 		},
 		"dimensionBreakdown": &graphql.ArgumentConfig{
-			Type: enumKind,
+			Type: structureEnumKind,
 		},
 		"dimensionBreakdownSort": &graphql.ArgumentConfig{
 			Type: graphql.NewList(orderByKind),
@@ -693,10 +695,10 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			Type: GeneralPeriodicityEnum,
 		},
 		"metric": &graphql.ArgumentConfig{
-			Type: enumKind,
+			Type: structureEnumKind,
 		},
 		"metrics": &graphql.ArgumentConfig{
-			Type: graphql.NewList(enumKind),
+			Type: graphql.NewList(structureEnumKind),
 		},
 		"from": &graphql.ArgumentConfig{
 			Type: ScalarDateType,
@@ -740,7 +742,12 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			model := g.yekonga.ModelQuery(name)
 			g.setModelParams(model, &p, foreignKey, targetKey)
 
-			return model.Graph(nil, &p), nil
+			result := model.Graph(nil, &p)
+			if err, ok := result.(error); ok {
+				return nil, err
+			}
+
+			return result, nil
 		},
 	}
 }
@@ -1245,11 +1252,19 @@ func (g *GraphqlAutoBuild) addModelEnumType(collection string, model *DataModel)
 	}
 
 	var name = helper.ToCamelCase("" + model.VariableSingle + "_enum_fields")
+	var nameStructured = helper.ToCamelCase("" + model.VariableSingle + "_structured_enum_fields")
 	var fields = make(graphql.EnumValueConfigMap)
+	var structuredFields = make(graphql.EnumValueConfigMap)
 
 	for k, v := range model.Fields {
 		fields[k] = &graphql.EnumValueConfig{
 			Value: v.Name,
+		}
+
+		if len(v.Options) > 0 || v.Kind == DataModelDate || helper.Contains(model.ParentKeys, v.Name) {
+			structuredFields[k] = &graphql.EnumValueConfig{
+				Value: v.Name,
+			}
 		}
 	}
 
@@ -1257,8 +1272,18 @@ func (g *GraphqlAutoBuild) addModelEnumType(collection string, model *DataModel)
 		Name:   name,
 		Values: fields,
 	})
-
 	g.EnumTypes[name] = object
+
+	if len(structuredFields) == 0 {
+		structuredFields = fields
+	}
+
+	var structuredObject = graphql.NewEnum(graphql.EnumConfig{
+		Name:   nameStructured,
+		Values: structuredFields,
+	})
+
+	g.EnumTypes[nameStructured] = structuredObject
 }
 
 func (g *GraphqlAutoBuild) addWhereInputType(collection string, model *DataModel) {
@@ -1650,9 +1675,11 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 				model.Where(foreignKey, localParent[targetKey])
 			}
 		}
+	} else {
 	}
 
 	filters := g.getWhereField(p.Args)
+
 	model.QueryContext.AccessRole = g.getAccessRoleField(p.Args, accessRole)
 	model.QueryContext.Route = g.getRouteField(p.Args, route)
 	model.QueryContext.Filters = &filters
@@ -1672,11 +1699,16 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 		model.WhereAll(localWhere)
 	}
 
-	if p, ok := parent.(datatype.DataMap); ok {
-		model.QueryContext.Parent = &p
+	if helper.IsMap(parent) {
 		localParent := helper.ToMap[interface{}](parent)
+
+		model.QueryContext.Parent = &p
 		if helper.IsMap(localParent) && helper.IsNotEmpty(foreignKey) {
-			model.Where(foreignKey, localParent[targetKey])
+			if helper.Contains(model.Model.ParentKeys, foreignKey) {
+				model.Where(foreignKey, localParent[targetKey])
+			} else {
+				model.Where(targetKey, localParent[foreignKey])
+			}
 		}
 	}
 

@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -684,6 +683,6 @@ func (ss sortableString) Swap(i, j int) {
 
 func sortStringAlphebeticAscending(s string) string {
 	ss := sortableString([]rune(s))
-	sort.Sort(ss)
+	// sort.Sort(ss)
 	return string([]rune(ss))
 }

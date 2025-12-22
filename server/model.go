@@ -71,6 +71,7 @@ type DataModel struct {
 	Required       []string
 	Protected      []string
 	DateFields     []string
+	OptionFields   []string
 	FileFields     []string
 	ValidFields    []string
 	BooleanFields  []string
@@ -186,6 +187,7 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 	m.VariablePlural = helper.ToVariable(helper.Pluralize(collection))
 	m.Fields = make(map[string]DataModelField)
 	m.DateFields = make([]string, 0, count)
+	m.OptionFields = make([]string, 0, count)
 	m.FileFields = make([]string, 0, count)
 	m.ValidFields = make([]string, 0, count)
 	m.ParentKeys = make([]string, 0, count)
@@ -234,6 +236,9 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 		}
 		if field.Kind == DataModelFloat {
 			m.FloatFields = append(m.FloatFields, k)
+		}
+		if len(field.Options) > 0 {
+			m.OptionFields = append(m.OptionFields, k)
 		}
 
 		if helper.IsNotEmpty(field.ForeignKey.ModelName) {
@@ -319,12 +324,14 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 	}
 
 	if v, ok := field["options"]; ok {
-		if vi, oki := v.([]string); oki {
+		if helper.IsArray(v) {
+			vi := helper.ToList[interface{}](v)
+
 			if len(vi) > 0 {
 				for _, vii := range vi {
 					options = append(options, DataModelFieldOptions{
-						Value: vii,
-						Label: helper.ToTitle(vii),
+						Value: helper.ToString(vii),
+						Label: helper.ToTitle(helper.ToString(vii)),
 					})
 				}
 			}

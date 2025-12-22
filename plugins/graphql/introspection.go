@@ -3,7 +3,6 @@ package graphql
 import (
 	"fmt"
 	"reflect"
-	"sort"
 
 	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
 	"github.com/robertkonga/yekonga-server/plugins/graphql/language/printer"
@@ -535,14 +534,15 @@ func init() {
 					return nil, nil
 				}
 				fields := []*FieldDefinition{}
-				var fieldNames sort.StringSlice
+				// var fieldNames sort.StringSlice
+				var fieldNames []string
 				for name, field := range ttype.Fields() {
 					if !includeDeprecated && field.DeprecationReason != "" {
 						continue
 					}
 					fieldNames = append(fieldNames, name)
 				}
-				sort.Sort(fieldNames)
+				// sort.Sort(fieldNames)
 				for _, name := range fieldNames {
 					fields = append(fields, ttype.Fields()[name])
 				}

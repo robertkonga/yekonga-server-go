@@ -406,7 +406,7 @@ func (con *mongodbConnection) graph() *datatype.DataMap {
 	return &datatype.DataMap{}
 }
 
-func (con *mongodbConnection) create(data interface{}) (*datatype.DataMap, error) {
+func (con *mongodbConnection) create(data datatype.DataMap) (*datatype.DataMap, error) {
 	var result *datatype.DataMap
 	res, err := con.collection().InsertOne(*con.ctx, data)
 
@@ -422,7 +422,7 @@ func (con *mongodbConnection) create(data interface{}) (*datatype.DataMap, error
 	return result, nil
 }
 
-func (con *mongodbConnection) createMany(data []interface{}) (*[]datatype.DataMap, error) {
+func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result *[]datatype.DataMap
 	res, err := con.collection().InsertMany(*con.ctx, data)
 
@@ -440,10 +440,10 @@ func (con *mongodbConnection) createMany(data []interface{}) (*[]datatype.DataMa
 	return result, nil
 }
 
-func (con *mongodbConnection) update(data interface{}) (*datatype.DataMap, error) {
+func (con *mongodbConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
 	var result *datatype.DataMap
 	res, err := con.collection().UpdateOne(*con.ctx, con.where(), datatype.DataMap{
-		"$set": helper.ToMap[interface{}](data),
+		"$set": data,
 	})
 
 	if err != nil {
@@ -458,10 +458,10 @@ func (con *mongodbConnection) update(data interface{}) (*datatype.DataMap, error
 	return result, nil
 }
 
-func (con *mongodbConnection) updateMany(data interface{}) (*[]datatype.DataMap, error) {
+func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result *[]datatype.DataMap
 	res, err := con.collection().UpdateMany(*con.ctx, con.where(), datatype.DataMap{
-		"$set": helper.ToMap[interface{}](data),
+		"$set": data,
 	})
 
 	if err != nil {

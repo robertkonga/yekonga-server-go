@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
@@ -304,8 +303,8 @@ func getSuggestedTypeNames(schema *Schema, ttype Output, fieldName string) []str
 	}
 
 	// sort results (by count usage for interfaces, alphabetical order for objects)
-	sort.Sort(suggestedInterfaceSortedSlice(suggestedInterfaces))
-	sort.Sort(sort.StringSlice(suggestedObjectTypes))
+	// sort.Sort(suggestedInterfaceSortedSlice(suggestedInterfaces))
+	// sort.Sort(sort.StringSlice(suggestedObjectTypes))
 
 	// return concatenated slices of both interface and object type names
 	// and removing duplicates
@@ -1843,7 +1842,7 @@ func suggestionList(input string, options []string) []string {
 	}
 	//sort results
 	suggested := suggestionListResult{filteredOpts, dists}
-	sort.Sort(suggested)
+	// sort.Sort(suggested)
 	return suggested.Options
 }
 
