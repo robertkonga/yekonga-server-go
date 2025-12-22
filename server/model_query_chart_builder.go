@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server/helper/console"
 )
 
 // ChartType represents the type of chart
@@ -340,19 +341,16 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 
 	// console.Log("groupBy", groupBy, "xAxis", groupBy)
 	groups := cb.getGroups(params, groupBy, true, helper.GetFirst(helper.GetValueOfMap(params, "dimensionBreakdownWhere")))
-	// console.Log("groups", groups)
-
-	var labels []string
+	console.Log(groups)
 	groupValues := make(map[string]float64)
 
-	for key, value := range groups {
-		labels = append(labels, value)
+	for key := range groups {
 		groupValues[key] = 0
 	}
 
 	// Process collection data
-	for _, row := range collection {
-		for key := range groups {
+	for key := range groups {
+		for _, row := range collection {
 			if id, ok := row["_id"].(map[string]interface{}); ok {
 				if group, exists := id["dimension"]; exists && group == key {
 					if total, ok := row["total"].(float64); ok {
@@ -383,9 +381,12 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 	}
 
 	count := 0
-	// for key, value := range groupValues {
-	for _, value := range groupValues {
-		dataset.Data = append(dataset.Data, value)
+	labels := make([]string, 0)
+	sortedKeys := helper.SortedKeys(groups)
+	for _, key := range sortedKeys {
+		labels = append(labels, groups[key])
+
+		dataset.Data = append(dataset.Data, groupValues[key])
 		dataset.BackgroundColor = append(dataset.BackgroundColor, cb.getRandomColor(count))
 		count++
 	}
@@ -466,8 +467,10 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 	}
 
 	// Convert to response format
-	for _, dataset := range datasets {
-		data.Datasets = append(data.Datasets, dataset)
+	sortedKeys := helper.SortedKeys(datasets)
+
+	for _, key := range sortedKeys {
+		data.Datasets = append(data.Datasets, datasets[key])
 	}
 
 	return data, nil

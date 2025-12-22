@@ -2,6 +2,7 @@ package helper
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -283,6 +285,44 @@ func Reverse[T interface{}](slice []T) {
 	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
 		slice[i], slice[j] = slice[j], slice[i]
 	}
+}
+
+func SortMap[T interface{}](options map[string]T) map[string]T {
+	// 1. Get all keys into a slice
+	keys := make([]string, 0, len(options))
+	for k := range options {
+		keys = append(keys, k)
+	}
+
+	// 2. Sort the keys based on the map values
+	slices.SortFunc(keys, func(a, b string) int {
+		return cmp.Compare(ToString(options[a]), ToString(options[b]))
+	})
+
+	// 3. Print the results in order
+	fmt.Println("Sorted by Value:", keys)
+	newOptions := make(map[string]T)
+	for _, k := range keys {
+		fmt.Printf("%s: %s\n", k, options[k])
+		newOptions[k] = options[k]
+	}
+
+	return newOptions
+}
+
+func SortedKeys[T interface{}](options map[string]T) []string {
+	// 1. Get all keys into a slice
+	keys := make([]string, 0, len(options))
+	for k := range options {
+		keys = append(keys, k)
+	}
+
+	// 2. Sort the keys based on the map values
+	slices.SortFunc(keys, func(a, b string) int {
+		return cmp.Compare(ToString(options[a]), ToString(options[b]))
+	})
+
+	return keys
 }
 
 // ToCamelCase converts a string to CamelCase
