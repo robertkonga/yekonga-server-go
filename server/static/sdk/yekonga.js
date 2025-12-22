@@ -122,9 +122,9 @@ class YekongaCloudFunction {
     }
 
     setChannel(namespace, options = {}) {
-        if (window.io) {
+        if (window.YekongaSocket) {
             if(!this.customSockets[namespace]) {
-                this.customSockets[namespace] = window.io.connect(`${this.socketUrl}/${namespace}`, options);
+                this.customSockets[namespace] = window.YekongaSocket(`${this.socketUrl}/${namespace}`, options);
             }
         }
 
@@ -145,7 +145,7 @@ class YekongaCloudFunction {
         const $this = this;
         let socketChecker = setInterval(() => {
             // @ts-ignore
-            if (window.io) {
+            if (window.YekongaSocket) {
                 $this._setSocketListeners();
 
                 clearInterval(socketChecker);
@@ -180,11 +180,11 @@ class YekongaCloudFunction {
         }
 
         // @ts-ignore
-        if (window.io) {
+        if (window.YekongaSocket) {
             // @ts-ignore
-            this.socket = window.io.connect(`${this.socketUrl}`, options);
+            this.socket = window.YekongaSocket(`${this.socketUrl}`, options);
             // @ts-ignore
-            this.socketSystem = window.io.connect(`${this.socketUrl}/system`, options);
+            this.socketSystem = window.YekongaSocket(`${this.socketUrl}/system`, options);
 
             this.socket.on('connect', () => {
                 console.debug(`${$this._socketId} connect`);

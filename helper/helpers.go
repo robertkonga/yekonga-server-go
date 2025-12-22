@@ -24,6 +24,7 @@ import (
 	"github.com/robertkonga/yekonga-server/helper/console"
 	"github.com/robertkonga/yekonga-server/helper/logger"
 	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server/plugins/uuid"
 )
 
 func IsMap(data interface{}) bool {
@@ -144,6 +145,12 @@ func ToInterface(data interface{}) (interface{}, error) {
 	}
 
 	return result, nil
+}
+
+func UUID() string {
+	id, _ := uuid.NewV1()
+
+	return id.String()
 }
 
 func IsSlice(v interface{}) bool {

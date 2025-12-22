@@ -15,7 +15,6 @@ import (
 	"github.com/robertkonga/yekonga-server/datatype"
 	"github.com/robertkonga/yekonga-server/helper"
 	"github.com/robertkonga/yekonga-server/helper/logger"
-	"github.com/robertkonga/yekonga-server/plugins/socketio"
 )
 
 // StaticConfig holds configuration for static file serving
@@ -60,7 +59,7 @@ type YekongaData struct {
 	databaseStructure      *DatabaseStructureType
 	graphqlBuild           *GraphqlAutoBuild
 	Config                 *config.YekongaConfig
-	socketServer           *socketio.Server
+	socketServer           *SocketServer
 	dbConnect              *DatabaseConnections
 	staticConfig           []*StaticConfig
 	logger                 *log.Logger
@@ -526,7 +525,6 @@ func (y *YekongaData) Start(address interface{}) {
 		go func() {
 			httpMux := http.NewServeMux()
 
-			// httpMux.Handle("/socket.io/", y.socketServer)
 			httpMux.HandleFunc("/", redirectToHTTPS)
 
 			err := http.ListenAndServe(":"+fmt.Sprint(y.Config.Ports.Server), httpMux)
@@ -539,8 +537,6 @@ func (y *YekongaData) Start(address interface{}) {
 			logger.Error("Error starting https server", err)
 		}
 	} else {
-		// http.Handle("/socket.io/", y.socketServer)
-
 		if err := http.ListenAndServe(serverPort, y); err != nil {
 			logger.Error("Error starting server", err)
 		}

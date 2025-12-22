@@ -209,8 +209,7 @@ func (y *YekongaData) initializer_other_routes() {
 		content, _ = StaticFS.ReadFile("static/sdk/simplepeer.min.js")
 		scripts += string(content) + "\n"
 
-		content, _ = StaticFS.ReadFile("static/sdk/socket.io.min.js")
-		// content, _ = StaticFS.ReadFile("static/sdk/socket.io.min.2.4.0.js")
+		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
 		scripts += string(content) + "\n"
 
 		var config string = "window.YekongaServer = {};\n" +
@@ -289,12 +288,11 @@ func (y *YekongaData) initializer_other_routes() {
 
 func (y *YekongaData) initializer_socket_routes() {
 
-	y.Get("/socket.io/socket.io.js", func(req *Request, res *Response) {
+	y.Get("/yekonga.io/yekonga.io.js", func(req *Request, res *Response) {
 		scripts := ""
 		var content []byte
 
-		content, _ = StaticFS.ReadFile("static/sdk/socket.io.min.js")
-		// content, _ = StaticFS.ReadFile("static/sdk/socket.io.min.2.4.0.js")
+		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
 		scripts += string(content) + "\n"
 
 		res.Header("Cache-Control", "public, max-age=0")
@@ -302,12 +300,11 @@ func (y *YekongaData) initializer_socket_routes() {
 		res.Byte([]byte(scripts))
 	})
 
-	y.All("/socket.io/", func(req *Request, res *Response) {
+	y.All("/yekonga.io/", func(req *Request, res *Response) {
 
 		res.httpResponseWriter.Header().Set("access-control-allow-origin", "*")
 		res.httpResponseWriter.Header().Add("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
 
-		y.socketServer.ServeHTTP(res.httpResponseWriter, req.HttpRequest)
+		y.socketServer.ServeWS(res.httpResponseWriter, req.HttpRequest)
 	})
-
 }
