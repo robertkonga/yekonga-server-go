@@ -31,26 +31,56 @@ var ScalarDateType = graphql.NewScalar(graphql.ScalarConfig{
 		if t, ok := value.(time.Time); ok {
 			return t.Format(time.RFC3339) // Convert time to string format
 		} else if t, ok := value.(bson.DateTime); ok {
-			return t.Time() // Convert time to string format
+			return t.Time().Format(time.RFC3339) // Convert time to string format
 		}
+
 		return value
 	},
 	ParseValue: func(value interface{}) interface{} {
-		if str, ok := value.(string); ok {
-			t, err := time.Parse(time.RFC3339, str)
-			if err == nil {
-				return t // Convert string to time.Time
-			}
+		result := helper.StringToDatetime(value)
+		if result != nil {
+			return *result
 		}
+
 		return nil
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
-		if strValue, ok := valueAST.GetValue().(string); ok {
-			t, err := time.Parse(time.RFC3339, strValue)
-			if err == nil {
-				return t
-			}
+		result := helper.StringToDatetime(valueAST.GetValue())
+		if result != nil {
+			return *result
 		}
+
+		return nil
+	},
+})
+
+// Define the custom Date scalar type
+var ScalarTimeOnlyType = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "TimeOnly",
+	Description: "Custom scalar type for TimeOnly",
+	Serialize: func(value interface{}) interface{} {
+		if t, ok := value.(time.Time); ok {
+			return t.Format(time.TimeOnly) // Convert time to string format
+		} else if t, ok := value.(bson.DateTime); ok {
+			return t.Time().Format(time.TimeOnly) // Convert time to string format
+		}
+
+		return value
+	},
+	ParseValue: func(value interface{}) interface{} {
+		result := helper.StringToTimeOnly(value)
+		if result != nil {
+			return *result
+		}
+
+		return nil
+	},
+	ParseLiteral: func(valueAST ast.Value) interface{} {
+		result := helper.StringToTimeOnly(valueAST.GetValue())
+		if result != nil {
+			return *result
+		}
+
 		return nil
 	},
 })
@@ -326,6 +356,9 @@ var GraphDataset = graphql.NewObject(graphql.ObjectConfig{
 	Fields: graphql.Fields{
 		"label": &graphql.Field{
 			Type: graphql.String,
+		},
+		"color": &graphql.Field{
+			Type: graphql.NewList(graphql.String),
 		},
 		"backgroundColor": &graphql.Field{
 			Type: graphql.NewList(graphql.String),

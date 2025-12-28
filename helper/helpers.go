@@ -339,6 +339,80 @@ func ToCamelCase(s string) string {
 	return strings.Join(words, "")
 }
 
+func StringToDatetime(value interface{}) *time.Time {
+	if strValue, ok := value.(string); ok {
+		var t time.Time
+		var err error
+
+		t, err = time.Parse(time.DateOnly, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.DateTime, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.UnixDate, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.RFC3339, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.RFC822, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.TimeOnly, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.RFC850, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.UnixDate, strValue)
+		if err == nil {
+			return &t
+		}
+
+	} else if strValue, ok := value.(time.Time); ok {
+		return &strValue
+	}
+
+	return nil
+}
+
+func StringToTimeOnly(value interface{}) *time.Time {
+	if strValue, ok := value.(string); ok {
+		var t time.Time
+		var err error
+
+		t, err = time.Parse(time.TimeOnly, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(time.Kitchen, strValue)
+		if err == nil {
+			return &t
+		}
+
+	} else if strValue, ok := value.(time.Time); ok {
+		return &strValue
+	}
+
+	return nil
+}
+
 // ToSlug converts a string to a URL-friendly slug
 func ToSlug(s string) string {
 	// Convert to lowercase
@@ -756,13 +830,9 @@ func ConvertCalculatedValue(value interface{}) interface{} {
 }
 
 func GetTimestamp(value interface{}) time.Time {
-	layout := "2006-01-02 15:04:05"
-	if v, ok := value.(string); ok {
-		parsedTime, _ := time.Parse(layout, v)
-
-		return parsedTime.UTC()
-	} else if v, ok := value.(time.Time); ok {
-		return v
+	result := StringToDatetime(value)
+	if result != nil {
+		return *result
 	}
 
 	return time.Now().UTC()

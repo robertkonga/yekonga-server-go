@@ -198,11 +198,15 @@ func (g *GraphqlAutoBuild) getQuerySingleField(collection string, foreignKey str
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			status := g.setModelParams(model, &p, foreignKey, targetKey)
+
+			if status == false {
+				return nil, nil
+			}
 
 			data := model.FindOne(nil)
 
-			if *data != nil {
+			if data != nil && *data != nil {
 				return g.formateOutputData(model, *data, foreignKey, targetKey), nil
 			}
 
@@ -732,6 +736,7 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 		Description: fmt.Sprintf("Get %v", name),
 		Args:        argsParams,
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
@@ -742,7 +747,9 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			model := g.yekonga.ModelQuery(name)
 			g.setModelParams(model, &p, foreignKey, targetKey)
 
-			result := model.Graph(nil, &p)
+			localWhere := helper.ToMap[interface{}](p.Args["where"])
+
+			result := model.Graph(localWhere, &p)
 			if err, ok := result.(error); ok {
 				return nil, err
 			}
@@ -1009,7 +1016,7 @@ func (g *GraphqlAutoBuild) getMutationActionField(collection string, foreignKey 
 					Parent:     &parent,
 					Input:      &data,
 					Filters:    &filters,
-					Params:     make(map[string]interface{}),
+					Params:     p.Args,
 				})
 			}
 
@@ -1643,7 +1650,7 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 	return f
 }
 
-func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string) {
+func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string) bool {
 	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 	parent := p.Source
 	var accessRole string
@@ -1671,8 +1678,14 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 		if ppp, ok := pp.Source.(datatype.DataMap); ok {
 			model.QueryContext.Parent = &ppp
 			localParent := helper.ToMap[interface{}](ppp)
-			if helper.IsMap(localParent) && helper.IsNotEmpty(foreignKey) {
+
+			if helper.Contains(model.Model.ParentKeys, foreignKey) {
 				model.Where(foreignKey, localParent[targetKey])
+			} else {
+				if helper.IsEmpty(localParent[foreignKey]) {
+					return false
+				}
+				model.Where(targetKey, localParent[foreignKey])
 			}
 		}
 	} else {
@@ -1707,6 +1720,10 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 			if helper.Contains(model.Model.ParentKeys, foreignKey) {
 				model.Where(foreignKey, localParent[targetKey])
 			} else {
+				if helper.IsEmpty(localParent[foreignKey]) {
+					return false
+				}
+
 				model.Where(targetKey, localParent[foreignKey])
 			}
 		}
@@ -1754,6 +1771,8 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	if v, ok := p.Args["skip"].(int); ok {
 		model.Skip(v)
 	}
+
+	return true
 }
 
 func (g *GraphqlAutoBuild) loadRelatedData(data *[]datatype.DataMap, model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string) {
@@ -1811,7 +1830,7 @@ func (g *GraphqlAutoBuild) loadRelatedData(data *[]datatype.DataMap, model *Data
 func (g *GraphqlAutoBuild) formateOutputData(model *DataModelQuery, data interface{}, foreignKey string, targetKey string) map[string]interface{} {
 	output := map[string]interface{}{}
 
-	if helper.IsMap(data) {
+	if helper.IsNotEmpty(data) && helper.IsMap(data) {
 		localData := helper.ToMap[interface{}](data)
 		for k, v := range localData {
 			if helper.Contains(model.Model.Protected, k) {

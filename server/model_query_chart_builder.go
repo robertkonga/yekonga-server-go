@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/console"
 )
 
 // ChartType represents the type of chart
@@ -60,6 +59,7 @@ type ResolverChartGroupData struct {
 // Dataset represents chart dataset
 type ChartDataset struct {
 	Label           string    `json:"label"`
+	Color           []string  `json:"color"`
 	BackgroundColor []string  `json:"backgroundColor"`
 	Data            []float64 `json:"data"`
 }
@@ -134,6 +134,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 
 	// Process filters
 	dateKeys := []FilterOperator{FilterGreaterThan, FilterLessThan, FilterGreaterThanOrEqualTo, FilterLessThanOrEqualTo}
+	// console.Error(dateKeys, filter)
 
 	for key, filterValue := range filter {
 		if key == xAxis && len(filterValue.In) >= 2 {
@@ -154,14 +155,16 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 				}
 
 				if val != nil {
-					if t, ok := val.(time.Time); ok {
-						if strings.Contains(string(dateKey), string(FilterGreaterThan)) {
-							minAxis = helper.GetTimestamp(t)
-						}
+					if strings.Contains(string(dateKey), string(FilterGreaterThan)) {
+						minAxis = helper.GetTimestamp(val)
+					} else if strings.Contains(string(dateKey), string(FilterGreaterThanOrEqualTo)) {
+						minAxis = helper.GetTimestamp(val)
+					}
 
-						if strings.Contains(string(dateKey), string(FilterLessThan)) {
-							maxAxis = helper.GetTimestamp(t)
-						}
+					if strings.Contains(string(dateKey), string(FilterLessThan)) {
+						maxAxis = helper.GetTimestamp(val)
+					} else if strings.Contains(string(dateKey), string(FilterLessThanOrEqualTo)) {
+						maxAxis = helper.GetTimestamp(val)
 					}
 				}
 			}
@@ -341,7 +344,6 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 
 	// console.Log("groupBy", groupBy, "xAxis", groupBy)
 	groups := cb.getGroups(params, groupBy, true, helper.GetFirst(helper.GetValueOfMap(params, "dimensionBreakdownWhere")))
-	console.Log(groups)
 	groupValues := make(map[string]float64)
 
 	for key := range groups {
@@ -376,6 +378,7 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 	// Create dataset
 	dataset := ChartDataset{
 		Label:           "",
+		Color:           []string{},
 		BackgroundColor: []string{},
 		Data:            []float64{},
 	}
@@ -384,10 +387,12 @@ func (cb *ChartBuilder) getPieChartFormat(collection []map[string]interface{}, p
 	labels := make([]string, 0)
 	sortedKeys := helper.SortedKeys(groups)
 	for _, key := range sortedKeys {
+		color := cb.getRandomColor(count)
 		labels = append(labels, groups[key])
 
 		dataset.Data = append(dataset.Data, groupValues[key])
-		dataset.BackgroundColor = append(dataset.BackgroundColor, cb.getRandomColor(count))
+		dataset.Color = append(dataset.Color, color)
+		dataset.BackgroundColor = append(dataset.BackgroundColor, color)
 		count++
 	}
 
@@ -413,9 +418,11 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 
 	count := 0
 	for _, key := range groupKeys {
+		color := cb.getRandomColor(count)
 		datasets[key] = ChartDataset{
 			Label:           groups[key],
-			BackgroundColor: []string{cb.getRandomColor(count)},
+			Color:           []string{color},
+			BackgroundColor: []string{color},
 			Data:            []float64{},
 		}
 		count++
@@ -719,8 +726,18 @@ func (cb *ChartBuilder) matchesPeriod(row map[string]interface{}, periodKey stri
 
 func (cb *ChartBuilder) getRandomColor(index int) string {
 	colors := []string{
+		// Your original 10
 		"#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF",
 		"#FF9F40", "#FF6384", "#C9CBCF", "#4BC0C0", "#FF6384",
+
+		// 30 New colors in the same tone
+		"#55efc4", "#81ecec", "#74b9ff", "#a29bfe", "#dfe6e9",
+		"#00b894", "#00cec9", "#0984e3", "#6c5ce7", "#b2bec3",
+		"#ffeaa7", "#fab1a0", "#ff7675", "#fd79a8", "#636e72",
+		"#fdcb6e", "#e17055", "#d63031", "#e84393", "#2d3436",
+		"#badc58", "#dff9fb", "#f9ca24", "#f0932b", "#eb4d4b",
+		"#6ab04c", "#c7ecee", "#7ed6df", "#e056fd", "#686de0",
 	}
+
 	return colors[index%len(colors)]
 }

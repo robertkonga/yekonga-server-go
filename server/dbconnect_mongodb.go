@@ -314,6 +314,7 @@ func (con *mongodbConnection) min(key string) interface{} {
 		AggregateValue interface{} `bson:"aggregateValue"`
 	}
 	if cursor.Next(context.TODO()) {
+
 		if err := cursor.Decode(&result); err != nil {
 			logger.Error("mongodbConnection.min 2", err.Error())
 		}

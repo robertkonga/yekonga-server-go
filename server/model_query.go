@@ -670,7 +670,8 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		return nil
 	}
 
-	// console.Log(whereFilter)
+	// console.Log("where", where)
+	// console.Log("p.Args", p.Args)
 	chart := NewChartBuilder(m)
 
 	chartData, err := chart.BuildGraph(whereFilter, false)
@@ -714,15 +715,23 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 	switch action {
 	case CreateInputAction, ImportInputAction:
 		for _, k := range m.Model.ValidFields {
+			var v interface{} = nil
+
 			if k == "id" {
 				if _, exist := input["_id"]; !exist {
 					k = "_id"
 				} else {
-					continue
+					v = input["_id"]
+				}
+
+				if _, exist := input["id"]; exist {
+					v = input["id"]
 				}
 			}
 
-			var v interface{} = nil
+			if k == "_id" {
+				v = helper.ObjectID(v)
+			}
 
 			if vi, exist := input[k]; exist {
 				v = vi
