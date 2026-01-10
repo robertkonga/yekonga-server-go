@@ -341,6 +341,7 @@ func ToCamelCase(s string) string {
 
 func StringToDatetime(value interface{}) *time.Time {
 	if strValue, ok := value.(string); ok {
+
 		var t time.Time
 		var err error
 
@@ -380,6 +381,19 @@ func StringToDatetime(value interface{}) *time.Time {
 		}
 
 		t, err = time.Parse(time.UnixDate, strValue)
+		if err == nil {
+			return &t
+		}
+
+		ISO_8601 := "2006-01-02T15:04:05Z07:00"
+		RFC_1123Z := "Tue Dec 30 2025 11:00:59 GMT+0300 (East Africa Time)"
+
+		t, err = time.Parse(ISO_8601, strValue)
+		if err == nil {
+			return &t
+		}
+
+		t, err = time.Parse(RFC_1123Z, strValue)
 		if err == nil {
 			return &t
 		}

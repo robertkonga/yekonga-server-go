@@ -12,7 +12,7 @@
 
     <link rel="shortcut icon" href="/playground/favicon.png" />
     <script src="/playground/middleware.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="/yekonga.io/yekonga.io.js"></script>
 
 </head>
 
@@ -572,9 +572,9 @@
             options.query = { token }
         }
 
-        if (window.io) {
+        if (window.YekongaSocket) {
             var socketId = "playground";
-            var socket = window.io.connect(`/`, options);
+            var socket = window.YekongaSocket(`ws://${location.host}/`, options);
 
             socket.on('connect', () => {
                 console.debug(`${socketId} connect`);

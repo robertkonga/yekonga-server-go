@@ -50,7 +50,7 @@ var ScalarDateType = graphql.NewScalar(graphql.ScalarConfig{
 			return *result
 		}
 
-		return nil
+		return NULLValue
 	},
 })
 
@@ -81,7 +81,7 @@ var ScalarTimeOnlyType = graphql.NewScalar(graphql.ScalarConfig{
 			return *result
 		}
 
-		return nil
+		return NULLValue
 	},
 })
 
@@ -106,7 +106,8 @@ var ScalarIDType = graphql.NewScalar(graphql.ScalarConfig{
 		if strValue, ok := valueAST.GetValue().(string); ok {
 			return helper.ObjectID(strValue)
 		}
-		return nil
+
+		return NULLValue
 	},
 })
 
@@ -128,6 +129,29 @@ var ScalarAnyType = graphql.NewScalar(graphql.ScalarConfig{
 		// logger.Success("ParseLiteral")
 		// logger.Success(valueAST)
 		return valueAST.GetValue()
+	},
+})
+
+// Define the custom Any scalar type
+var ScalarStringType = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "CustomString",
+	Description: "Custom scalar type for String",
+	Serialize: func(value interface{}) interface{} {
+		// logger.Success("Serialize")
+		// logger.Success(value)
+		return value
+	},
+	ParseValue: func(value interface{}) interface{} {
+		// logger.Success("ParseValue")
+		// logger.Success(value)
+		return value
+	},
+	ParseLiteral: func(valueAST ast.Value) interface{} {
+		if strValue, ok := valueAST.GetValue().(string); ok {
+			return strValue
+		}
+
+		return NULLValue
 	},
 })
 

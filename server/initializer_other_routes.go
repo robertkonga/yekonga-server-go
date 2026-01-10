@@ -305,6 +305,6 @@ func (y *YekongaData) initializer_socket_routes() {
 		res.httpResponseWriter.Header().Set("access-control-allow-origin", "*")
 		res.httpResponseWriter.Header().Add("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
 
-		y.socketServer.ServeWS(res.httpResponseWriter, req.HttpRequest)
+		y.socketServer.ServeWS(req, res)
 	})
 }

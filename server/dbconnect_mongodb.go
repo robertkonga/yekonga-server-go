@@ -291,8 +291,8 @@ func (con *mongodbConnection) max(key string) interface{} {
 	}
 
 	return result.AggregateValue
-
 }
+
 func (con *mongodbConnection) min(key string) interface{} {
 
 	opts := options.Aggregate()
@@ -625,6 +625,15 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 
 						if filters[k] == nil {
 							filters[k] = datatype.DataMap{}
+						}
+
+						switch vii {
+						case string(NULLValue):
+							vii = nil
+						case string(NullValue):
+							vii = nil
+						case string(nullValue):
+							vii = nil
 						}
 
 						switch ki {

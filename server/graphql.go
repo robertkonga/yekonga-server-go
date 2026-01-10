@@ -13,6 +13,14 @@ import (
 	"github.com/robertkonga/yekonga-server/plugins/graphql"
 )
 
+type EmptyKey string
+
+const (
+	NULLValue EmptyKey = "NULL"
+	nullValue EmptyKey = "null"
+	NullValue EmptyKey = "Null"
+)
+
 // FilterValue represents filter criteria
 type FilterValue struct {
 	In                      []interface{} `json:"in"`
@@ -30,24 +38,37 @@ type FilterValue struct {
 	Options                 interface{}   `json:"options"`
 }
 
+type GraphqlSubscription struct {
+	Client *Client
+	Model  string
+	Body   struct {
+		Query         string
+		OperationName string
+		Variables     map[string]interface{}
+	}
+	Headers map[string]interface{}
+}
+
 type GraphqlAutoBuild struct {
-	yekonga       *YekongaData
-	Database      map[string]*DataModel
-	EnumTypes     map[string]*graphql.Enum
-	QueryTypes    map[string]*graphql.Object
-	MutationTypes map[string]*graphql.InputObject
-	Schema        graphql.Schema
-	AuthSchema    graphql.Schema
-	mut           sync.RWMutex
+	yekonga             *YekongaData
+	GraphqlSubscription map[string]map[string]GraphqlSubscription
+	Database            map[string]*DataModel
+	EnumTypes           map[string]*graphql.Enum
+	QueryTypes          map[string]*graphql.Object
+	MutationTypes       map[string]*graphql.InputObject
+	Schema              graphql.Schema
+	AuthSchema          graphql.Schema
+	mut                 sync.RWMutex
 }
 
 func NewGraphqlAutoBuild(yekonga *YekongaData, database map[string]*DataModel) *GraphqlAutoBuild {
 	autoBuild := GraphqlAutoBuild{
-		yekonga:       yekonga,
-		Database:      database,
-		EnumTypes:     make(map[string]*graphql.Enum),
-		QueryTypes:    make(map[string]*graphql.Object),
-		MutationTypes: make(map[string]*graphql.InputObject),
+		yekonga:             yekonga,
+		Database:            database,
+		GraphqlSubscription: make(map[string]map[string]GraphqlSubscription),
+		EnumTypes:           make(map[string]*graphql.Enum),
+		QueryTypes:          make(map[string]*graphql.Object),
+		MutationTypes:       make(map[string]*graphql.InputObject),
 	}
 
 	return &autoBuild
@@ -1580,7 +1601,7 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 	case DataModelBool:
 		scalar = graphql.Boolean
 	case DataModelID:
-		scalar = graphql.String
+		scalar = ScalarStringType
 	case DataModelDate:
 		scalar = ScalarDateType
 	case DataModelFloat:
@@ -1588,7 +1609,7 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 	case DataModelNumber:
 		scalar = graphql.Int
 	case DataModelString:
-		scalar = graphql.String
+		scalar = ScalarStringType
 	case DataModelObject:
 		scalar = ScalarAnyType
 	case DataModelArray:

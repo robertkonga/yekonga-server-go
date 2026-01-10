@@ -462,7 +462,6 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 		}
 
 		// console.Success("groupValues", keyPeriod, groupValues)
-
 		// Add values to datasets
 		for key, value := range groupValues {
 			if dataset, exists := datasets[key]; exists {
@@ -470,7 +469,6 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 				datasets[key] = dataset
 			}
 		}
-
 	}
 
 	// Convert to response format

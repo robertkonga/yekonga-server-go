@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/robertkonga/yekonga-server/datatype"
@@ -26,33 +27,96 @@ var allowOriginFunc = func(r *http.Request) bool {
 
 func NewSocketServer(y *YekongaData) *SocketServer {
 	s := &SocketServer{
-		namespaces: make(map[string]*Namespace),
-		app:        y,
+		Namespaces: make(map[string]*Namespace),
+		App:        y,
 	}
 
 	root := s.Of("/") // Root namespace "/"
 
 	root.OnConnect(func(c *Client) {
-		console.Log("New client connected: %s (namespace: /)", c.id)
+		console.Log("New client connected: %s (namespace: /)", c.ID)
+		c.EmitToClient("message", "Welcome to the YekongaGo WebSocket server!")
 
 		// c.On("chat_message", func(data interface{}) {
 		// 	console.Log("Received === chat_message from %s: %s", c.id, data)
 		// })
 
-		c.EmitToClient("message", "Welcome to the Go WebSocket server!")
-		c.EmitToClient("message", datatype.DataMap{"message": "robert"})
+		// c.EmitToClient("message", "Welcome to the Go WebSocket server!")
+		// c.EmitToClient("message", datatype.DataMap{"message": "robert"})
 	})
 
-	root.On("chat_message", func(c *Client, data interface{}) {
-		console.Log("Received === chat_message from %s: %s", c.id, data)
+	root.On("subscribe", func(c *Client, content interface{}) {
+		console.Log("Subscribe clientID %s: %s", c.ID, content)
+
+		data := helper.ToMap[interface{}](content)
+		userId := helper.GetMapString(data, "userId")
+		deviceId := helper.GetMapString(data, "deviceId")
+
+		root.JoinRoom(userId, c)
+		root.JoinRoom(deviceId, c)
+		// Yekonga.Cloud.runOnMessage(null, "subscribe", data);
+	})
+
+	root.On("unsubscribe", func(c *Client, deviceId interface{}) {
+		console.Log("unsubscribe device", deviceId)
+
+		if id, ok := deviceId.(string); ok {
+			root.LeaveRoom(id, c)
+		}
+		// Yekonga.Cloud.runOnMessage(null, "unsubscribe", deviceId);
+	})
+
+	root.On("acknowledge", func(c *Client, id interface{}) {
+		console.Log("acknowledge clientID %s: %s", c.ID, id)
+
+		if v, ok := id.(string); ok {
+			root.App.ModelQuery("PushNotification").Update(datatype.DataMap{
+				"acknowledged": true,
+				"status":       "delivered",
+			}, datatype.DataMap{
+				"id": v,
+			})
+		}
+		// Yekonga.Cloud.runOnMessage(null, "acknowledge", id);
+	})
+
+	root.On("graphql-request", func(c *Client, content interface{}) {
+		data := helper.ToMap[interface{}](content)
+		query := helper.GetMapString(data, "body.query")
+		variables := helper.GetMap(data, "body.variables")
+		listener := helper.GetMapString(data, "listener")
+
+		response := root.App.GraphQL(query, variables, c.Request)
+
+		root.EmitToClient(c, "graphql-response", datatype.DataMap{
+			"listener": listener,
+			"body":     response,
+		})
+		// Yekonga.Cloud.runOnMessage(null, "graphql-request", data);
+	})
+
+	root.On("run-on-server", func(c *Client, content interface{}) {
+		console.Log("data", content)
+		// Yekonga.Cloud.runOnMessage(null, "run-on-server", content);
+	})
+
+	root.On("run-on-client", func(c *Client, content interface{}) {
+		console.Log("data", content)
+		// Yekonga.Cloud.runOnMessage(null, "run-on-client", content);
+	})
+
+	root.On("run-on-desktop", func(c *Client, content interface{}) {
+		console.Log("data", content)
+
+		// Yekonga.Cloud.runOnMessage(null, "run-on-desktop", content);
 	})
 
 	root.OnError(func(c *Client, err error) {
-		console.Log("Error on client %s: %v", c.id, err)
+		console.Log("Error on client %s: %v", c.ID, err)
 	})
 
 	root.OnDisconnect(func(c *Client, reason string) {
-		console.Log("Client disconnected: %s (reason: %s)", c.id, reason)
+		console.Log("Client disconnected: %s (reason: %s)", c.ID, reason)
 	})
 
 	return s
@@ -61,14 +125,14 @@ func NewSocketServer(y *YekongaData) *SocketServer {
 // Namespace represents an isolated group (like Socket.IO namespace)
 type Namespace struct {
 	mu      sync.Mutex
-	clients map[string]*Client
-	rooms   map[string]map[string]bool
-	app     *YekongaData
+	Clients map[string]*Client
+	Rooms   map[string]map[string]bool
+	App     *YekongaData
 
 	// Socket.IO-style event handlers for this namespace
-	onConnect    func(c *Client)
-	onDisconnect func(c *Client, reason string)
-	onError      func(c *Client, err error)
+	onConnectCallback    func(c *Client)
+	onDisconnectCallback func(c *Client, reason string)
+	onErrorCallback      func(c *Client, err error)
 
 	// Custom event handlers: event name -> handler function
 	eventHandlers map[string]func(c *Client, data interface{})
@@ -76,12 +140,14 @@ type Namespace struct {
 
 // Client represents a connected WebSocket client
 type Client struct {
-	id            string
-	namespace     *Namespace
 	conn          *websocket.Conn
 	send          chan []byte
-	rooms         map[string]bool // rooms this client is in (for quick lookup)
 	eventHandlers map[string]func(data interface{})
+
+	ID        string
+	Namespace *Namespace
+	Rooms     map[string]bool // rooms this client is in (for quick lookup)
+	Request   *Request
 }
 
 // Message incoming from client
@@ -107,8 +173,8 @@ type AckMessage struct {
 // SocketServer manages multiple namespaces
 type SocketServer struct {
 	mu         sync.Mutex
-	namespaces map[string]*Namespace
-	app        *YekongaData
+	Namespaces map[string]*Namespace
+	App        *YekongaData
 }
 
 // of returns or creates a namespace
@@ -123,28 +189,34 @@ func (s *SocketServer) Close() {
 
 // getOrCreateNamespace returns or creates a namespace
 func (s *SocketServer) getOrCreateNamespace(path string) *Namespace {
-	if path == "" {
-		path = "/"
+	path = strings.Trim(path, " ")
+
+	if path[0] != '/' {
+		path = "/" + path
 	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if n, ok := s.namespaces[path]; ok {
+	if n, ok := s.Namespaces[path]; ok {
 		return n
 	}
 
 	n := &Namespace{
-		app:           s.app,
-		clients:       make(map[string]*Client),
-		rooms:         make(map[string]map[string]bool),
+		App:           s.App,
+		Clients:       make(map[string]*Client),
+		Rooms:         make(map[string]map[string]bool),
 		eventHandlers: make(map[string]func(c *Client, data interface{})),
 	}
-	s.namespaces[path] = n
+	s.Namespaces[path] = n
 	return n
 }
 
 // WebSocket handler
-func (s *SocketServer) ServeWS(w http.ResponseWriter, r *http.Request) {
+func (s *SocketServer) ServeWS(req *Request, res *Response) {
+	w := res.httpResponseWriter
+	r := req.HttpRequest
+
 	nsPath := r.URL.Query().Get("ns")
 	if nsPath == "" {
 		nsPath = "/"
@@ -163,12 +235,14 @@ func (s *SocketServer) ServeWS(w http.ResponseWriter, r *http.Request) {
 
 	clientID := helper.UUID()
 	client := &Client{
-		id:            clientID,
-		namespace:     namespace,
 		conn:          conn,
 		send:          make(chan []byte, 256),
-		rooms:         make(map[string]bool),
 		eventHandlers: make(map[string]func(data interface{})),
+
+		ID:        clientID,
+		Namespace: namespace,
+		Rooms:     make(map[string]bool),
+		Request:   req,
 	}
 
 	namespace.addClient(client)
@@ -184,15 +258,15 @@ func (s *SocketServer) ServeWS(w http.ResponseWriter, r *http.Request) {
 // Socket.IO-style registration methods (applied to a namespace)
 
 func (n *Namespace) OnConnect(handler func(c *Client)) {
-	n.onConnect = handler
+	n.onConnectCallback = handler
 }
 
 func (n *Namespace) OnDisconnect(handler func(c *Client, reason string)) {
-	n.onDisconnect = handler
+	n.onDisconnectCallback = handler
 }
 
 func (n *Namespace) OnError(handler func(c *Client, err error)) {
-	n.onError = handler
+	n.onErrorCallback = handler
 }
 
 func (n *Namespace) On(event string, handler func(c *Client, data interface{})) {
@@ -208,9 +282,9 @@ func (n *Namespace) OnEvent(event string, handler func(c *Client, data interface
 func (n *Namespace) addClient(c *Client) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	n.clients[c.id] = c
-	if n.onConnect != nil {
-		n.onConnect(c)
+	n.Clients[c.ID] = c
+	if n.onConnectCallback != nil {
+		n.onConnectCallback(c)
 	}
 }
 
@@ -218,21 +292,21 @@ func (n *Namespace) removeClient(c *Client, reason string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	delete(n.clients, c.id)
+	delete(n.Clients, c.ID)
 
 	// Remove from all rooms
-	for room := range c.rooms {
-		if roomClients, ok := n.rooms[room]; ok {
-			delete(roomClients, c.id)
+	for room := range c.Rooms {
+		if roomClients, ok := n.Rooms[room]; ok {
+			delete(roomClients, c.ID)
 			if len(roomClients) == 0 {
-				delete(n.rooms, room)
+				delete(n.Rooms, room)
 			}
 		}
 	}
-	c.rooms = nil
+	c.Rooms = nil
 
-	if n.onDisconnect != nil {
-		n.onDisconnect(c, reason)
+	if n.onDisconnectCallback != nil {
+		n.onDisconnectCallback(c, reason)
 	}
 }
 
@@ -240,24 +314,24 @@ func (n *Namespace) JoinRoom(room string, c *Client) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if _, ok := n.rooms[room]; !ok {
-		n.rooms[room] = make(map[string]bool)
+	if _, ok := n.Rooms[room]; !ok {
+		n.Rooms[room] = make(map[string]bool)
 	}
-	n.rooms[room][c.id] = true
-	c.rooms[room] = true
+	n.Rooms[room][c.ID] = true
+	c.Rooms[room] = true
 }
 
 func (n *Namespace) LeaveRoom(room string, c *Client) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 
-	if roomClients, ok := n.rooms[room]; ok {
-		delete(roomClients, c.id)
+	if roomClients, ok := n.Rooms[room]; ok {
+		delete(roomClients, c.ID)
 		if len(roomClients) == 0 {
-			delete(n.rooms, room)
+			delete(n.Rooms, room)
 		}
 	}
-	delete(c.rooms, room)
+	delete(c.Rooms, room)
 }
 
 func (n *Namespace) EmitToClient(c *Client, event string, data interface{}) {
@@ -274,9 +348,9 @@ func (n *Namespace) EmitToClient(c *Client, event string, data interface{}) {
 func (n *Namespace) SendToRoom(room, event string, data interface{}, exclude *Client) {
 	n.mu.Lock()
 	clientsInRoom := make([]*Client, 0)
-	if roomClients, ok := n.rooms[room]; ok {
+	if roomClients, ok := n.Rooms[room]; ok {
 		for cid := range roomClients {
-			if client, exists := n.clients[cid]; exists && client != exclude {
+			if client, exists := n.Clients[cid]; exists && client != exclude {
 				clientsInRoom = append(clientsInRoom, client)
 			}
 		}
@@ -294,8 +368,8 @@ func (n *Namespace) Emit(event string, data interface{}, exclude *Client) {
 
 func (n *Namespace) Broadcast(event string, data interface{}, exclude *Client) {
 	n.mu.Lock()
-	allClients := make([]*Client, 0, len(n.clients))
-	for _, client := range n.clients {
+	allClients := make([]*Client, 0, len(n.Clients))
+	for _, client := range n.Clients {
 		if client != exclude {
 			allClients = append(allClients, client)
 		}
@@ -316,29 +390,29 @@ func (c *Client) OnEvent(event string, handler func(data interface{})) {
 }
 
 func (c *Client) Emit(event string, data interface{}) {
-	c.namespace.Emit(event, data, c)
+	c.Namespace.Emit(event, data, c)
 }
 
 func (c *Client) Broadcast(event string, data interface{}) {
-	c.namespace.Broadcast(event, data, c)
+	c.Namespace.Broadcast(event, data, c)
 }
 
 func (c *Client) SendToRoom(room string, event string, data interface{}) {
-	c.namespace.SendToRoom(room, event, data, c)
+	c.Namespace.SendToRoom(room, event, data, c)
 }
 
 func (c *Client) EmitToClient(event string, data interface{}) {
-	c.namespace.EmitToClient(c, event, data)
+	c.Namespace.EmitToClient(c, event, data)
 }
 
 func (c *Client) SendBack(event string, data interface{}) {
-	c.namespace.EmitToClient(c, event, data)
+	c.Namespace.EmitToClient(c, event, data)
 }
 
 // readPump + message handling
 func (c *Client) readPump() {
 	defer func() {
-		c.namespace.removeClient(c, "closed")
+		c.Namespace.removeClient(c, "closed")
 		c.conn.Close()
 	}()
 
@@ -352,7 +426,7 @@ func (c *Client) readPump() {
 			if websocket.IsCloseError(err) {
 				reason = "closed"
 			}
-			c.namespace.removeClient(c, reason)
+			c.Namespace.removeClient(c, reason)
 			break
 		}
 
@@ -366,7 +440,7 @@ func (c *Client) readPump() {
 }
 
 func (c *Client) handleMessage(msg *Message) {
-	n := c.namespace
+	n := c.Namespace
 	var ackPayload interface{} = "ok"
 	var err error
 
@@ -455,7 +529,7 @@ func (c *Client) handleMessage(msg *Message) {
 		}
 		if json.Unmarshal(msg.Data, &d) == nil {
 			n.mu.Lock()
-			target, ok := n.clients[d.ClientID]
+			target, ok := n.Clients[d.ClientID]
 			n.mu.Unlock()
 			if ok {
 				n.EmitToClient(target, d.Event, d.Payload)

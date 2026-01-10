@@ -305,7 +305,7 @@ func (r *Request) TokenPayload() *TokenPayload {
 
 func (r *Request) Token() string {
 	// Implementation for JWT token parsing
-	return r.GetHeader("tokey")
+	return r.GetHeader("token")
 }
 
 func (r *Request) Body() interface{} {

@@ -1,5 +1,4 @@
 // @ts-nocheck
-
 class YekongaCloudFunction {
     constructor(options) {
         this.socket;
@@ -12,7 +11,6 @@ class YekongaCloudFunction {
 
         this._options = (options) ? options : {};
         if (!this._options.host) {
-            // @ts-ignore
             this._options.host = window.YekongaServer.Host;
         }
         this._socketId = this.uuid;
@@ -30,10 +28,9 @@ class YekongaCloudFunction {
         }
 
         return this._webRTC;
-    }
+    } 
 
     live(model, query, callback, name, id = null) {
-        // console.log(query);
         this.graphql(query, callback, name, true);
         this._listeners[name] = { id, model, query, callback, loading: false };
     }
@@ -57,11 +54,10 @@ class YekongaCloudFunction {
     async graphql(query, callback = null, name = null, isSocket = false, data = null) {
         if (name && this._listeners[name] && this._listeners[name].loading) return;
         if (name && this._listeners[name]) this._listeners[name].loading = true;
- 
-        // @ts-ignore
+        
         const url = `${this.url}/${window.YekongaServer.graphql}`;
-        // @ts-ignore
         const token = window.localStorage.getItem('token');
+
         let content = {};
         let headers = {
             'Accept': 'application/json',
@@ -87,14 +83,12 @@ class YekongaCloudFunction {
             return this._graphqlSocket(name, bodyFormData, headers);
         } else {
             try {
-                // @ts-ignore
                 await window.axios.post(`${url}`, bodyFormData, {
                     method: 'POST',
                     headers: headers,
                 }).then((response) => {
                     var body = response.data;
                     content = (body.data) ? body.data : body;
-
                     if (typeof callback == 'function') callback(content);
                 }).catch((error) => {
                     if (error.response) {
@@ -103,7 +97,6 @@ class YekongaCloudFunction {
                         content.errors = { message: error.request.statusText };
                         if (!content.errors.message || (content.errors.message && content.errors.message.trim() == '')) {
                             content.errors.message = error.toString();
-                            // @ts-ignore
                             window.customAlert(content.errors.message, 'danger', 8000);
                         }
                     } else {
@@ -144,7 +137,6 @@ class YekongaCloudFunction {
     _initSocket() {
         const $this = this;
         let socketChecker = setInterval(() => {
-            // @ts-ignore
             if (window.YekongaSocket) {
                 $this._setSocketListeners();
 
@@ -156,11 +148,9 @@ class YekongaCloudFunction {
 
     _setSocketListeners() {
         const $this = this;
-        // @ts-ignore
         const proto = (window.YekongaServer.Proto == 'https') ? 'wss' : 'ws';
-        // @ts-ignore
-        // const token = window.localStorage.token || "MY_SECRET_TOKEN";
-        const token = "MY_SECRET_TOKEN";
+        
+        const token = window.localStorage.token || "MY_SECRET_TOKEN";
         const options = {
             extraHeaders: {},
             reconnection: true,
@@ -178,16 +168,14 @@ class YekongaCloudFunction {
             options.auth = { token };
             options.query = { token }
         }
-
-        // @ts-ignore
+        
         if (window.YekongaSocket) {
-            // @ts-ignore
             this.socket = window.YekongaSocket(`${this.socketUrl}`, options);
-            // @ts-ignore
             this.socketSystem = window.YekongaSocket(`${this.socketUrl}/system`, options);
 
             this.socket.on('connect', () => {
                 console.debug(`${$this._socketId} connect`);
+
                 $this.socket.emit('subscribe', $this._socketId);
                 $this._refreshListeners($this);
             })
@@ -197,8 +185,6 @@ class YekongaCloudFunction {
             })
 
             this.socket.on('graphql-response', ({ listener, body }) => {
-                // console.log(listener);
-                // console.log(body);
                 if ($this._listeners[listener] && typeof $this._listeners[listener].callback == 'function') {
                     $this._listeners[listener].callback(body);
                     $this._listeners[listener].loading = false;
@@ -206,32 +192,32 @@ class YekongaCloudFunction {
             })
 
             this.socket.on('database', ({ action, model, id }) => {
+                console.log(`Database ${action} on model ${model} with id ${id}`);
+
                 $this._refreshListeners($this, model, action, id);
             });
         }
 
     }
 
-    // @ts-ignore
-    // @ts-ignore
     _refreshListeners($this, model = null, action = null, id = null) {
         for (const name in $this._listeners) {
             if (Object.hasOwnProperty.call($this._listeners, name)) {
                 const elem = $this._listeners[name];
                 if (elem) {
                     if (!model) {
-                        $this.graphql(elem.query, null, elem.callback, name, true);
+                        $this.graphql(elem.query, elem.callback, name, true);
                     } else {
                         if (elem && !elem.loading && typeof elem.callback == 'function') {
-                            if (elem.id) {
+                            if (elem.id && id) {
                                 if ((Array.isArray(id) && id.includes(elem.id)) || elem.id == id) {
-                                    $this.graphql(elem.query, null, elem.callback, name, true);
+                                    $this.graphql(elem.query, elem.callback, name, true);
                                 }
                             } else {
                                 if (Array.isArray(elem.model) && elem.model.includes(model)) {
-                                    $this.graphql(elem.query, null, elem.callback, name, true);
+                                    $this.graphql(elem.query, elem.callback, name, true);
                                 } else if (elem.model == model) {
-                                    $this.graphql(elem.query, null, elem.callback, name, true);
+                                    $this.graphql(elem.query, elem.callback, name, true);
                                 }
                             }
                         }
@@ -287,27 +273,20 @@ class YekongaCloudFunction {
 
 window.YekongaServer.app = function(name) {
     if (typeof name == 'undefined') {
-        // @ts-ignore
         return window.YekongaServer.Applications['default'];
     }
 
-    // @ts-ignore
     return window.YekongaServer.Applications[name];
 }
 
 window.YekongaServer.Config = function(name, options) {
     if (!options && typeof name == 'object') {
-        // @ts-ignore
         window.YekongaServer.Applications['default'] = new YekongaCloudFunction(name);
     } else {
-        // @ts-ignore
         window.YekongaServer.Applications[name] = new YekongaCloudFunction(options);
 
-        // @ts-ignore
         if (!YekongaServer[name]) {
-            // @ts-ignore
             Object.defineProperty(YekongaServer, name, {
-                // @ts-ignore
                 get: function() { return window.YekongaServer.Applications[name]; }
             });
         } else {
@@ -315,7 +294,5 @@ window.YekongaServer.Config = function(name, options) {
         }
     }
 
-
-    // @ts-ignore
     return window.YekongaServer.Applications[name];
 }

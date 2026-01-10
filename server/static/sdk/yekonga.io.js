@@ -20,7 +20,7 @@ function YekongaSocket(url, options) {
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
-        timeout: 10000
+        timeout: 10000,
     };
 
     // Merge options

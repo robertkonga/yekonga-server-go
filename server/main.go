@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/robertkonga/yekonga-server/config"
 	"github.com/robertkonga/yekonga-server/datatype"
@@ -63,6 +64,7 @@ type YekongaData struct {
 	dbConnect              *DatabaseConnections
 	staticConfig           []*StaticConfig
 	logger                 *log.Logger
+	cronjob                *Cronjob
 	mut                    sync.RWMutex
 }
 
@@ -88,6 +90,9 @@ func YekongaServer(configFile string, databaseFile string) *YekongaData {
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		functions:              make(map[string]CloudFunction),
 		primaryFunctions:       make(map[PrimaryCloudKey]CloudFunction),
+		graphqlActionFunctions: make(map[string]map[string]map[string]TriggerCloudFunction),
+		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerCloudFunction),
+		logger:                 &log.Logger{},
 	}
 
 	dbConnect.appPath = Server.HomeDirectory()
@@ -98,6 +103,8 @@ func YekongaServer(configFile string, databaseFile string) *YekongaData {
 	dbConnect.connect()
 	Server.graphqlBuild = graphqlBuild
 	Server.initialize()
+
+	Server.cronjob = NewCronjob(Server)
 
 	return Server
 }
@@ -355,6 +362,10 @@ func (y *YekongaData) handleStaticFile(w http.ResponseWriter, r *http.Request) b
 	}
 
 	return false
+}
+
+func (y *YekongaData) RegisterCronjob(name string, delay time.Duration, callback func(app *YekongaData, time time.Time)) {
+	y.cronjob.registerJob(name, delay, callback)
 }
 
 // ServeHTTP implements the http.Handler interface

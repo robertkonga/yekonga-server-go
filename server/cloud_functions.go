@@ -171,11 +171,11 @@ func (y *YekongaData) Action(model string, action string, accessRole interface{}
 	defer y.mut.Unlock()
 
 	if y.graphqlActionFunctions[model] == nil {
-		y.graphqlActionFunctions[model] = map[string]map[string]TriggerCloudFunction{}
+		y.graphqlActionFunctions[model] = make(map[string]map[string]TriggerCloudFunction)
 	}
 
 	if y.graphqlActionFunctions[model][action] == nil {
-		y.graphqlActionFunctions[model][action] = map[string]TriggerCloudFunction{}
+		y.graphqlActionFunctions[model][action] = make(map[string]TriggerCloudFunction)
 	}
 
 	actionAccess := ""
@@ -199,7 +199,7 @@ func (y *YekongaData) Action(model string, action string, accessRole interface{}
 	}
 
 	y.graphqlActionFunctions[model][action][actionAccess] = fn
-	y.logger.Printf("Registered cloud function: %s -> %v -> %v", model, action, accessRole)
+	logger.Error("Registered cloud function: %s -> %v -> %v", model, action, accessRole)
 	return nil
 }
 
@@ -279,8 +279,7 @@ func (y *YekongaData) setTrigger(model string, action TriggerAction, accessRole 
 	defer y.mut.Unlock()
 
 	if y.triggerFunctions == nil {
-		y.triggerFunctions = map[string]map[TriggerAction]map[string]TriggerCloudFunction{}
-
+		y.triggerFunctions = make(map[string]map[TriggerAction]map[string]TriggerCloudFunction)
 	}
 
 	if y.triggerFunctions[model] == nil {

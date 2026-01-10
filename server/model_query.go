@@ -85,7 +85,16 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 		}
 
 		if v, ok := value.(string); ok {
-			newValue = helper.ObjectID(v)
+			switch v {
+			case string(NULLValue):
+				newValue = nil
+			case string(NullValue):
+				newValue = nil
+			case string(nullValue):
+				newValue = nil
+			default:
+				newValue = helper.ObjectID(v)
+			}
 		} else if helper.IsArray(value) {
 			array := helper.ToList[interface{}](value)
 			count := len(array)
@@ -101,7 +110,16 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 
 			for ki, vi := range v {
 				if vii, ok := vi.(string); ok {
-					vp[ki] = helper.ObjectID(vii)
+					switch vii {
+					case string(NULLValue):
+						vp[ki] = nil
+					case string(NullValue):
+						vp[ki] = nil
+					case string(nullValue):
+						vp[ki] = nil
+					default:
+						vp[ki] = helper.ObjectID(vii)
+					}
 				} else if helper.IsArray(vi) {
 					array := helper.ToList[interface{}](vi)
 					count := len(array)
@@ -113,7 +131,16 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 
 					vp[ki] = vpi
 				} else {
-					vp[ki] = helper.ObjectID(vi)
+					switch vi {
+					case string(NULLValue):
+						vp[ki] = nil
+					case string(NullValue):
+						vp[ki] = nil
+					case string(nullValue):
+						vp[ki] = nil
+					default:
+						vp[ki] = helper.ObjectID(vi)
+					}
 				}
 			}
 
@@ -260,6 +287,11 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		result = &v
 	}
 
+	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
+		"action": "create",
+		"model":  m.Model.Name,
+	}, nil)
+
 	return result
 }
 
@@ -284,6 +316,11 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = &v
 	}
+
+	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
+		"action": "update",
+		"model":  m.Model.Name,
+	}, nil)
 
 	return result
 }
@@ -395,6 +432,11 @@ ParentLoop:
 	result["updated"] = updated
 	result["data"] = afterData
 
+	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
+		"action": "import",
+		"model":  m.Model.Name,
+	}, nil)
+
 	return result
 }
 
@@ -419,6 +461,11 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = v
 	}
+
+	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
+		"action": "delete",
+		"model":  m.Model.Name,
+	}, nil)
 
 	return result
 }
