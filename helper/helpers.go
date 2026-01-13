@@ -33,6 +33,8 @@ func IsMap(data interface{}) bool {
 	// Type assertion to check if data is a map[string]interface{}
 	if _, ok := data.(map[string]interface{}); ok {
 		return true
+	} else if _, ok := data.(datatype.Record); ok {
+		return true
 	} else if _, ok := data.(datatype.DataMap); ok {
 		return true
 	} else if _, ok := data.(datatype.Context); ok {
@@ -865,6 +867,230 @@ func ToTimestampString(value interface{}, layout string) time.Time {
 	}
 
 	return time.Now().UTC()
+}
+
+func Yesterday() time.Time {
+	t := time.Now().Add(time.Hour * -24)
+	result := StringToDatetime(t.Format(time.DateOnly) + " 00:00:00")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func YesterdayEnd() time.Time {
+	t := time.Now().Add(time.Hour * -24)
+	result := StringToDatetime(t.Format(time.DateOnly) + " 23:59:59")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func Today() time.Time {
+	t := time.Now()
+	result := StringToDatetime(t.Format(time.DateOnly) + " 00:00:00")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func TodayEnd() time.Time {
+	t := time.Now()
+	result := StringToDatetime(t.Format(time.DateOnly) + " 23:59:59")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func Tomorrow() time.Time {
+	t := time.Now().Add(time.Hour * 24)
+	result := StringToDatetime(t.Format(time.DateOnly) + " 00:00:00")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func TomorrowEnd() time.Time {
+	t := time.Now().Add(time.Hour * 24)
+	result := StringToDatetime(t.Format(time.DateOnly) + " 23:59:59")
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func DateStart(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	result := StringToDatetime(t.Format(time.DateOnly) + " 00:00:00")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func DateEnd(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+	result := StringToDatetime(t.Format(time.DateOnly) + " 23:59:59")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func HourStart(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	format := "2006-01-02 15"
+	result := StringToDatetime(t.Format(format) + ":00:00")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func HourEnd(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	format := "2006-01-02 15"
+	result := StringToDatetime(t.Format(format) + ":59:59")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func WeekStart(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Sunday -> 7
+	}
+
+	startOfWeek := time.Date(
+		t.Year(),
+		t.Month(),
+		t.Day()-weekday+1,
+		0, 0, 0, 0,
+		t.Location(),
+	)
+	result := StringToDatetime(startOfWeek)
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func WeekEnd(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+
+	// Sunday = last day of ISO week
+	lastDayOfWeek := time.Date(
+		t.Year(),
+		t.Month(),
+		t.Day()+(7-weekday),
+		0, 0, 0, 0,
+		t.Location(),
+	)
+	result := StringToDatetime(lastDayOfWeek.Format(time.DateOnly) + " 23:59:59")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func MonthStart(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	format := "2006-01"
+	result := StringToDatetime(t.Format(format) + "-01 00:00:00")
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
+}
+
+func MonthEnd(value interface{}) time.Time {
+	t := StringToDatetime(value)
+	if t == nil {
+		_t := time.Now()
+		t = &_t
+	}
+
+	_t := time.Date(
+		t.Year(),
+		t.Month()+1,
+		0, // day 0 = last day of previous month
+		0, 0, 0, 0,
+		t.Location(),
+	)
+	t = &_t
+
+	result := StringToDatetime(t)
+
+	if result != nil {
+		return *result
+	}
+
+	return t.UTC()
 }
 
 func ObjectID(id interface{}) bson.ObjectID {

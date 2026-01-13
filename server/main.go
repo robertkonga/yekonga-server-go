@@ -42,6 +42,7 @@ type Middleware func(*Request, *Response) error
 
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type TriggerCloudFunction func(*RequestContext, *QueryContext) (interface{}, error)
+type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
 var Server *YekongaData
 
@@ -51,7 +52,7 @@ type YekongaData struct {
 	functions              map[string]CloudFunction
 	primaryFunctions       map[PrimaryCloudKey]CloudFunction
 	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerCloudFunction
-	graphqlActionFunctions map[string]map[string]map[string]TriggerCloudFunction
+	graphqlActionFunctions map[string]map[string]map[string]ActionCloudFunction
 	middlewares            []Middleware
 	initMiddlewares        []Middleware
 	preloadMiddlewares     []Middleware
@@ -90,7 +91,7 @@ func YekongaServer(configFile string, databaseFile string) *YekongaData {
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		functions:              make(map[string]CloudFunction),
 		primaryFunctions:       make(map[PrimaryCloudKey]CloudFunction),
-		graphqlActionFunctions: make(map[string]map[string]map[string]TriggerCloudFunction),
+		graphqlActionFunctions: make(map[string]map[string]map[string]ActionCloudFunction),
 		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerCloudFunction),
 		logger:                 &log.Logger{},
 	}
@@ -364,8 +365,16 @@ func (y *YekongaData) handleStaticFile(w http.ResponseWriter, r *http.Request) b
 	return false
 }
 
-func (y *YekongaData) RegisterCronjob(name string, delay time.Duration, callback func(app *YekongaData, time time.Time)) {
-	y.cronjob.registerJob(name, delay, callback)
+func (y *YekongaData) RegisterCronjob(name string, frequency time.Duration, callback func(app *YekongaData, time time.Time)) {
+	y.cronjob.registerJob(name, frequency, callback)
+}
+
+func (y *YekongaData) RegisterCronjobAt(name string, frequency JobFrequency, time time.Time, callback func(app *YekongaData, time time.Time)) {
+	y.cronjob.registerJobAt(name, frequency, time, callback)
+}
+
+func (y *YekongaData) RegisterCronjobOn(name string, frequency JobFrequency, time time.Time, callback func(app *YekongaData, time time.Time)) {
+	y.cronjob.registerJobAt(name, frequency, time, callback)
 }
 
 // ServeHTTP implements the http.Handler interface

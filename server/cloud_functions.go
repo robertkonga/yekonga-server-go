@@ -166,16 +166,16 @@ func (y *YekongaData) SendWhatsapp(data interface{}, ctx *RequestContext, timeou
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) Action(model string, action string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) error {
+func (y *YekongaData) Action(model string, action string, accessRole interface{}, route interface{}, fn ActionCloudFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
 	if y.graphqlActionFunctions[model] == nil {
-		y.graphqlActionFunctions[model] = make(map[string]map[string]TriggerCloudFunction)
+		y.graphqlActionFunctions[model] = make(map[string]map[string]ActionCloudFunction)
 	}
 
 	if y.graphqlActionFunctions[model][action] == nil {
-		y.graphqlActionFunctions[model][action] = make(map[string]TriggerCloudFunction)
+		y.graphqlActionFunctions[model][action] = make(map[string]ActionCloudFunction)
 	}
 
 	actionAccess := ""

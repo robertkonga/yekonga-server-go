@@ -49,6 +49,13 @@ type GraphqlSubscription struct {
 	Headers map[string]interface{}
 }
 
+type GraphqlActionResult struct {
+	Data    interface{} `json:"data"`
+	Success bool        `json:"success"`
+	Status  bool        `json:"status"`
+	Message string      `json:"message"`
+}
+
 type GraphqlAutoBuild struct {
 	yekonga             *YekongaData
 	GraphqlSubscription map[string]map[string]GraphqlSubscription
