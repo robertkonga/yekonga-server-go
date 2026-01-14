@@ -611,21 +611,21 @@ func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.Dat
 }
 
 func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataMap {
-	var filters = datatype.DataMap{}
-	// var localFilter = helper.ToMap(where)
+	var filters = make(datatype.DataMap)
 
 	if whr, ok := where.(datatype.DataMap); ok {
 		for k, v := range whr {
 			if vi, ok := v.(map[string]interface{}); ok {
 				for ki, vii := range vi {
+					innerFilter := datatype.DataMap{}
+					if inf, ok := filters[k].(datatype.DataMap); ok {
+						innerFilter = inf
+					}
+
 					if helper.Contains(graphqlOperations[:], ki) ||
 						helper.Contains(graphqlArrayOperations[:], ki) ||
 						helper.Contains(graphqlBooleanOperations[:], ki) ||
 						helper.Contains(mongodbSpecialOperations[:], ki) {
-
-						if filters[k] == nil {
-							filters[k] = datatype.DataMap{}
-						}
 
 						switch vii {
 						case string(NULLValue):
@@ -638,80 +638,52 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 
 						switch ki {
 						case "equalTo", "$eq":
-							filters[k] = datatype.DataMap{
-								"$eq": vii,
-							}
+							innerFilter["$eq"] = vii
 						case "notEqualTo", "$ne":
-							filters[k] = datatype.DataMap{
-								"$ne": vii,
-							}
+							innerFilter["$ne"] = vii
 						case "lessThan", "$lt":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$lt": viii,
-							}
+							innerFilter["$lt"] = viii
 						case "notLessThan", "$not_lt":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$not": datatype.DataMap{
-									"$lt": viii,
-								},
+							innerFilter["$not"] = datatype.DataMap{
+								"$lt": viii,
 							}
 						case "lessThanOrEqualTo", "$lte":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$lte": viii,
-							}
+							innerFilter["$lte"] = viii
 						case "notLessThanOrEqualTo", "$not_lte":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$not": datatype.DataMap{
-									"$lte": viii,
-								},
+							innerFilter["$not"] = datatype.DataMap{
+								"$lte": viii,
 							}
 						case "greaterThan", "$gt":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$gt": viii,
-							}
+							innerFilter["$gt"] = viii
 						case "notGreaterThan", "$not_gt":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$not": datatype.DataMap{
-									"$gt": viii,
-								},
+							innerFilter["$not"] = datatype.DataMap{
+								"$gt": viii,
 							}
 						case "greaterThanOrEqualTo", "$gte":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$gte": viii,
-							}
+							innerFilter["$gte"] = viii
 						case "notGreaterThanOrEqualTo", "$not_gte":
 							viii := helper.ConvertCalculatedValue(vii)
-							filters[k] = datatype.DataMap{
-								"$not": datatype.DataMap{
-									"$gte": viii,
-								},
+							innerFilter["$not"] = datatype.DataMap{
+								"$gte": viii,
 							}
 						case "in", "$in":
-							filters[k] = datatype.DataMap{
-								"$in": vii,
-							}
+							innerFilter["$in"] = vii
 						case "all", "$all":
-							filters[k] = datatype.DataMap{
-								"$all": vii,
-							}
+							innerFilter["$all"] = vii
 						case "notIn", "$nin":
-							filters[k] = datatype.DataMap{
-								"$nin": vii,
-							}
+							innerFilter["$nin"] = vii
 						case "exists":
 							if exists, ok := vii.(bool); ok {
 								if exists {
-									filters[k] = datatype.DataMap{
-										"$exists": true,
-										"$nin":    []interface{}{nil},
-									}
+									innerFilter["$exists"] = true
+									innerFilter["$nin"] = []interface{}{nil}
 								} else {
 									filters["$or"] = []datatype.DataMap{
 										map[string]any{
@@ -729,35 +701,23 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 							}
 						case "matchesRegex":
 							if _v, ok := vii.(string); ok {
-								filters[k] = datatype.DataMap{
-									"$regex": regexp.MustCompile(_v).String(),
-								}
+								innerFilter["$regex"] = regexp.MustCompile(_v).String()
 							}
 						case "options":
-							filters[k] = datatype.DataMap{
-								"$eq": vii,
-							}
+							innerFilter["$eq"] = vii
 						case "text":
-							filters[k] = datatype.DataMap{
-								"$eq": vii,
-							}
+							innerFilter["$eq"] = vii
 						case "inQueryKey":
-							filters[k] = datatype.DataMap{
-								"$eq": vii,
-							}
+							innerFilter["$eq"] = vii
 						case "notInQueryKey":
-							filters[k] = datatype.DataMap{
-								"$eq": vii,
-							}
+							innerFilter["$eq"] = vii
 						default:
-							filters[k] = datatype.DataMap{
-								ki: vii,
-							}
+							innerFilter[ki] = vii
 						}
 					} else {
 						if viii, ok := con.query.Model.ParentFields[k]; ok {
-							if filters[viii.PrimaryKey] == nil {
-								filters[viii.PrimaryKey] = datatype.DataMap{}
+							if innerFilter[viii.PrimaryKey] == nil {
+								innerFilter[viii.PrimaryKey] = datatype.DataMap{}
 							}
 
 							list := con.query.Model.App.ModelQuery(viii.ModelName).WhereAll(vi).Find(nil)
@@ -767,7 +727,7 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 								objectIDs = append(objectIDs, helper.ObjectID(v))
 							}
 
-							filters[viii.PrimaryKey] = datatype.DataMap{
+							innerFilter[viii.PrimaryKey] = datatype.DataMap{
 								"$in": objectIDs,
 							}
 							// fmt.Println("ids.p", ids)
@@ -782,23 +742,29 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 							for _, v := range ids {
 								objectIDs = append(objectIDs, helper.ObjectID(v))
 							}
-							filters[viii.PrimaryKey] = datatype.DataMap{
+
+							innerFilter[viii.PrimaryKey] = datatype.DataMap{
 								"$in": objectIDs,
 							}
 							// console.Log("ids.c", ids)
 						}
 					}
+
+					filters[k] = innerFilter
 				}
 			} else {
-				if vi, ok := v.([]interface{}); ok {
-					filters[k] = datatype.DataMap{
-						"$in": vi,
-					}
-				} else {
-					filters[k] = datatype.DataMap{
-						"$eq": v,
-					}
+				innerFilter := datatype.DataMap{}
+				if inf, ok := filters[k].(datatype.DataMap); ok {
+					innerFilter = inf
 				}
+
+				if vi, ok := v.([]interface{}); ok {
+					innerFilter["$in"] = vi
+				} else {
+					innerFilter["$eq"] = v
+				}
+
+				filters[k] = innerFilter
 			}
 		}
 	}
