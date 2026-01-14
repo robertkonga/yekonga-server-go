@@ -10,11 +10,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 func TestOPMSGMockDeployment(t *testing.T) {

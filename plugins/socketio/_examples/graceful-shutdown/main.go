@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	socketio "github.com/robertkonga/yekonga-server/plugins/socketio"
+	socketio "github.com/robertkonga/yekonga-server-go/plugins/socketio"
 )
 
 const (

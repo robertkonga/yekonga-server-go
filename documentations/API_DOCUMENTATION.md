@@ -1189,8 +1189,8 @@ package main
 import (
     "log"
     "time"
-    "github.com/robertkonga/yekonga-server/yekonga"
-    "github.com/robertkonga/yekonga-server/helper"
+    "github.com/robertkonga/yekonga-server-go/yekonga"
+    "github.com/robertkonga/yekonga-server-go/helper"
 )
 
 func main() {

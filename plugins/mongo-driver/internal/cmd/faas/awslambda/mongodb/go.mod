@@ -2,11 +2,11 @@ module go.mongodb.go/mongo-driver/internal/test/mongodb
 
 go 1.22
 
-replace github.com/robertkonga/yekonga-server/plugins/mongo-driver => ../../../../../
+replace github.com/robertkonga/yekonga-server-go/plugins/mongo-driver => ../../../../../
 
 require github.com/aws/aws-lambda-go v1.41.0
 
-require github.com/robertkonga/yekonga-server/plugins/mongo-driver v2.0.0-00010101000000-000000000000
+require github.com/robertkonga/yekonga-server-go/plugins/mongo-driver v2.0.0-00010101000000-000000000000
 
 require (
 	github.com/golang/snappy v0.0.4 // indirect

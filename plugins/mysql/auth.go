@@ -289,7 +289,7 @@ func (mc *mysqlConn) auth(authData []byte, plugin string) ([]byte, error) {
 		}
 		// Note: there are edge cases where this should work but doesn't;
 		// this is currently "wontfix":
-		// https://github.com/robertkonga/yekonga-server/plugins/mysql/issues/184
+		// https://github.com/robertkonga/yekonga-server-go/plugins/mysql/issues/184
 		authResp := append(scrambleOldPassword(authData[:8], mc.cfg.Passwd), 0)
 		return authResp, nil
 

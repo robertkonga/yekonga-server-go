@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/examples/todo/schema"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/examples/todo/schema"
 )
 
 func init() {

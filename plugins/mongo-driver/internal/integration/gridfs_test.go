@@ -15,13 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/israce"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/israce"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 func TestGridFS(x *testing.T) {

@@ -7,10 +7,10 @@
 package options
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
 )
 
 // CollectionOptions represents arguments that can be used to configure a Collection.

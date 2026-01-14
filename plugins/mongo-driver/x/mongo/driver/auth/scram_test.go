@@ -11,12 +11,12 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/drivertest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/mnet"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/drivertest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/mnet"
 )
 
 const (

@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/packet"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/packet"
 )
 
 // FrameReader reads a frame. It needs be closed before next reading.

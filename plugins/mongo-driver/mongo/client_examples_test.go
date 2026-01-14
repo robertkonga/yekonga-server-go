@@ -12,10 +12,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
 )
 
 func ExampleClient() {

@@ -9,9 +9,9 @@ package unified
 import (
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/bsonutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/bsonutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 // newMissingArgumentError creates an error to convey that an argument that is required to run an operation is missing

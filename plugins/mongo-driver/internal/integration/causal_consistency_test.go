@@ -10,12 +10,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readconcern"
 )
 
 // set of operations that support read concerns taken from read/write concern spec.

@@ -12,9 +12,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/connstring"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/connstring"
 )
 
 func main() {

@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 // keyPathCtxKey is used as a key for a Context object. The value conveys the BSON key path that is currently being

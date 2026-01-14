@@ -3,7 +3,7 @@ package location
 import (
 	"regexp"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/source"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/source"
 )
 
 type SourceLocation struct {

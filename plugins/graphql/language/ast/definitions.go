@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/kinds"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/kinds"
 )
 
 type Definition interface {

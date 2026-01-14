@@ -11,7 +11,7 @@ package eventtest
 import (
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
 )
 
 // TestPoolMonitor exposes an *event.TestPoolMonitor and collects all events logged to that

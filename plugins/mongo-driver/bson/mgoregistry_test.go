@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
 )
 
 // Wrap up the document elements contained in data, prepending the int32

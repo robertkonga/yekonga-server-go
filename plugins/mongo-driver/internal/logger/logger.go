@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/bsoncoreutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/bsoncoreutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // DefaultMaxDocumentLength is the default maximum number of bytes that can be

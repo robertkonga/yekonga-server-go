@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
 // ChartType represents the type of chart

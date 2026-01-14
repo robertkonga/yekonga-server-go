@@ -10,7 +10,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/tag"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/tag"
 )
 
 // ErrInvalidTagSet indicates that an invalid set of tags was specified.

@@ -12,7 +12,7 @@ import (
 	"testing/iotest"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
 )
 
 func jttDiff(t *testing.T, expected, actual jsonTokenType, desc string) {

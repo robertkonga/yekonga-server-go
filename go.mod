@@ -1,4 +1,5 @@
-module github.com/robertkonga/yekonga-server
+module github.com/robertkonga/yekonga-server-go
+
 
 go 1.24.0
 

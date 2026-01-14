@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/packet"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/packet"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 )
 
 // conn implements base.Conn

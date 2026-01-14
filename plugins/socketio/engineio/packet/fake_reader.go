@@ -5,7 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
 )
 
 type fakeConnReader struct {

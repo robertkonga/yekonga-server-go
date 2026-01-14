@@ -9,9 +9,9 @@ package session
 import (
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/uuid"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/uuid"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
 )
 
 // Server is an open session with the server.

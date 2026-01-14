@@ -6,11 +6,11 @@ import (
 	"path"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/polling"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/polling"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/parser"
 )
 
 var EmptyAddrErr = errors.New("empty addr")

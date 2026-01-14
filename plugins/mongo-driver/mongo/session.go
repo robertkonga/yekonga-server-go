@@ -12,14 +12,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/mongoutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/serverselector"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/operation"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/mongoutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/serverselector"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/operation"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/session"
 )
 
 // ErrWrongClient is returned when a user attempts to pass in a session created by a different client than

@@ -1,33 +1,33 @@
 Redigo
 ======
 
-[![GoDoc](https://godoc.org/github.com/robertkonga/yekonga-server/plugins/redigo/redis?status.svg)](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis)
+[![GoDoc](https://godoc.org/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis?status.svg)](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis)
 
 Redigo is a [Go](http://golang.org/) client for the [Redis](http://redis.io/) database.
 
 Features
 -------
 
-* A [Print-like](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#hdr-Executing_Commands) API with support for all Redis commands.
-* [Pipelining](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#hdr-Pipelining), including pipelined transactions.
-* [Publish/Subscribe](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#hdr-Publish_and_Subscribe).
-* [Connection pooling](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#Pool).
-* [Script helper type](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#Script) with optimistic use of EVALSHA.
-* [Helper functions](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#hdr-Reply_Helpers) for working with command replies.
+* A [Print-like](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#hdr-Executing_Commands) API with support for all Redis commands.
+* [Pipelining](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#hdr-Pipelining), including pipelined transactions.
+* [Publish/Subscribe](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#hdr-Publish_and_Subscribe).
+* [Connection pooling](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#Pool).
+* [Script helper type](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#Script) with optimistic use of EVALSHA.
+* [Helper functions](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#hdr-Reply_Helpers) for working with command replies.
 
 Documentation
 -------------
 
-- [API Reference](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis)
-- [FAQ](https://github.com/robertkonga/yekonga-server/plugins/redigo/wiki/FAQ)
-- [Examples](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/redigo/redis#pkg-examples)
+- [API Reference](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis)
+- [FAQ](https://github.com/robertkonga/yekonga-server-go/plugins/redigo/wiki/FAQ)
+- [Examples](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/redigo/redis#pkg-examples)
 
 Installation
 ------------
 
 Install Redigo using the "go get" command:
 
-    go get github.com/robertkonga/yekonga-server/plugins/redigo/redis
+    go get github.com/robertkonga/yekonga-server-go/plugins/redigo/redis
 
 The Go distribution is Redigo's only dependency.
 
@@ -43,7 +43,7 @@ Related Projects
 Contributing
 ------------
 
-See [CONTRIBUTING.md](https://github.com/robertkonga/yekonga-server/plugins/redigo/blob/master/.github/CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/robertkonga/yekonga-server-go/plugins/redigo/blob/master/.github/CONTRIBUTING.md).
 
 License
 -------

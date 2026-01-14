@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 func BenchmarkNewOptions(b *testing.B) {

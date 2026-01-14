@@ -10,7 +10,7 @@ import (
 	"crypto/tls"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/httputil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/httputil"
 )
 
 // AutoEncryptionOptions represents arguments used to configure auto encryption/decryption behavior for a mongo.Client

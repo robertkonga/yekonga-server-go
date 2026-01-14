@@ -7,17 +7,17 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/console"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 
-	// "github.com/robertkonga/yekonga-server/plugins/socketio"
-	// "github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	// "github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	// "github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/polling"
-	// "github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/websocket"
+	// "github.com/robertkonga/yekonga-server-go/plugins/socketio"
+	// "github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	// "github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	// "github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/polling"
+	// "github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/websocket"
 
-	"github.com/robertkonga/yekonga-server/plugins/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 )
 
 // Easier to get running with CORS. Thanks for help @Vindexus and @erkie

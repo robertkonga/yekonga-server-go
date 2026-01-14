@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/robertkonga/yekonga-server/config"
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/console"
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 type FilterOperator string

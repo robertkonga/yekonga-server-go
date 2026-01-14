@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/robertkonga/yekonga-server/config"
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper/logger"
-	localDB "github.com/robertkonga/yekonga-server/plugins/database/db"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
+	localDB "github.com/robertkonga/yekonga-server-go/plugins/database/db"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 var graphqlOperations = []string{

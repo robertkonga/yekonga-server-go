@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
 )
 
 type (

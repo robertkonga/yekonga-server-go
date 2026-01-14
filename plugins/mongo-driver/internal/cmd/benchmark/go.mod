@@ -2,11 +2,11 @@ module go.mongodb.go/mongo-driver/internal/cmd/benchmark
 
 go 1.18
 
-replace github.com/robertkonga/yekonga-server/plugins/mongo-driver => ../../../
+replace github.com/robertkonga/yekonga-server-go/plugins/mongo-driver => ../../../
 
 require (
 	github.com/stretchr/testify v1.8.1
-	github.com/robertkonga/yekonga-server/plugins/mongo-driver v2.0.0-00010101000000-000000000000
+	github.com/robertkonga/yekonga-server-go/plugins/mongo-driver v0.0.0
 )
 
 require (

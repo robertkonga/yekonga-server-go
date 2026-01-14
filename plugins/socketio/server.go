@@ -4,11 +4,11 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/redigo/redis"
+	"github.com/robertkonga/yekonga-server-go/plugins/redigo/redis"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/parser"
 )
 
 // Server is a go-socket.io server.

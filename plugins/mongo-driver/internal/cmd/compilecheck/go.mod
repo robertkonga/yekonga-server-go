@@ -2,11 +2,11 @@ module go.mongodb.go/mongo-driver/internal/cmd/compilecheck
 
 go 1.18
 
-replace github.com/robertkonga/yekonga-server/plugins/mongo-driver => ../../../
+replace github.com/robertkonga/yekonga-server-go/plugins/mongo-driver => ../../../
 
 // Note that the Go driver version is replaced with the local Go driver code by
 // the replace directive above.
-require github.com/robertkonga/yekonga-server/plugins/mongo-driver v2.0.0-alpha2
+require github.com/robertkonga/yekonga-server-go/plugins/mongo-driver v0.0.0
 
 require (
 	github.com/golang/snappy v0.0.4 // indirect

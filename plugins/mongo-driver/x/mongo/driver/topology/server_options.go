@@ -9,12 +9,12 @@ package topology
 import (
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/logger"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/connstring"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/connstring"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/session"
 )
 
 var defaultRegistry = bson.NewRegistry()

@@ -7,10 +7,10 @@
 package mongo
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/operation"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/operation"
 )
 
 // ClientBulkWriteResult is the result type returned by a client-level BulkWrite operation.

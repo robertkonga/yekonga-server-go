@@ -17,10 +17,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
-	v4signer "github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/signer/v4"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
+	v4signer "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/signer/v4"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 type clientState int

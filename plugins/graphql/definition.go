@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"regexp"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 // Type interface for all of the possible kinds of GraphQL types

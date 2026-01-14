@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/db"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/db"
 )
 
 // Run the benchmark function a number of times across multiple goroutines, and print out performance data.

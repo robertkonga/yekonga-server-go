@@ -1,8 +1,8 @@
 <p align="center"><img src="etc/assets/mongo-gopher.png" width="250"></p>
 <p align="center">
-  <a href="https://goreportcard.com/report/github.com/robertkonga/yekonga-server/plugins/mongo-driver"><img src="https://goreportcard.com/badge/github.com/robertkonga/yekonga-server/plugins/mongo-driver"></a>
-  <a href="https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"><img src="etc/assets/godev-mongo-blue.svg" alt="docs"></a>
-  <a href="https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"><img src="etc/assets/godev-bson-blue.svg" alt="docs"></a>
+  <a href="https://goreportcard.com/report/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver"><img src="https://goreportcard.com/badge/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver"></a>
+  <a href="https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"><img src="etc/assets/godev-mongo-blue.svg" alt="docs"></a>
+  <a href="https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"><img src="etc/assets/godev-bson-blue.svg" alt="docs"></a>
   <a href="https://www.mongodb.com/docs/drivers/go/current/"><img src="etc/assets/docs-mongodb-green.svg"></a>
 </p>
 
@@ -28,13 +28,13 @@ your project. This can be done either by importing packages from `go.mongodb.org
 step install the dependency or by explicitly running
 
 ```bash
-go get github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo
+go get github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo
 ```
 
 When using a version of Go that does not support modules, the driver can be installed using `dep` by running
 
 ```bash
-dep ensure -add "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
+dep ensure -add "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
 ```
 
 ## Usage
@@ -46,9 +46,9 @@ import (
     "context"
     "time"
 
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
 )
 
 client, _ := mongo.Connect(options.Client().ApplyURI("mongodb://localhost:27017"))
@@ -64,7 +64,7 @@ defer func() {
 }()
 ```
 
-For more advanced configuration and authentication, see the [documentation for mongo.Connect](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo#Connect).
+For more advanced configuration and authentication, see the [documentation for mongo.Connect](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo#Connect).
 
 Calling `Connect` does not block for server discovery. If you wish to know if a MongoDB server has been found and connected to,
 use the `Ping` method:
@@ -92,7 +92,7 @@ res, _ := collection.InsertOne(ctx, bson.D{{"name", "pi"}, {"value", 3.14159}})
 id := res.InsertedID
 ```
 
-To use `bson.D`, you will need to add `"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"` to your imports.
+To use `bson.D`, you will need to add `"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"` to your imports.
 
 Your import statement should now look like this:
 
@@ -102,10 +102,10 @@ import (
     "log"
     "time"
 
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-    "github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+    "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
 )
 ```
 

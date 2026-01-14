@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/location"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/source"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/location"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/source"
 )
 
 type Error struct {

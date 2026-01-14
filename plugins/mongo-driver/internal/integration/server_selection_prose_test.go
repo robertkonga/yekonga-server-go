@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/eventtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/failpoint"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/mongoutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/eventtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/failpoint"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/mongoutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
 )
 
 type saturatedConnections map[int64]bool

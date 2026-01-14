@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
 )
 
 func newDefaultAuthenticator(cred *Cred, httpClient *http.Client) (Authenticator, error) {

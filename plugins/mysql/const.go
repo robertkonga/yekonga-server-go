@@ -14,7 +14,7 @@ const (
 	debug = false // for debugging. Set true only in development.
 
 	defaultAuthPlugin       = "mysql_native_password"
-	defaultMaxAllowedPacket = 64 << 20 // 64 MiB. See https://github.com/robertkonga/yekonga-server/plugins/mysql/issues/1355
+	defaultMaxAllowedPacket = 64 << 20 // 64 MiB. See https://github.com/robertkonga/yekonga-server-go/plugins/mysql/issues/1355
 	minProtocolVersion      = 10
 	maxPacketSize           = 1<<24 - 1
 	timeFormat              = "2006-01-02 15:04:05.999999"

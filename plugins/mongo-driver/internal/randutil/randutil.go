@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	xrand "github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/rand"
+	xrand "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/rand"
 )
 
 // NewLockedRand returns a new "x/exp/rand" pseudo-random number generator seeded with a

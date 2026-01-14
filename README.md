@@ -169,7 +169,7 @@ Create `main.go`:
 package main
 
 import (
-"github.com/robertkonga/yekonga-server/yekonga"
+"github.com/robertkonga/yekonga-server-go/yekonga"
 "log"
 )
 
@@ -1386,7 +1386,7 @@ package main
 
 import (
 "testing"
-"github.com/robertkonga/yekonga-server/yekonga"
+"github.com/robertkonga/yekonga-server-go/yekonga"
 )
 
 func TestUserCreation(t *testing.T) {

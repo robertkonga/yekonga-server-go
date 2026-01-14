@@ -13,13 +13,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/mongoutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/mongocrypt"
-	mcopts "github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/mongocrypt/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/mongoutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/mongocrypt"
+	mcopts "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/mongocrypt/options"
 )
 
 // ClientEncryption is used to create data keys and explicitly encrypt and decrypt BSON values.

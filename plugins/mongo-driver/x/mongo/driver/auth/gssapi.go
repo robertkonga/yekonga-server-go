@@ -16,8 +16,8 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/auth/internal/gssapi"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/auth/internal/gssapi"
 )
 
 // GSSAPI is the mechanism name for GSSAPI.

@@ -13,15 +13,15 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/mongoutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/serverselector"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/operation"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/mongoutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/serverselector"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/operation"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/session"
 )
 
 // ErrInvalidIndexValue is returned if an index is created with a keys document that has a value that is not a number

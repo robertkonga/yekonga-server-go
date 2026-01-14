@@ -611,7 +611,7 @@ func parseDSNParams(cfg *Config, params string) (err error) {
 
 		// Strict mode
 		case "strict":
-			panic("strict mode has been removed. See https://github.com/robertkonga/yekonga-server/plugins/mysql/wiki/strict-mode")
+			panic("strict mode has been removed. See https://github.com/robertkonga/yekonga-server-go/plugins/mysql/wiki/strict-mode")
 
 		// Dial Timeout
 		case "timeout":

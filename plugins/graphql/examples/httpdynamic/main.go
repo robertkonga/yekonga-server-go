@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 )
 
 /*****************************************************************************/

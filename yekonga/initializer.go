@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/logger"
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 )
 
 // Allowed file extensions

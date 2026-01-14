@@ -10,8 +10,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/address"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/address"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
 )
 
 // ReadWriteCloser represents a Connection where server operations

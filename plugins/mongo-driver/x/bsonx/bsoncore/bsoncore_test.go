@@ -15,7 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
 )
 
 func compareErrors(err1, err2 error) bool {

@@ -10,8 +10,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/logger"
 )
 
 type testLogSink struct {

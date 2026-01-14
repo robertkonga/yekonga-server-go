@@ -4,11 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	socketio "github.com/robertkonga/yekonga-server/plugins/socketio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/polling"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/websocket"
+	socketio "github.com/robertkonga/yekonga-server-go/plugins/socketio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/polling"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/websocket"
 )
 
 // Easier to get running with CORS. Thanks for help @Vindexus and @erkie

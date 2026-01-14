@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 // Resolve the attribute(s) in the document structure along the given path.

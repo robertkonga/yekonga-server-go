@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/utils"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/utils"
 )
 
 // DialError is the error when dialing to a server. It saves Response from

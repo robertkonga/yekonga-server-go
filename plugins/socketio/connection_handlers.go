@@ -3,8 +3,8 @@ package socketio
 import (
 	"log"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/parser"
 )
 
 var emtpyFH = newAckFunc(func() {})

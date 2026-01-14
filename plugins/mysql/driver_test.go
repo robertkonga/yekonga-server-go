@@ -35,7 +35,7 @@ import (
 )
 
 // This variable can be replaced with -ldflags like below:
-// go test "-ldflags=-X github.com/robertkonga/yekonga-server/plugins/mysql.driverNameTest=custom"
+// go test "-ldflags=-X github.com/robertkonga/yekonga-server-go/plugins/mysql.driverNameTest=custom"
 var driverNameTest string
 
 func init() {
@@ -71,7 +71,7 @@ var (
 	sDateTime0 = "0000-00-00 00:00:00"
 )
 
-// See https://github.com/robertkonga/yekonga-server/plugins/mysql/wiki/Testing
+// See https://github.com/robertkonga/yekonga-server-go/plugins/mysql/wiki/Testing
 func init() {
 	// get environment variables
 	env := func(key, defaultValue string) string {
@@ -681,7 +681,7 @@ func TestRawBytes(t *testing.T) {
 			if !bytes.Equal(v2, o2) {
 				dbt.Errorf("expected %v, got %v", v2, o2)
 			}
-			// https://github.com/robertkonga/yekonga-server/plugins/mysql/issues/765
+			// https://github.com/robertkonga/yekonga-server-go/plugins/mysql/issues/765
 			// Appending to RawBytes shouldn't overwrite next RawBytes.
 			o1 = append(o1, "xyzzy"...)
 			if !bytes.Equal(v2, o2) {
@@ -3565,7 +3565,7 @@ func TestErrorInMultiResult(t *testing.T) {
 	if !available {
 		t.Skipf("MySQL server not running on %s", netAddr)
 	}
-	// https://github.com/robertkonga/yekonga-server/plugins/mysql/issues/1361
+	// https://github.com/robertkonga/yekonga-server-go/plugins/mysql/issues/1361
 	var db *sql.DB
 	if _, err := ParseDSN(dsn); err != errInvalidDSNUnsafeCollation {
 		db, err = sql.Open("mysql", dsn)

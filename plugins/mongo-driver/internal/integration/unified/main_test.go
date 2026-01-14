@@ -12,7 +12,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
 )
 
 func TestMain(m *testing.M) {

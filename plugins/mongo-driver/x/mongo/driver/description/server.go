@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/address"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/tag"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/address"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/tag"
 )
 
 // ServerKind represents the type of a single server in a topology.

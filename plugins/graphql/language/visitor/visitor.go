@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/typeInfo"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/typeInfo"
 )
 
 const (

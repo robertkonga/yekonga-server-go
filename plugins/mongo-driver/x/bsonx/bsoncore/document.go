@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/bsoncoreutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/bsoncoreutil"
 )
 
 // ValidationError is an error type returned when attempting to validate a document or array.

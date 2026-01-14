@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http/httptest"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
 )
 
 func main() {

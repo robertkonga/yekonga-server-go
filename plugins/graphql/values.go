@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/kinds"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/printer"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/kinds"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/printer"
 )
 
 // Prepares an object map of variableValues of the correct type based on the

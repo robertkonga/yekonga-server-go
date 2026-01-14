@@ -8,8 +8,8 @@ package data
 import (
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/dberr"
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/dberr"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 // Partition associates a hash table with collection documents, allowing addressing of a document using an unchanging ID.

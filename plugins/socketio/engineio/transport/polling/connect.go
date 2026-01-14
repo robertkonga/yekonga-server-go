@@ -11,11 +11,11 @@ import (
 	"net/url"
 	"sync/atomic"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/packet"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/payload"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/utils"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/packet"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/payload"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/utils"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 type clientConn struct {

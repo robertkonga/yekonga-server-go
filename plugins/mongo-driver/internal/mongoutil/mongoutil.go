@@ -9,7 +9,7 @@ package mongoutil
 import (
 	"reflect"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 // NewOptions will functionally merge a slice of mongo.Options in a

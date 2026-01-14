@@ -9,7 +9,7 @@ package require
 import (
 	time "time"
 
-	assert "github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
+	assert "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
 )
 
 // TestingT is an interface wrapper around *testing.T

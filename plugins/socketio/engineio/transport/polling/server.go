@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/payload"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/payload"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 type serverConn struct {

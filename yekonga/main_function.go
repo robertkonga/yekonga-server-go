@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/config"
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/jwt"
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/jwt"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 	"golang.org/x/crypto/bcrypt"
 )
 

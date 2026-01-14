@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 type ExecuteParams struct {

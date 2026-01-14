@@ -11,9 +11,9 @@ import (
 	"math"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/tag"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/tag"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
 )
 
 // Composite combines multiple selectors into a single selector by applying them

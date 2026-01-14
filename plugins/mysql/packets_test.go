@@ -313,7 +313,7 @@ func TestReadPacketFail(t *testing.T) {
 	}
 }
 
-// https://github.com/robertkonga/yekonga-server/plugins/mysql/pull/801
+// https://github.com/robertkonga/yekonga-server-go/plugins/mysql/pull/801
 // not-NUL terminated plugin_name in init packet
 func TestRegression801(t *testing.T) {
 	conn := new(mockConn)

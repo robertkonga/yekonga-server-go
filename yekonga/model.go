@@ -3,8 +3,8 @@ package yekonga
 import (
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/config"
-	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
 type DataModelFieldType string

@@ -7,7 +7,7 @@
 package mongo
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
 )
 
 // ClientWriteModel is an interface implemented by models that can be used in a client-level BulkWrite operation. Each

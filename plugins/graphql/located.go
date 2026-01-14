@@ -3,8 +3,8 @@ package graphql
 import (
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 func NewLocatedError(err interface{}, nodes []ast.Node) *gqlerrors.Error {

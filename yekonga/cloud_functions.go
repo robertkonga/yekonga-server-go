@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/logger"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
 type TriggerAction string

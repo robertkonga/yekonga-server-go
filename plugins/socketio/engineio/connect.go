@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/session"
 )
 
 // Conn is connection by client session

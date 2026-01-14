@@ -698,7 +698,7 @@ package customauth
 
 import (
     "fmt"
-    yekonga "github.com/robertkonga/yekonga-server/yekonga"
+    yekonga "github.com/robertkonga/yekonga-server-go/yekonga"
 )
 
 // CustomAuthProvider provides custom authentication

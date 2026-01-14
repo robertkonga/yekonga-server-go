@@ -6,7 +6,7 @@ replace go.mongodb.org/mongo-driver => ../../../
 
 require (
 	github.com/stretchr/testify v1.9.0
-	github.com/robertkonga/yekonga-server/plugins/mongo-driver v2.0.0-beta2
+	github.com/robertkonga/yekonga-server-go/plugins/mongo-driver v2.0.0-beta2
 	go.uber.org/goleak v1.3.0
 )
 

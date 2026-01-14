@@ -14,17 +14,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/bsonutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/driverutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/handshake"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/address"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/version"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/mnet"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/bsonutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/driverutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/handshake"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/address"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/version"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/mnet"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/session"
 )
 
 // maxClientMetadataSize is the maximum size of the client metadata document

@@ -11,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integration/mtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/serverselector"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/address"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/topology"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integration/mtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/serverselector"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/address"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/topology"
 )
 
 // Helper functions for the operations in the unified spec test runner that require assertions about SDAM and connection

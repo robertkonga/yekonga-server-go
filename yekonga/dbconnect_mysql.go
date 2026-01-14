@@ -3,7 +3,7 @@ package yekonga
 import (
 	"context"
 
-	"github.com/robertkonga/yekonga-server/datatype"
+	"github.com/robertkonga/yekonga-server-go/datatype"
 )
 
 type mysqlConnection struct {

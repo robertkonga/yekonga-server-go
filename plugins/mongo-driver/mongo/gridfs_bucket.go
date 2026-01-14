@@ -13,14 +13,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/csot"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/mongoutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/csot"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/mongoutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // TODO: add sessions options

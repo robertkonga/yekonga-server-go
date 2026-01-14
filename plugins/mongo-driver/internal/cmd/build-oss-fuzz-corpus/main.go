@@ -19,7 +19,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 const dataDir = "testdata/bson-corpus/"

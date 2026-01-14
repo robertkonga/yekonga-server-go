@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/data"
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/data"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 const (

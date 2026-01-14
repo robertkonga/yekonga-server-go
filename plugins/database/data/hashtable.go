@@ -15,7 +15,7 @@ import (
 	"encoding/binary"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 // Hash table file is a binary file containing buckets of hash entries.

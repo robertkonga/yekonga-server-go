@@ -3,10 +3,10 @@ package yekonga
 import (
 	"time"
 
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 type ActionResponse struct {

@@ -3,7 +3,7 @@ package packet
 import (
 	"bytes"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
 )
 
 type fakeFrame struct {

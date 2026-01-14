@@ -7,7 +7,7 @@
 package options
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/logger"
 )
 
 // LogLevel is an enumeration representing the supported log severity levels.

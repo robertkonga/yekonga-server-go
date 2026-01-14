@@ -10,11 +10,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/failpoint"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/connstring"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/topology"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/failpoint"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/connstring"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/topology"
 )
 
 // AuthEnabled returns whether or not the cluster requires auth.

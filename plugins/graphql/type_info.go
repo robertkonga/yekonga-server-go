@@ -1,8 +1,8 @@
 package graphql
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/kinds"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/kinds"
 )
 
 // TODO: can move TypeInfo to a utils package if there ever is one

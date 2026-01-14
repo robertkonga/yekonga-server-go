@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/wiremessage"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 // SentMessage represents a message sent by the driver to the server.

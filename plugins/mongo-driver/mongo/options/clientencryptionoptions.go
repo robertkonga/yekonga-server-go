@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/httputil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/httputil"
 )
 
 // ClientEncryptionOptions represents all possible arguments used to configure a ClientEncryption instance.

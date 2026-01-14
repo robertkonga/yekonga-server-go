@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/auth"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/wiremessage"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/auth"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 func TestCreateAuthenticator(t *testing.T) {

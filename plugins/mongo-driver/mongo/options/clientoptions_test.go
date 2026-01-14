@@ -23,15 +23,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/event"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/httputil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/ptrutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/connstring"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/event"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/httputil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/ptrutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/connstring"
 )
 
 var tClientOptions = reflect.TypeOf(&ClientOptions{})

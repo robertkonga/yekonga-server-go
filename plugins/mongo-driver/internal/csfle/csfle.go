@@ -10,7 +10,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 const (

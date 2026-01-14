@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
 )
 
 var _ Zeroer = testZeroer{}

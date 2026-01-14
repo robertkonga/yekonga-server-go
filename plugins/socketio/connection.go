@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/parser"
 )
 
 // Conn is a connection in go-socket.io

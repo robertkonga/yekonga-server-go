@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/awserr"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/awserr"
 )
 
 func isExpired(c *Credentials) bool {

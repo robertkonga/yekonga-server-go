@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 )
 
 type user struct {

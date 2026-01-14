@@ -7,9 +7,9 @@
 package session
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/readpref"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/readpref"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
 )
 
 // ClientOptions represents all possible options for creating a client session.

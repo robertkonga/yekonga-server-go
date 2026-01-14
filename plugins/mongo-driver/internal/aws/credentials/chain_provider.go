@@ -11,7 +11,7 @@
 package credentials
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/awserr"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/awserr"
 )
 
 // A ChainProvider will search for a provider which returns credentials

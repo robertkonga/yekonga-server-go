@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/credproviders"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/credproviders"
 )
 
 func epochTime() time.Time { return time.Unix(0, 0) }

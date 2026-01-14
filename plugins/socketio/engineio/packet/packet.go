@@ -1,6 +1,6 @@
 package packet
 
-import "github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
+import "github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
 
 // Type is the type of packet
 type Type int

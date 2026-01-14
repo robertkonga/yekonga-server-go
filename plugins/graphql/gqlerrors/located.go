@@ -3,7 +3,7 @@ package gqlerrors
 import (
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 // NewLocatedError creates a graphql.Error with location info

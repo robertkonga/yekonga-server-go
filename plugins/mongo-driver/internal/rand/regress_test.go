@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/rand"
+	. "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/rand"
 )
 
 var printgolden = flag.Bool("printgolden", false, "print golden results for regression test")

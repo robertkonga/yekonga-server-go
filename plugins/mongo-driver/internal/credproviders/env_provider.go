@@ -9,7 +9,7 @@ package credproviders
 import (
 	"os"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
 )
 
 // envProviderName provides a name of Env provider

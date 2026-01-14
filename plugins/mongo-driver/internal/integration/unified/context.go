@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
 )
 
 // ctxKey is used to define keys for values stored in context.Context objects.

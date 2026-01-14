@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/dberr"
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/dberr"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 // Calculate union of sub-query results.

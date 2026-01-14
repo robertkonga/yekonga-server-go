@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 type CustomID struct {

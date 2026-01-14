@@ -6,8 +6,8 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/packet"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/packet"
 )
 
 type writerFeeder interface {

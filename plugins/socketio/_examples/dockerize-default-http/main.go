@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	socketio "github.com/robertkonga/yekonga-server/plugins/socketio"
+	socketio "github.com/robertkonga/yekonga-server-go/plugins/socketio"
 )
 
 func main() {

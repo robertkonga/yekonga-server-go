@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
 type RequestContext struct {

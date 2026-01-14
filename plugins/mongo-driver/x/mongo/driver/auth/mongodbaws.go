@@ -11,10 +11,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/credproviders"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/auth/creds"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/credproviders"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/auth/creds"
 )
 
 // MongoDBAWS is the mechanism name for MongoDBAWS.

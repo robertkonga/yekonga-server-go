@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 )
 
 const (

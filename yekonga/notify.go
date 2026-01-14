@@ -3,7 +3,7 @@ package yekonga
 import (
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/helper"
+	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
 // User represents the user data structure

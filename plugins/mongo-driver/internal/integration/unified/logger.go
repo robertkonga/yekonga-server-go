@@ -10,7 +10,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/logger"
 )
 
 // orderedLogMessage is a logMessage with an "order" field representing the

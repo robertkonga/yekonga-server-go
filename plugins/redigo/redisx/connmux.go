@@ -18,7 +18,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/redigo/redis"
+	"github.com/robertkonga/yekonga-server-go/plugins/redigo/redis"
 )
 
 // ConnMux multiplexes one or more connections to a single underlying

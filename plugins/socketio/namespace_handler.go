@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/parser"
 )
 
 type namespaceHandler struct {

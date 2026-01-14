@@ -3,7 +3,7 @@ package benchutil
 import (
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 )
 
 type color struct {

@@ -10,8 +10,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/logger"
 )
 
 func TestContext_WithOperationName(t *testing.T) {

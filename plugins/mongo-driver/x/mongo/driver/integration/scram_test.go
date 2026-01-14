@@ -12,13 +12,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/driverutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/integtest"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/serverselector"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/options"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/driverutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/integtest"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/serverselector"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
 )
 
 type scramTestCase struct {

@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/decimal128"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/decimal128"
 )
 
 // These constants are the maximum and minimum values for the exponent field in a decimal128 value.

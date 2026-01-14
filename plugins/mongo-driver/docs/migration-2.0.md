@@ -1204,7 +1204,7 @@ A new `RawArray` type has been added to the `bson` package as a primitive type t
 
 ### ValueMarshaler
 
-The `MarshalBSONValue` method of the [ValueMarshaler](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson#ValueMarshaler) interface now returns a `byte` value representing the [BSON type](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson#Type). That allows external packages to implement the `ValueMarshaler` interface without having to import the `bson` package. Convert a returned `byte` value to [bson.Type](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson#Type) to compare with the BSON type constants. For example:
+The `MarshalBSONValue` method of the [ValueMarshaler](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson#ValueMarshaler) interface now returns a `byte` value representing the [BSON type](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson#Type). That allows external packages to implement the `ValueMarshaler` interface without having to import the `bson` package. Convert a returned `byte` value to [bson.Type](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson#Type) to compare with the BSON type constants. For example:
 
 ```go
 btype, _, _ := m.MarshalBSONValue()
@@ -1214,7 +1214,7 @@ fmt.Println("type of data is an array: %v", bson.Type(btype) == bson.TypeArray)
 
 ### ValueUnmarshaler
 
-The `UnmarshalBSONValue` method of the [ValueUnmarshaler](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson#ValueUnmarshaler) interface now accepts a `byte` value representing the [BSON type](https://pkg.go.dev/github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson#Type) for the first argument. That allows packages to implement `ValueUnmarshaler` without having to import the `bson` package. For example:
+The `UnmarshalBSONValue` method of the [ValueUnmarshaler](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson#ValueUnmarshaler) interface now accepts a `byte` value representing the [BSON type](https://pkg.go.dev/github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson#Type) for the first argument. That allows packages to implement `ValueUnmarshaler` without having to import the `bson` package. For example:
 
 ```go
 if err := m.UnmarshalBSONValue(bson.TypeEmbeddedDocument, bytes); err != nil {

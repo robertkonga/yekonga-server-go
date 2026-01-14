@@ -97,7 +97,7 @@ tasks:
   test-oidc-remote: bash etc/run-oidc-remote-test.sh
 
   test-atlas-connect: 
-    - go test -v -run ^TestAtlas$ github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/cmd/testatlas -args "$ATLAS_REPL" "$ATLAS_SHRD" "$ATLAS_FREE" "$ATLAS_TLS11" "$ATLAS_TLS12" "$ATLAS_SERVERLESS" "$ATLAS_SRV_REPL" "$ATLAS_SRV_SHRD" "$ATLAS_SRV_FREE" "$ATLAS_SRV_TLS11" "$ATLAS_SRV_TLS12" "$ATLAS_SRV_SERVERLESS" >> test.suite
+    - go test -v -run ^TestAtlas$ github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/cmd/testatlas -args "$ATLAS_REPL" "$ATLAS_SHRD" "$ATLAS_FREE" "$ATLAS_TLS11" "$ATLAS_TLS12" "$ATLAS_SERVERLESS" "$ATLAS_SRV_REPL" "$ATLAS_SRV_SHRD" "$ATLAS_SRV_FREE" "$ATLAS_SRV_TLS11" "$ATLAS_SRV_TLS12" "$ATLAS_SRV_SERVERLESS" >> test.suite
 
   test-awskms: bash etc/run-awskms-test.sh
 

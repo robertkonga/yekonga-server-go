@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/logger"
-	localDB "github.com/robertkonga/yekonga-server/plugins/database/db"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
+	localDB "github.com/robertkonga/yekonga-server-go/plugins/database/db"
 )
 
 type localDbConnection struct {

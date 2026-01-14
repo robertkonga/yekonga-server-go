@@ -17,7 +17,7 @@ package data
 import (
 	"encoding/binary"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/dberr"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/dberr"
 )
 
 // Collection file contains document headers and document text data.

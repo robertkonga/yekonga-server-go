@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/kinds"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/printer"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/visitor"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/kinds"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/printer"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/visitor"
 )
 
 func fieldsConflictMessage(responseName string, reason conflictReason) string {

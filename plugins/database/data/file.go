@@ -5,8 +5,8 @@ package data
 import (
 	"os"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/gommap"
-	"github.com/robertkonga/yekonga-server/plugins/database/tdlog"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/gommap"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/tdlog"
 )
 
 // Data file keeps track of the amount of total and used space.

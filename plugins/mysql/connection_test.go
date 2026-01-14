@@ -80,7 +80,7 @@ func TestInterpolateParamsTooManyPlaceholders(t *testing.T) {
 }
 
 // We don't support placeholder in string literal for now.
-// https://github.com/robertkonga/yekonga-server/plugins/mysql/pull/490
+// https://github.com/robertkonga/yekonga-server-go/plugins/mysql/pull/490
 func TestInterpolateParamsPlaceholderInString(t *testing.T) {
 	mc := &mysqlConn{
 		buf:              newBuffer(),

@@ -3,8 +3,8 @@ package packet
 import (
 	"io"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 // FrameWriter is the writer which supports framing.

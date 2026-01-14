@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper/console"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/xuri/excelize/v2"
 )
 

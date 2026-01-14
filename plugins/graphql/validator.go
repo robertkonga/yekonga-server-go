@@ -1,10 +1,10 @@
 package graphql
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/kinds"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/visitor"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/kinds"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/visitor"
 )
 
 type ValidationResult struct {

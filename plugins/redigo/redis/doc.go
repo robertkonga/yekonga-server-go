@@ -14,7 +14,7 @@
 
 // Package redis is a client for the Redis database.
 //
-// The Redigo FAQ (https://github.com/robertkonga/yekonga-server/plugins/redigo/wiki/FAQ) contains more
+// The Redigo FAQ (https://github.com/robertkonga/yekonga-server-go/plugins/redigo/wiki/FAQ) contains more
 // documentation about this package.
 //
 // # Connections

@@ -22,10 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/randutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/auth"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/dns"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/wiremessage"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/randutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/auth"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/dns"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/wiremessage"
 )
 
 const (

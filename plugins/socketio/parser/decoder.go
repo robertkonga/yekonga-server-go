@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/session"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 const (

@@ -6,7 +6,7 @@
 
 package topology
 
-import "github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/description"
+import "github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/description"
 
 // hostlistDiff is the difference between a topology and a host list.
 type hostlistDiff struct {

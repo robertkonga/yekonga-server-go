@@ -1,7 +1,7 @@
 package graphql
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
 )
 
 // type Schema interface{}

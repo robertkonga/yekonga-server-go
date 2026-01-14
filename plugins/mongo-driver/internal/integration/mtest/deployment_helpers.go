@@ -7,7 +7,7 @@
 package mtest
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 // BatchIdentifier specifies the keyword to identify the batch in a cursor response.

@@ -6,11 +6,11 @@ import (
 	"net/http/pprof"
 	_ "net/http/pprof"
 
-	socketio "github.com/robertkonga/yekonga-server/plugins/socketio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/polling"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/websocket"
+	socketio "github.com/robertkonga/yekonga-server-go/plugins/socketio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/polling"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/websocket"
 )
 
 var allowOriginFunc = func(r *http.Request) bool {

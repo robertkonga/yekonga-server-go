@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/frame"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/packet"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/session"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/frame"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/packet"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 // Opener is client connection which need receive open message first.

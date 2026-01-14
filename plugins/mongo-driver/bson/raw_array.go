@@ -9,7 +9,7 @@ package bson
 import (
 	"io"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // RawArray is a raw bytes representation of a BSON array.

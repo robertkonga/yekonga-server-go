@@ -3,10 +3,10 @@ package parser
 import (
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/lexer"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/source"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/lexer"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/source"
 )
 
 type parseFn func(parser *Parser) (interface{}, error)

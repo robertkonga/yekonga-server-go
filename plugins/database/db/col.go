@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/robertkonga/yekonga-server/plugins/database/data"
+	"github.com/robertkonga/yekonga-server-go/plugins/database/data"
 )
 
 const (

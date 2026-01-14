@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/session"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/session"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/polling"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/polling"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport/websocket"
 )
 
 // Options is options to create a server.

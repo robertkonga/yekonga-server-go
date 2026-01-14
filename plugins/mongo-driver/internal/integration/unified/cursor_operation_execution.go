@@ -10,7 +10,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 func executeIterateOnce(ctx context.Context, operation *operation) (*operationResult, error) {

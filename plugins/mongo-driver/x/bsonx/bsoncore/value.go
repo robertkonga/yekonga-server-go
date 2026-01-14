@@ -18,8 +18,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/bsoncoreutil"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/decimal128"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/bsoncoreutil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/decimal128"
 )
 
 // ElementTypeError specifies that a method to obtain a BSON value an incorrect type was called on a bson.Value.

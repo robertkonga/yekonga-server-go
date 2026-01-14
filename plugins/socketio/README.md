@@ -8,15 +8,15 @@ go-socket.io is library an implementation of [Socket.IO](http://socket.io) in Go
 
 Current this library supports 1.4 version of the Socket.IO client. It supports room, namespaces and broadcast at now.
 
-**Help wanted** This project is looking for contributors to help fix bugs and implement new features. Please check [Issue 192](https://"github.com/robertkonga/yekonga-server/plugins/socketio/issues/192). All help is much appreciated.
+**Help wanted** This project is looking for contributors to help fix bugs and implement new features. Please check [Issue 192](https://"github.com/robertkonga/yekonga-server-go/plugins/socketio/issues/192). All help is much appreciated.
 
 ## Badges
 
-![Build Status](https://"github.com/robertkonga/yekonga-server/plugins/socketio/workflows/CI/badge.svg)
-[![GoDoc](http://godoc.org/"github.com/robertkonga/yekonga-server/plugins/socketio?status.svg)](http://godoc.org/"github.com/robertkonga/yekonga-server/plugins/socketio)
+![Build Status](https://"github.com/robertkonga/yekonga-server-go/plugins/socketio/workflows/CI/badge.svg)
+[![GoDoc](http://godoc.org/"github.com/robertkonga/yekonga-server-go/plugins/socketio?status.svg)](http://godoc.org/"github.com/robertkonga/yekonga-server-go/plugins/socketio)
 [![License](https://img.shields.io/github/license/golangci/golangci-lint)](/LICENSE)
-[![Release](https://img.shields.io/github/release/googollee/go-socket.io.svg)](https://"github.com/robertkonga/yekonga-server/plugins/socketio/releases/latest)
-[![Go Report Card](https://goreportcard.com/badge/"github.com/robertkonga/yekonga-server/plugins/socketio)](https://goreportcard.com/report/"github.com/robertkonga/yekonga-server/plugins/socketio)
+[![Release](https://img.shields.io/github/release/googollee/go-socket.io.svg)](https://"github.com/robertkonga/yekonga-server-go/plugins/socketio/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/"github.com/robertkonga/yekonga-server-go/plugins/socketio)](https://goreportcard.com/report/"github.com/robertkonga/yekonga-server-go/plugins/socketio)
 
 ## Contents
 
@@ -32,20 +32,20 @@ Current this library supports 1.4 version of the Socket.IO client. It supports r
 Install the package with:
 
 ```bash
-go get "github.com/robertkonga/yekonga-server/plugins/socketio
+go get "github.com/robertkonga/yekonga-server-go/plugins/socketio
 ```
 
 Import it with:
 
 ```go
-import "github.com/robertkonga/yekonga-server/plugins/socketio"
+import "github.com/robertkonga/yekonga-server-go/plugins/socketio"
 ```
 
 and use `socketio` as the package name inside the code.
 
 ## Example
 
-Please check more examples into folder in project for details. [Examples](https://"github.com/robertkonga/yekonga-server/plugins/socketio/tree/master/_examples)
+Please check more examples into folder in project for details. [Examples](https://"github.com/robertkonga/yekonga-server-go/plugins/socketio/tree/master/_examples)
 
 ## FAQ
 
@@ -54,7 +54,7 @@ It is some popular questions about this repository:
 - Is this library supported socket.io version 2?
     - No, but if you wanna you can help to do it. Join us in community chat Telegram   
 - How to use go-socket.io with CORS?
-    - Please see examples in [directory](https://"github.com/robertkonga/yekonga-server/plugins/socketio/tree/master/_examples)
+    - Please see examples in [directory](https://"github.com/robertkonga/yekonga-server-go/plugins/socketio/tree/master/_examples)
 
 ## Community
 

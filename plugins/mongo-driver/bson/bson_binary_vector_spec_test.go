@@ -15,7 +15,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
 )
 
 const bsonBinaryVectorDir = "../testdata/bson-binary-vector/"

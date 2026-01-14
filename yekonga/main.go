@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/config"
-	"github.com/robertkonga/yekonga-server/datatype"
-	"github.com/robertkonga/yekonga-server/helper"
-	"github.com/robertkonga/yekonga-server/helper/logger"
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
 // StaticConfig holds configuration for static file serving

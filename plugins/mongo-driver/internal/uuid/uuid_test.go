@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/israce"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/require"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/israce"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/require"
 )
 
 // GODRIVER-2349

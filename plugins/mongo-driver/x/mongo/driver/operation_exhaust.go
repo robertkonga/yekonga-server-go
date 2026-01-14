@@ -10,7 +10,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver/mnet"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver/mnet"
 )
 
 // ExecuteExhaust reads a response from the provided StreamerConnection. This will error if the connection's

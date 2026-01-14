@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 // This example uses Raw to skip parsing a nested document in a BSON message.

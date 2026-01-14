@@ -9,11 +9,11 @@
 // The driver should be used via the database/sql package:
 //
 //	import "database/sql"
-//	import _ "github.com/robertkonga/yekonga-server/plugins/mysql"
+//	import _ "github.com/robertkonga/yekonga-server-go/plugins/mysql"
 //
 //	db, err := sql.Open("mysql", "user:password@/dbname")
 //
-// See https://github.com/robertkonga/yekonga-server/plugins/mysql#usage for details
+// See https://github.com/robertkonga/yekonga-server-go/plugins/mysql#usage for details
 package mysql
 
 import (
@@ -76,7 +76,7 @@ func RegisterDial(network string, dial DialFunc) {
 }
 
 // Open new Connection.
-// See https://github.com/robertkonga/yekonga-server/plugins/mysql#dsn-data-source-name for how
+// See https://github.com/robertkonga/yekonga-server-go/plugins/mysql#dsn-data-source-name for how
 // the DSN string is formatted
 func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 	cfg, err := ParseDSN(dsn)
@@ -88,7 +88,7 @@ func (d MySQLDriver) Open(dsn string) (driver.Conn, error) {
 }
 
 // This variable can be replaced with -ldflags like below:
-// go build "-ldflags=-X github.com/robertkonga/yekonga-server/plugins/mysql.driverName=custom"
+// go build "-ldflags=-X github.com/robertkonga/yekonga-server-go/plugins/mysql.driverName=custom"
 var driverName = "mysql"
 
 func init() {

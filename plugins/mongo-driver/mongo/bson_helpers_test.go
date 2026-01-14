@@ -9,8 +9,8 @@ package mongo
 import (
 	"testing"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/assert"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/assert"
 )
 
 // compare expected and actual BSON documents. comparison succeeds if actual contains each element in expected.

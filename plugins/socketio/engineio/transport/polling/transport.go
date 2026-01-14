@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/payload"
-	"github.com/robertkonga/yekonga-server/plugins/socketio/engineio/transport"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/payload"
+	"github.com/robertkonga/yekonga-server-go/plugins/socketio/engineio/transport"
 )
 
 // Transport is the transport of polling.

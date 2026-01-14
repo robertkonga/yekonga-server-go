@@ -7,7 +7,7 @@
 package mgocompat
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 // Registry is the mgo compatible bson.Registry. It contains the default and

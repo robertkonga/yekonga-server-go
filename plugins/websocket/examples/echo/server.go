@@ -13,7 +13,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/websocket"
+	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 )
 
 var addr = flag.String("addr", "localhost:8080", "http service address")

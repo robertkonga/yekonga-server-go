@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 )
 
 // As per the GraphQL Spec, Integers are only treated as valid when a valid

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/robertkonga/yekonga-server/plugins/redigo/redis"
+	"github.com/robertkonga/yekonga-server-go/plugins/redigo/redis"
 )
 
 // redisBroadcast gives Join, Leave & BroadcastTO server API support to socket.io along with room management

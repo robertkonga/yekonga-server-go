@@ -5,7 +5,7 @@ Override internal logger with:
 ```go
 import (
 	...
-    "github.com/robertkonga/yekonga-server/plugins/socketio/logger"
+    "github.com/robertkonga/yekonga-server-go/plugins/socketio/logger"
 )
 
 func main() {

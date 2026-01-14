@@ -1,5 +1,5 @@
 [clog]
-repository = "https://github.com/robertkonga/yekonga-server/plugins/redigo"
+repository = "https://github.com/robertkonga/yekonga-server-go/plugins/redigo"
 subtitle = "Release Notes"
 from-latest-tag = true
 

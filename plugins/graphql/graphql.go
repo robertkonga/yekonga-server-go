@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/gqlerrors"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/parser"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/source"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/parser"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/source"
 )
 
 type Params struct {

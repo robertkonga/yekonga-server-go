@@ -3,7 +3,7 @@ package gqlerrors
 import (
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/location"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/location"
 )
 
 type ExtendedError interface {

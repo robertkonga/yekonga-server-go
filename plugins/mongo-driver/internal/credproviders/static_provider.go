@@ -9,7 +9,7 @@ package credproviders
 import (
 	"errors"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
 )
 
 // staticProviderName provides a name of Static provider

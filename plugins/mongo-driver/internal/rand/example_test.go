@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/rand"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/rand"
 )
 
 // These tests serve as an example but also make sure we don't change

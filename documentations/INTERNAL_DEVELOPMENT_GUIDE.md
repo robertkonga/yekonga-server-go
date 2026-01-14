@@ -325,7 +325,7 @@ res.Json(map[string]interface{}{
 
 ```go
 // Use logger for errors
-import "github.com/robertkonga/yekonga-server/helper/logger"
+import "github.com/robertkonga/yekonga-server-go/helper/logger"
 
 logger.Error("Database connection failed: %v", err)
 logger.Warn("Slow query detected: %dms", duration)

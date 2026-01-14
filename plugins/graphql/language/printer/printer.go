@@ -7,8 +7,8 @@ import (
 
 	"reflect"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/ast"
-	"github.com/robertkonga/yekonga-server/plugins/graphql/language/visitor"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/visitor"
 )
 
 func getMapValue(m map[string]interface{}, key string) interface{} {

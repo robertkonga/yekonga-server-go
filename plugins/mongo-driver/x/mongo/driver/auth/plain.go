@@ -10,7 +10,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/mongo/driver"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/mongo/driver"
 )
 
 // PLAIN is the mechanism name for PLAIN.

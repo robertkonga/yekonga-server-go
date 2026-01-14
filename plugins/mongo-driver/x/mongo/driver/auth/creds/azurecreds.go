@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/aws/credentials"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/credproviders"
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/aws/credentials"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/credproviders"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // AzureCredentialProvider provides Azure credentials.

@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/internal/httputil"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/internal/httputil"
 	"golang.org/x/crypto/ocsp"
 )
 

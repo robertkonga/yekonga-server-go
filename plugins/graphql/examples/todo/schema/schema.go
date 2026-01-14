@@ -3,7 +3,7 @@ package schema
 import (
 	"math/rand"
 
-	"github.com/robertkonga/yekonga-server/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 )
 
 var TodoList []Todo

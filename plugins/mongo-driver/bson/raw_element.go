@@ -7,7 +7,7 @@
 package bson
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // RawElement is a raw encoded BSON document or array element.

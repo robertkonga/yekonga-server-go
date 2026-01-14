@@ -7,7 +7,7 @@
 package options
 
 import (
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/mongo/writeconcern"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/writeconcern"
 )
 
 // ClientBulkWriteOptions represents options that can be used to configure a client-level BulkWrite operation.

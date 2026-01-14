@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/robertkonga/yekonga-server/plugins/mongo-driver/x/bsonx/bsoncore"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/x/bsonx/bsoncore"
 )
 
 // copyDocument handles copying one document from the src to the dst.
