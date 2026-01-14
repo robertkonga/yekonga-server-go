@@ -1,4 +1,4 @@
-package Yekonga
+package yekonga
 
 import (
 	"time"

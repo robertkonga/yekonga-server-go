@@ -1,4 +1,4 @@
-package Yekonga
+package yekonga
 
 type CollectionStructure struct {
 	Name   string

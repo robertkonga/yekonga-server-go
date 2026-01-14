@@ -1,4 +1,4 @@
-package Yekonga
+package yekonga
 
 import (
 	"encoding/json"
@@ -44,7 +44,7 @@ type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type TriggerCloudFunction func(*RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
-var Server *YekongaData
+var App *YekongaData
 
 // Yekonga represents the main server structure
 type YekongaData struct {
@@ -70,7 +70,7 @@ type YekongaData struct {
 }
 
 // NewYekonga creates a new instance of Yekonga server
-func YekongaServer(configFile string, databaseFile string) *YekongaData {
+func Server(configFile string, databaseFile string) *YekongaData {
 	logger.Logo()
 
 	databaseStructure := NewDatabaseStructure(databaseFile)
@@ -79,7 +79,7 @@ func YekongaServer(configFile string, databaseFile string) *YekongaData {
 	dbConnect := NewDatabaseConnections(config)
 	resolverChartGroupData := SetDataGroups(systemModels)
 
-	Server = &YekongaData{
+	App = &YekongaData{
 		Config:                 config,
 		dbConnect:              dbConnect,
 		models:                 systemModels,
@@ -96,23 +96,22 @@ func YekongaServer(configFile string, databaseFile string) *YekongaData {
 		logger:                 &log.Logger{},
 	}
 
-	dbConnect.appPath = Server.HomeDirectory()
-	SetSystemModelDBconnection(Server, &systemModels)
-	graphqlBuild := NewGraphqlAutoBuild(Server, systemModels)
+	dbConnect.appPath = App.HomeDirectory()
+	SetSystemModelDBconnection(App, &systemModels)
+	graphqlBuild := NewGraphqlAutoBuild(App, systemModels)
 	graphqlBuild.initialize()
 
 	dbConnect.connect()
-	Server.graphqlBuild = graphqlBuild
-	Server.initialize()
+	App.graphqlBuild = graphqlBuild
+	App.initialize()
 
-	Server.cronjob = NewCronjob(Server)
+	App.cronjob = NewCronjob(App)
 
-	return Server
+	return App
 }
 
-func YekongaServerAuto(configFile string, databaseFile string) {
-	var _ = YekongaServer(configFile, databaseFile)
-
+func ServerConfig(configFile string, databaseFile string) {
+	Server(configFile, databaseFile)
 }
 
 func (y *YekongaData) Model(name string) *DataModel {

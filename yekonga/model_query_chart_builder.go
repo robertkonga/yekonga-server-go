@@ -1,4 +1,4 @@
-package Yekonga
+package yekonga
 
 import (
 	"errors"
@@ -512,8 +512,8 @@ func (cb *ChartBuilder) getGroups(params map[string]interface{}, groupBy string,
 	}
 
 	if helper.IsNotEmpty(groupBy) {
-		if modelData, ok := Server.resolverChartGroupData[groupBy]; ok {
-			model := Server.models[modelData.ClassName]
+		if modelData, ok := App.resolverChartGroupData[groupBy]; ok {
+			model := App.models[modelData.ClassName]
 
 			if model != nil {
 				modelQuery := model.Query()

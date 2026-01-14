@@ -1,4 +1,4 @@
-package Yekonga
+package yekonga
 
 type DatabaseStructureType = map[string]map[string]map[string]interface{}
 
