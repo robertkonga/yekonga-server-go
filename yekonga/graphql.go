@@ -746,7 +746,7 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 		},
 	}
 
-	if model, ok := App.models[name]; ok {
+	if model, ok := Server.models[name]; ok {
 		if len(model.ParentFields) > 0 || len(model.ChildrenFields) > 0 {
 			dimensionWhereKind := g.MutationTypes[helper.ToCamelCase("dimension_where_"+name+"_input")]
 			argsParams["dimensionWhere"] = &graphql.ArgumentConfig{

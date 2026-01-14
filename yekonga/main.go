@@ -44,7 +44,7 @@ type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type TriggerCloudFunction func(*RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
-var App *YekongaData
+var Server *YekongaData
 
 // Yekonga represents the main server structure
 type YekongaData struct {
@@ -70,7 +70,7 @@ type YekongaData struct {
 }
 
 // NewYekonga creates a new instance of Yekonga server
-func Server(configFile string, databaseFile string) *YekongaData {
+func ServerConfig(configFile string, databaseFile string) *YekongaData {
 	logger.Logo()
 
 	databaseStructure := NewDatabaseStructure(databaseFile)
@@ -79,7 +79,7 @@ func Server(configFile string, databaseFile string) *YekongaData {
 	dbConnect := NewDatabaseConnections(config)
 	resolverChartGroupData := SetDataGroups(systemModels)
 
-	App = &YekongaData{
+	Server = &YekongaData{
 		Config:                 config,
 		dbConnect:              dbConnect,
 		models:                 systemModels,
@@ -96,22 +96,22 @@ func Server(configFile string, databaseFile string) *YekongaData {
 		logger:                 &log.Logger{},
 	}
 
-	dbConnect.appPath = App.HomeDirectory()
-	SetSystemModelDBconnection(App, &systemModels)
-	graphqlBuild := NewGraphqlAutoBuild(App, systemModels)
+	dbConnect.appPath = Server.HomeDirectory()
+	SetSystemModelDBconnection(Server, &systemModels)
+	graphqlBuild := NewGraphqlAutoBuild(Server, systemModels)
 	graphqlBuild.initialize()
 
 	dbConnect.connect()
-	App.graphqlBuild = graphqlBuild
-	App.initialize()
+	Server.graphqlBuild = graphqlBuild
+	Server.initialize()
 
-	App.cronjob = NewCronjob(App)
+	Server.cronjob = NewCronjob(Server)
 
-	return App
+	return Server
 }
 
-func ServerConfig(configFile string, databaseFile string) {
-	Server(configFile, databaseFile)
+func ServerLoad(configFile string, databaseFile string) {
+	ServerConfig(configFile, databaseFile)
 }
 
 func (y *YekongaData) Model(name string) *DataModel {

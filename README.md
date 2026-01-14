@@ -1,10 +1,54 @@
-# YekongaServer API Documentation
+# YekongaServer Go
 
-Complete API reference for the YekongaServer framework including helper functions, configuration, and server methods.
+A comprehensive, production-ready Go server framework that provides out-of-the-box solutions for building scalable backend applications with REST APIs, GraphQL, database abstraction, real-time capabilities, and cloud functions.
 
-## Table of Contents
+## 🚀 Features
 
-- [Helper Package](#helper-package)
+### Core Framework
+- **HTTP Server** - Built on Go's standard library with custom routing and middleware support
+- **REST API** - Automatic REST API endpoint generation with configurable paths
+- **GraphQL** - Full GraphQL support with schema introspection, validation, and execution
+- **Real-time Communication** - WebSocket and Socket.IO support for real-time data streaming
+- **Cloud Functions** - Serverless-style function execution with trigger and action support
+- **Middleware System** - Flexible middleware pipeline for request/response processing
+
+### Database Support
+- **Multi-Database Support** - MySQL, MongoDB, and SQL databases
+- **Database Abstraction** - Unified interface for different database backends
+- **Connection Pooling** - Efficient connection management
+- **JSON Data Backup** - Automatic database backup and restore capabilities
+- **Query Builder** - Fluent query interface for database operations
+
+### Security
+- **JWT Authentication** - Built-in JWT token generation and validation
+- **App Keys** - Application-level authentication and authorization
+- **CORS Support** - Cross-Origin Resource Sharing configuration
+- **SSL/TLS** - Secure HTTPS connections
+- **End-to-End Encryption** - Optional encryption for sensitive data
+
+### Developer Experience
+- **Configuration Management** - JSON-based configuration
+- **Logging & Monitoring** - Comprehensive logging system with multiple log levels
+- **Static File Serving** - Optimized static file delivery with caching
+- **Error Handling** - Centralized error handling and reporting
+- **Database Introspection** - Automatic GraphQL schema generation from database structure
+
+### Advanced Features
+- **Cron Jobs** - Scheduled task execution
+- **Data Models** - Automatic data model generation from database schema
+- **Query Charts** - Analytics and data aggregation support
+- **OTP & SMS** - One-Time Password and SMS integration
+- **Admin Dashboard** - Built-in admin dashboard support
+- **API Documentation** - Auto-generated API playground
+
+---
+
+## 📚 Table of Contents
+
+- [Installation](#installation)
+- [Getting Started](#getting-started)
+- [API Usage Examples](#api-usage-examples)
+- [Helper Functions Reference](#helper-functions-reference)
   - [Type Conversion](#type-conversion)
   - [Type Checking](#type-checking)
   - [String Manipulation](#string-manipulation)
@@ -13,21 +57,431 @@ Complete API reference for the YekongaServer framework including helper function
   - [File Operations](#file-operations)
   - [Network Operations](#network-operations)
   - [Data Validation](#data-validation)
-- [Config Package](#config-package)
-- [Server Package](#server-package)
-  - [Server Initialization](#server-initialization)
-  - [Routing](#routing)
-  - [Middleware](#middleware)
-  - [Database](#database)
-  - [Cloud Functions](#cloud-functions)
-  - [Static Files](#static-files)
-  - [Cron Jobs](#cron-jobs)
+- [Authentication](#authentication)
+- [Configuration](#configuration)
+- [Project Structure](#project-structure)
+- [Testing](#testing)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Additional Resources](#additional-resources)
 
 ---
 
-## Helper Package
+## 🔧 Installation
 
-The helper package provides utility functions for common operations like type conversion, validation, and data manipulation.
+Add the YekongaServer Go package to your project:
+
+```bash
+go get github.com/robertkonga/yekonga-server
+```
+
+---
+
+## 📖 Getting Started
+
+### 1. Create Configuration Files
+
+Create `config.json` in your project root:
+
+```json
+{
+  "appName": "My YekongaServer App",
+  "appKey": "YOUR_APP_KEY_HERE",
+  "masterKey": "YOUR_MASTER_KEY_HERE",
+  "protocol": "https",
+  "address": "localhost",
+  "restApi": "/api",
+  "environment": "development",
+  "debug": true,
+  "namingConvention": "camelCase",
+  "domain": "localhost:8080",
+  "tokenKey": "YOUR_TOKEN_SECRET_KEY",
+  "ports": {
+    "server": 8080,
+    "sslServer": 8443,
+    "secure": false
+  },
+  "database": {
+    "kind": "mongodb",
+    "host": "localhost",
+    "port": "27017",
+    "databaseName": "yekonga_app"
+  },
+  "authentication": {
+    "saltRound": 10,
+    "algorithm": "bcrypt"
+  }
+}
+```
+
+Create `database.json` with your database schema:
+
+```json
+{
+  "models": [
+    {
+      "name": "User",
+      "fields": {
+        "id": {
+          "type": "string",
+          "primary": true,
+          "required": true
+        },
+        "username": {
+          "type": "string",
+          "required": true,
+          "unique": true
+        },
+        "email": {
+          "type": "string",
+          "required": true,
+          "unique": true
+        },
+        "password": {
+          "type": "string",
+          "required": true
+        },
+        "createdAt": {
+          "type": "datetime",
+          "default": "now"
+        }
+      }
+    },
+    {
+      "name": "Post",
+      "fields": {
+        "id": {"type": "string", "primary": true},
+        "title": {"type": "string", "required": true},
+        "content": {"type": "text"},
+        "userId": {"type": "string", "required": true},
+        "createdAt": {"type": "datetime"}
+      }
+    }
+  ]
+}
+```
+
+### 2. Initialize the Server
+
+Create `main.go`:
+
+```go
+package main
+
+import (
+"github.com/robertkonga/yekonga-server/yekonga"
+"log"
+)
+
+func main() {
+// Initialize the server with config and database files
+app := yekonga.ServerConfig("./config.json", "./database.json")
+
+// Your custom routes and handlers here
+app.Get("/", func(req *yekonga.Request, res *yekonga.Response) {
+dex.html")
+})
+
+app.Get("/api/me", func(req *yekonga.Request, res *yekonga.Response) {
+.Auth()
+nil {
+authorized", 401)
+
+(auth.ToMap())
+})
+
+// Setup static files
+app.Static(yekonga.StaticConfig{
+ "./public",
+dexFile:   "index.html",
+Start the server
+app.Start(":8080")
+}
+```
+
+### 3. Run Your Server
+
+```bash
+go run main.go
+```
+
+---
+
+## 📝 API Usage Examples
+
+### Server Initialization Functions
+
+- **`ServerConfig(configFile, databaseFile)`** - Initializes and returns a new server instance
+- **`ServerLoad(configFile, databaseFile)`** - Initializes the server and sets the global Server variable
+
+### REST API Routes
+
+```go
+// GET request
+app.Get("/users", func(req *yekonga.Request, res *yekonga.Response) {
+users := app.ModelQuery("User")
+d(nil)
+res.Json(users)
+})
+
+// POST request with data
+app.Post("/users", func(req *yekonga.Request, res *yekonga.Response) {
+data := req.Body()
+user, err := app.ModelQuery("User").Create(data)
+if err != nil {
+user", 400)
+
+}
+res.Json(user)
+})
+
+// Path parameters
+app.Get("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
+id := req.Param("id")
+user := app.ModelQuery("User").FindById(id)
+if user == nil {
+ot found", 404)
+
+}
+res.Json(user)
+})
+
+// Query parameters
+app.Get("/search", func(req *yekonga.Request, res *yekonga.Response) {
+query := req.Query("q")
+results := app.ModelQuery("User")
+ame", "contains", query)
+d(nil)
+res.Json(results)
+})
+
+// PUT request (update)
+app.Put("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
+id := req.Param("id")
+data := req.Body()
+user, err := app.ModelQuery("User").Update(id, data)
+if err != nil {
+user", 400)
+
+}
+res.Json(user)
+})
+
+// DELETE request
+app.Delete("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
+id := req.Param("id")
+err := app.ModelQuery("User").Delete(id)
+if err != nil {
+user", 400)
+
+}
+res.Json(map[string]string{"status": "deleted"})
+})
+```
+
+### Database Queries
+
+```go
+// Basic queries
+users := app.ModelQuery("User").Find(nil)
+user := app.ModelQuery("User").FindById("123")
+count := app.ModelQuery("User").Count()
+
+// Filter with conditions
+activeUsers := app.ModelQuery("User")
+.Where("status", "=", "active")
+.Find(nil)
+
+// Complex filtering
+results := app.ModelQuery("Post")
+.Where("status", "=", "published")
+.Where("views", ">", 100)
+.OrderBy("createdAt", "desc")
+.Take(20)
+.Skip(0)
+.Find(nil)
+
+// Aggregation
+total := app.ModelQuery("Post").Count()
+avgViews := app.ModelQuery("Post").Average("views")
+maxViews := app.ModelQuery("Post").Max("views")
+minViews := app.ModelQuery("Post").Min("views")
+totalViews := app.ModelQuery("Post").Sum("views")
+
+// Grouping and sorting
+grouped := app.ModelQuery("Post")
+.GroupBy("userId")
+.OrderBy("createdAt", "desc")
+.Find(nil)
+
+// Create
+newUser, err := app.ModelQuery("User").Create(map[string]interface{}{
+"username": "john_doe",
+"email":    "john@example.com",
+"password": "hashedpassword",
+})
+
+// Update
+updated, err := app.ModelQuery("User").Update("123", map[string]interface{}{
+"email": "newemail@example.com",
+})
+
+// Delete
+err := app.ModelQuery("User").Delete("123")
+```
+
+### Middleware
+
+```go
+// Request middleware
+app.Middleware(func(req *yekonga.Request, res *yekonga.Response) error {
+log.Printf("%s %s", req.Method(), req.URL())
+return nil
+}, yekonga.MiddlewareTypeRequest)
+
+// Authentication middleware
+app.Use(func(req *yekonga.Request, res *yekonga.Response) error {
+// Skip auth for public routes
+if strings.HasPrefix(req.URL(), "/api/auth/") {
+ nil
+}
+
+auth := req.Auth()
+if auth == nil {
+authorized", 401)
+ fmt.Errorf("unauthorized")
+}
+return nil
+})
+
+// Custom validation middleware
+app.Use(func(req *yekonga.Request, res *yekonga.Response) error {
+contentType := req.Header("Content-Type")
+if req.Method() == "POST" && contentType == "" {
+tent-Type header required", 400)
+ fmt.Errorf("missing content-type")
+}
+return nil
+})
+```
+
+### Cloud Functions
+
+```go
+// Define a basic cloud function
+app.Define("sendWelcomeEmail", func(data interface{}, rc *yekonga.RequestContext) (interface{}, error) {
+// Email sending logic
+return map[string]string{"status": "sent"}, nil
+})
+
+// Database trigger - after finding records
+app.AfterFind("User", nil, nil, func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
+// Process user records after fetch
+users := qc.Data
+// Add computed fields, mask sensitive data, etc.
+return users, nil
+})
+
+// Database trigger - before creating
+app.BeforeCreate("User", func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
+data := qc.Data
+// Validate data before insert
+// Hash passwords, set defaults, etc.
+return data, nil
+})
+
+// Database trigger - after updating
+app.AfterUpdate("User", func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
+// Log updates, send notifications, etc.
+return qc.Data, nil
+})
+```
+
+### Scheduled Tasks (Cron Jobs)
+
+```go
+import "time"
+
+// Run every 24 hours
+app.RegisterCronjob("daily-cleanup", 24*time.Hour, func(app *yekonga.YekongaData, t time.Time) {
+log.Println("Running cleanup job at", t)
+// Cleanup database, delete old records, etc.
+})
+
+// Run every hour
+app.RegisterCronjob("hourly-stats", time.Hour, func(app *yekonga.YekongaData, t time.Time) {
+log.Println("Updating statistics at", t)
+})
+
+// Run every minute
+app.RegisterCronjob("check-notifications", time.Minute, func(app *yekonga.YekongaData, t time.Time) {
+// Process notifications, send alerts, etc.
+})
+
+// Run at specific times
+app.RegisterCronjobAt(
+"daily-report",
+yekonga.JobFrequencyDaily,
+time.Now().Add(24*time.Hour),
+func(app *yekonga.YekongaData, t time.Time) {
+tln("Daily report generated at", t)
+},
+)
+```
+
+### Static File Serving
+
+```go
+// Serve static files from public directory
+app.Static(yekonga.StaticConfig{
+Directory:   "./public",
+PathPrefix:  "/public",
+IndexFile:   "index.html",
+Extensions:  []string{".html", ".css", ".js", ".jpg", ".png", ".gif"},
+CacheMaxAge: 3600, // Cache for 1 hour
+})
+
+// Multiple static directories
+app.Static(yekonga.StaticConfig{
+Directory:   "./assets",
+PathPrefix:  "/assets",
+CacheMaxAge: 86400, // Cache for 1 day
+})
+
+app.Static(yekonga.StaticConfig{
+Directory:   "./uploads",
+PathPrefix:  "/downloads",
+CacheMaxAge: 0, // No caching
+})
+```
+
+### Error Handling
+
+```go
+app.Get("/products/:id", func(req *yekonga.Request, res *yekonga.Response) {
+id := req.Param("id")
+if id == "" {
+required", 400)
+
+}
+
+product := app.ModelQuery("Product").FindById(id)
+if product == nil {
+ot found", 404)
+
+}
+
+res.Status(200)
+res.Header("Content-Type", "application/json")
+res.Json(product)
+})
+```
+
+---
+
+## 🛠️ Helper Functions Reference
+
+The helper package provides 120+ utility functions for common operations.
 
 ### Type Conversion
 
@@ -801,475 +1255,268 @@ idleTime := helper.GetCrossPlatformIdleTime()
 
 ---
 
-## Config Package
+## 🔐 Authentication
 
-The config package handles application configuration.
+### JWT Tokens
 
-### Functions
+Tokens are configured in `config.json`:
 
-#### `NewYekongaConfig(file string) *YekongaConfig`
-Loads and initializes configuration from a JSON file.
-```go
-config := config.NewYekongaConfig("./config.json")
-config.AppName      // Application name
-config.Environment  // development, staging, production
-config.Debug        // Debug mode enabled/disabled
-```
-
-#### `LoadJSONFile(filename string) (map[string]interface{}, error)`
-Reads and parses a JSON file.
-```go
-data, err := config.LoadJSONFile("config.json")
-```
-
-#### `FileExists(filename string) bool`
-Checks if a file exists.
-```go
-if config.FileExists("config.json") {
-    // File exists
+```json
+{
+  "tokenKey": "YOUR_SECRET_KEY",
+  "tokenExpireTime": 86400,
+  "authentication": {
+    "saltRound": 10,
+    "algorithm": "bcrypt"
+  }
 }
 ```
 
-#### `GetPath(relativePath string) string`
-Converts a relative path to absolute path from executable.
+Access authenticated user data:
+
 ```go
-absPath := config.GetPath("./config.json")
+app.Get("/protected", func(req *yekonga.Request, res *yekonga.Response) {
+auth := req.Auth()
+if auth == nil {
+authorized", 401)
+
+}
+
+userID := auth.UserId()
+userData := auth.ToMap()
+res.Json(userData)
+})
 ```
 
-#### `ToByte(data interface{}) []byte`
-Marshals data to JSON bytes.
-```go
-bytes := config.ToByte(data)
+### App Key Authentication
+
+Enable app key authentication in `config.json`:
+
+```json
+{
+  "enableAppKey": true,
+  "appKey": "YOUR_APP_KEY"
+}
 ```
 
-### Configuration Structure
+Requests must include the app key:
 
-```go
-type YekongaConfig struct {
-    AppName                 string
-    Version                 string
-    Environment             string  // development, staging, production
-    Debug                   bool
-    Protocol                string  // http or https
-    Address                 string
-    Domain                  string
-    DomainAlias             []string
-    AppKey                  string
-    MasterKey               string
-    EnableAppKey            bool
-    TokenKey                string
-    TokenExpireTime         int
-    SecureOnly              bool
-    Cors                    bool
-    
-    Database struct {
-        Kind             string  // mongodb, mysql, sql, local
-        Host             string
-        Port             string
-        DatabaseName     string
-        Username         interface{}
-        Password         interface{}
-    }
-    
-    Ports struct {
-        Secure    bool
-        Server    int
-        SSLServer int
-    }
-    
-    Authentication struct {
-        SaltRound   int
-        Algorithm   string
-        TokenSecret string
-    }
-    
-    // ... more fields
+```bash
+curl -H "X-App-Key: YOUR_APP_KEY" https://api.example.com/api/users
+```
+
+---
+
+## 🔄 Configuration
+
+Key configuration parameters:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `appName` | string | Application name |
+| `environment` | string | `development`, `staging`, or `production` |
+| `debug` | boolean | Enable debug logging |
+| `protocol` | string | `http` or `https` |
+| `address` | string | Server address/IP |
+| `domain` | string | Domain name for the application |
+| `restApi` | string | REST API endpoint prefix (default: `/api`) |
+| `enableAppKey` | boolean | Require app key authentication |
+| `secureOnly` | boolean | Only allow HTTPS |
+| `tokenExpireTime` | int | JWT token expiration time in seconds |
+
+### Database Configuration
+
+```json
+{
+  "database": {
+    "kind": "mongodb|mysql|sql|local",
+    "host": "localhost",
+    "port": "27017",
+    "databaseName": "app_db",
+    "username": "root",
+    "password": "password"
+  }
 }
 ```
 
 ---
 
-## Server Package
+## 📦 Project Structure
 
-The server package provides the core framework functionality.
-
-### Server Initialization
-
-#### `YekongaServer(configFile string, databaseFile string) *YekongaData`
-Initializes a YekongaServer instance.
-```go
-server := Yekonga.YekongaServer("./config.json", "./database.json")
-server.Start(":8080")
 ```
-
-#### `YekongaServerAuto(configFile string, databaseFile string)`
-Auto-initializes the server (sets the global Server variable).
-```go
-Yekonga.YekongaServerAuto("./config.json", "./database.json")
-// Now use: Yekonga.Server.Get(...)
-```
-
-### Routing
-
-#### `Get(path string, handler Handler)`
-Registers a GET route.
-```go
-server.Get("/users", func(req *Yekonga.Request, res *Yekonga.Response) {
-    users := server.ModelQuery("User").Find(nil)
-    res.Json(users)
-})
-```
-
-#### `Post(path string, handler Handler)`
-Registers a POST route.
-```go
-server.Post("/users", func(req *Yekonga.Request, res *Yekonga.Response) {
-    data := req.Body()
-    user, err := server.ModelQuery("User").Create(data)
-    res.Json(user)
-})
-```
-
-#### `Put(path string, handler Handler)`
-Registers a PUT route.
-```go
-server.Put("/users/:id", func(req *Yekonga.Request, res *Yekonga.Response) {
-    id := req.Param("id")
-    data := req.Body()
-    user, err := server.ModelQuery("User").Update(id, data)
-    res.Json(user)
-})
-```
-
-#### `Patch(path string, handler Handler)`
-Registers a PATCH route.
-```go
-server.Patch("/users/:id", func(req *Yekonga.Request, res *Yekonga.Response) {
-    // Handle PATCH
-})
-```
-
-#### `Delete(path string, handler Handler)`
-Registers a DELETE route.
-```go
-server.Delete("/users/:id", func(req *Yekonga.Request, res *Yekonga.Response) {
-    id := req.Param("id")
-    server.ModelQuery("User").Delete(id)
-    res.Json(map[string]string{"status": "deleted"})
-})
-```
-
-#### `Options(path string, handler Handler)`
-Registers an OPTIONS route.
-```go
-server.Options("/users", func(req *Yekonga.Request, res *Yekonga.Response) {
-    res.Header("Allow", "GET, POST, PUT, DELETE")
-})
-```
-
-#### `All(path string, handler Handler)`
-Registers a route for all HTTP methods.
-```go
-server.All("/status", func(req *Yekonga.Request, res *Yekonga.Response) {
-    res.Json(map[string]string{"status": "ok"})
-})
-```
-
-### Middleware
-
-#### `Middleware(middleware Middleware, middlewareType MiddlewareType)`
-Registers middleware.
-```go
-server.Middleware(func(req *Yekonga.Request, res *Yekonga.Response) error {
-    // Your middleware logic
-    return nil
-}, Yekonga.MiddlewareTypeRequest)
-```
-
-#### Built-in Middleware
-
-- `TokenMiddleware` - JWT token validation
-- `UserInfoMiddleware` - User info extraction
-- `ApplicationKeyMiddleware` - App key validation
-
-### Database
-
-#### `Model(name string) *DataModel`
-Gets a data model by name.
-```go
-userModel := server.Model("User")
-```
-
-#### `ModelQuery(name string) *DataModelQuery`
-Gets a query builder for a model.
-```go
-users := server.ModelQuery("User")
-    .Where("age", ">", 18)
-    .OrderBy("createdAt", "desc")
-    .Take(10)
-    .Find(nil)
-```
-
-### Query Builder Methods
-
-```go
-// Filter
-.Where(field string, operator string, value interface{})
-.WhereIn(field string, values []interface{})
-.WhereNotIn(field string, values []interface{})
-
-// Sorting
-.OrderBy(field string, direction string)  // asc or desc
-
-// Pagination
-.Skip(count int)
-.Take(count int)
-.Page(number int)
-
-// Selection
-.Select(fields ...string)
-
-// Execution
-.Find(query interface{}) []interface{}
-.FindOne(query interface{}) interface{}
-.FindById(id interface{}) interface{}
-
-// Aggregation
-.Count() int64
-.Sum(field string) float64
-.Average(field string) float64
-.Min(field string) interface{}
-.Max(field string) interface{}
-.GroupBy(field string)
-
-// CRUD
-.Create(data interface{}) interface{}
-.Update(id interface{}, data interface{}) interface{}
-.Delete(id interface{}) interface{}
-```
-
-### Static Files
-
-#### `Static(config StaticConfig) error`
-Configures static file serving.
-```go
-server.Static(Yekonga.StaticConfig{
-    Directory:   "./public",
-    PathPrefix:  "/public",
-    IndexFile:   "index.html",
-    Extensions:  []string{".html", ".css", ".js"},
-    CacheMaxAge: 3600,
-})
-```
-
-### Cron Jobs
-
-#### `RegisterCronjob(name string, frequency time.Duration, callback func(app *YekongaData, time time.Time))`
-Registers a cron job that runs at a specified interval.
-```go
-server.RegisterCronjob("cleanup", 24*time.Hour, func(app *Yekonga.YekongaData, t time.Time) {
-    // Runs every 24 hours
-    log.Println("Running cleanup job at", t)
-})
-```
-
-#### `RegisterCronjobAt(name string, frequency JobFrequency, time time.Time, callback func(app *YekongaData, time time.Time))`
-Registers a cron job at a specific time.
-```go
-server.RegisterCronjobAt(
-    "daily-report",
-    Yekonga.JobFrequencyDaily,
-    time.Now().Add(24*time.Hour),
-    func(app *Yekonga.YekongaData, t time.Time) {
-        // Daily report logic
-    },
-)
-```
-
-### Cloud Functions
-
-#### `Define(name string, function CloudFunction)`
-Defines a cloud function.
-```go
-server.Define("sendEmail", func(data interface{}, rc *Yekonga.RequestContext) (interface{}, error) {
-    // Email sending logic
-    return map[string]string{"status": "sent"}, nil
-})
-```
-
-#### `AfterFind(model string, query interface{}, data interface{}, callback TriggerCloudFunction)`
-Trigger after fetching records.
-```go
-server.AfterFind("User", nil, nil, func(rc *Yekonga.RequestContext, qc *Yekonga.QueryContext) (interface{}, error) {
-    // Process fetched users
-    return nil, nil
-})
-```
-
-#### `BeforeCreate(model string, callback TriggerCloudFunction)`
-Trigger before creating a record.
-```go
-server.BeforeCreate("User", func(rc *Yekonga.RequestContext, qc *Yekonga.QueryContext) (interface{}, error) {
-    // Validate or modify data before insert
-    return nil, nil
-})
-```
-
-### Request & Response
-
-#### `Request` Object Methods
-
-```go
-req.Method()           // HTTP method (GET, POST, etc.)
-req.URL()              // Request URL
-req.Header(key string) // Get header value
-req.Body()             // Get request body as interface{}
-req.Param(name string) // Get URL parameter
-req.Query(name string) // Get query parameter
-req.Auth()             // Get authenticated user
-req.Context()          // Get request context
-```
-
-#### `Response` Object Methods
-
-```go
-res.Status(code int)                    // Set HTTP status code
-res.Header(key string, value string)    // Set response header
-res.Json(data interface{})              // Send JSON response
-res.Text(data string)                   // Send text response
-res.Byte(data []byte)                   // Send bytes response
-res.File(filepath string)               // Send file
-res.Redirect(url string)                // Redirect to URL
-res.Error(message string, code int)     // Send error response
-```
-
-### Server Lifecycle
-
-#### `Start(address interface{})`
-Starts the server.
-```go
-server.Start(":8080")
-// or
-server.Start("0.0.0.0:8080")
-```
-
-#### `Stop()`
-Stops the server.
-```go
-server.Stop()
-```
-
-#### `Listen()`
-Alias for `Start()` with default configuration.
-```go
-server.Listen()
-```
-
-### Helper Methods
-
-#### `HomeDirectory() string`
-Gets the application's home directory.
-```go
-dir := server.HomeDirectory()
-```
-
-#### `ServeHTTP(w http.ResponseWriter, r *http.Request)`
-Standard Go HTTP handler interface.
-```go
-// Used internally, but available for manual routing
+YekongaServer_Go/
+├── yekonga/                # Main server package
+│   ├── main.go            # Server core
+│   ├── request.go         # Request handling
+│   ├── response.go        # Response writing
+│   ├── middleware.go      # Middleware system
+│   ├── model.go           # Data models
+│   ├── model_query.go     # Query builder
+│   ├── graphql.go         # GraphQL support
+│   ├── cloud_functions.go # Functions
+│   ├── cronjob.go         # Cron jobs
+│   ├── dbconnect.go       # Database abstraction
+│   └── ...
+├── config/                # Configuration management
+├── datatype/              # Custom data types
+├── helper/                # 120+ utility functions
+│   ├── helpers.go
+│   ├── data_extraction.go
+│   ├── idle_time.go
+│   └── ...
+├── plugins/               # Database drivers & extensions
+│   ├── database/          # Database utilities
+│   ├── graphql/           # GraphQL plugin
+│   ├── mongo-driver/      # MongoDB driver
+│   ├── mysql/             # MySQL driver
+│   └── ...
+├── config.json            # Configuration file
+├── database.json          # Database schema
+└── README.md              # This file
 ```
 
 ---
 
-## Complete Example
+## 🧪 Testing
+
+Example test setup:
 
 ```go
 package main
 
 import (
-    "log"
-    "time"
-    "github.com/robertkonga/yekonga-server/yekonga"
-    "github.com/robertkonga/yekonga-server/helper"
+"testing"
+"github.com/robertkonga/yekonga-server/yekonga"
 )
 
-func main() {
-    // Initialize server
-    app := yekonga.ServerConfig("./config.json", "./database.json")
-    
-    // Register middleware
-    app.Use(func(req *server.Request, res *server.Response) error {
-        log.Println("Request:", req.Method(), req.URL())
-        return nil
-    })
-    
-    // Setup static files
-    app.Static(server.StaticConfig{
-        Directory:  "./public",
-        PathPrefix: "/public",
-        CacheMaxAge: 3600,
-    })
-    
-    // Define routes
-    app.Get("/", func(req *server.Request, res *server.Response) {
-        res.File("index.html")
-    })
-    
-    app.Get("/users", func(req *server.Request, res *server.Response) {
-        users := app.ModelQuery("User").Take(10).Find(nil)
-        res.Json(users)
-    })
-    
-    app.Post("/users", func(req *server.Request, res *server.Response) {
-        data := req.Body()
-        user, err := app.ModelQuery("User").Create(data)
-        if err != nil {
-            res.Error("Failed to create user", 400)
-            return
-        }
-        res.Json(user)
-    })
-    
-    app.Get("/users/:id", func(req *server.Request, res *server.Response) {
-        id := req.Param("id")
-        user := app.ModelQuery("User").FindById(id)
-        res.Json(user)
-    })
-    
-    // Define cloud functions
-    app.Define("sendWelcomeEmail", func(data interface{}, rc *server.RequestContext) (interface{}, error) {
-        // Send email logic
-        return map[string]string{"status": "sent"}, nil
-    })
-    
-    // Register cron job
-    app.RegisterCronjob("daily-cleanup", 24*time.Hour, func(app *server.YekongaData, t time.Time) {
-        log.Println("Running daily cleanup at", t)
-    })
-    
-    // Start server
-    app.Start(":8080")
+func TestUserCreation(t *testing.T) {
+app := yekonga.ServerConfig("./config.json", "./database.json")
+
+user, err := app.ModelQuery("User").Create(map[string]interface{}{
+ame": "testuser",
+ "test@example.com",
+err != nil {
+user: %v", err)
+}
+
+if user == nil {
+nil")
+}
 }
 ```
 
 ---
 
-## Best Practices
+## 🚀 Deployment
 
-1. **Error Handling**: Always check errors from database operations
-2. **Type Safety**: Use generics like `ConvertTo[T]()` for type safety
-3. **Middleware Order**: Register middleware before routes
-4. **Connection Management**: Database connections are managed automatically
-5. **Configuration**: Load config at startup and use it throughout the app
-6. **Logging**: Use helper functions for consistent logging
-7. **Date Handling**: Use helper functions for timezone-safe date operations
-8. **File Operations**: Always create directories before saving files
+### Environment-based Configuration
+
+```go
+environment := os.Getenv("APP_ENV")
+if environment == "production" {
+// Use production config
+app := yekonga.ServerConfig("./config.production.json", "./database.json")
+} else {
+// Use development config
+app := yekonga.ServerConfig("./config.json", "./database.json")
+}
+```
+
+### Docker Deployment
+
+Create `Dockerfile`:
+
+```dockerfile
+FROM golang:1.24
+
+WORKDIR /app
+
+COPY . .
+
+RUN go mod download
+RUN go build -o server .
+
+EXPOSE 8080
+
+CMD ["./server"]
+```
+
+Build and run:
+
+```bash
+docker build -t yekonga-app .
+docker run -p 8080:8080 yekonga-app
+```
 
 ---
 
-## Version History
+## 🐛 Troubleshooting
 
-- **v1.0.0** - Initial release
-- Go 1.24.0+
-- Compatible with: MongoDB, MySQL, SQL databases
+### Server Won't Start
+- Check that configuration files are valid JSON
+- Verify database connectivity
+- Check that port is available
+- Enable debug mode to see detailed logs
 
+### Database Connection Issues
+- Verify database credentials in configuration
+- Ensure database server is running
+- Check network connectivity
+- Review database logs
+
+### GraphQL Schema Not Generated
+- Ensure `database.json` is properly formatted
+- Verify models are correctly defined
+- Check GraphQL schema validation
+
+### Performance Issues
+- Enable query caching
+- Use database indexes
+- Implement pagination for large datasets
+- Monitor database connection pool
+
+---
+
+## 📚 Additional Resources
+
+- [Config Example](config.json) - Sample configuration file
+- [Database Schema Example](database.json) - Sample database schema
+- [Example Code](example.go) - Code examples
+
+---
+
+## 📄 License
+
+See LICENSE file in the project root.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please ensure:
+- Code follows Go conventions
+- Tests are included for new features
+- Documentation is updated
+- Commits are well-described
+
+---
+
+## 📞 Support
+
+For issues, questions, or contributions:
+- **Repository**: https://github.com/robertkonga/yekonga-server
+- **Issues**: Create an issue on GitHub
+- **Documentation**: Check internal development guides
+
+---
+
+## Version Information
+
+- **Current Version**: 1.0.0
+- **Go Version**: 1.24.0+
+- **Supported Databases**: MongoDB, MySQL, SQL
+- **Last Updated**: January 14, 2026
+
+---
+
+**YekongaServer** - Build powerful, scalable backend systems with Go, GraphQL, and REST APIs.

@@ -1,7 +1,7 @@
 package main
 
 // func main() {
-// 	Yekonga.YekongaServerAuto("./config.json", "./database.json")
+// 	Yekonga.ServerConfig("./config.json", "./database.json")
 
 // 	Yekonga.Server.Define("getDomain", func(i interface{}, rc *Yekonga.RequestContext) (interface{}, error) {
 // 		return "yekonga.co.tz", nil
