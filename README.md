@@ -2,7 +2,7 @@
 
 A comprehensive, production-ready Go server framework that provides out-of-the-box solutions for building scalable backend applications with REST APIs, GraphQL, database abstraction, real-time capabilities, and cloud functions.
 
-## 🚀 Features
+## Features
 
 ### Core Framework
 - **HTTP Server** - Built on Go's standard library with custom routing and middleware support
@@ -43,7 +43,7 @@ A comprehensive, production-ready Go server framework that provides out-of-the-b
 
 ---
 
-## 📚 Table of Contents
+## Table of Contents
 
 - [Installation](#installation)
 - [Getting Started](#getting-started)
