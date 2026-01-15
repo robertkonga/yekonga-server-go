@@ -67,7 +67,7 @@ A comprehensive, production-ready Go server framework that provides out-of-the-b
 
 ---
 
-## 🔧 Installation
+## Installation
 
 Add the YekongaServer Go package to your project:
 
@@ -77,7 +77,7 @@ go get github.com/robertkonga/yekonga-server
 
 ---
 
-## 📖 Getting Started
+## Getting Started
 
 ### 1. Create Configuration Files
 
@@ -377,7 +377,7 @@ go run main.go
 
 ---
 
-## 📝 API Usage Examples
+## API Usage Examples
 
 ### Server Initialization Functions
 
@@ -648,7 +648,7 @@ app.Get("/products/:id", func(req *yekonga.Request, res *yekonga.Response) {
 
 ---
 
-## 🛠️ Helper Functions Reference
+## Helper Functions Reference
 
 The helper package provides 120+ utility functions for common operations.
 
@@ -1424,7 +1424,7 @@ idleTime := helper.GetCrossPlatformIdleTime()
 
 ---
 
-## 🔐 Authentication
+## Authentication
 
 ### JWT Tokens
 
@@ -1476,7 +1476,7 @@ curl -H "X-App-Key: YOUR_APP_KEY" https://api.example.com/api/users
 
 ---
 
-## 🔄 Configuration
+## Configuration
 
 YekongaConfig parameters:
 
@@ -1678,7 +1678,7 @@ YekongaConfig parameters:
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 ```
 YekongaServer_Go/
@@ -1745,7 +1745,7 @@ func TestUserCreation(t *testing.T) {
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
 ### Environment-based Configuration
 
@@ -1788,7 +1788,7 @@ docker run -p 8080:8080 yekonga-app
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Server Won't Start
 - Check that configuration files are valid JSON
@@ -1815,7 +1815,7 @@ docker run -p 8080:8080 yekonga-app
 
 ---
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [Config Example](config.json) - Sample configuration file
 - [Database Schema Example](database.json) - Sample database schema
@@ -1823,13 +1823,13 @@ docker run -p 8080:8080 yekonga-app
 
 ---
 
-## 📄 License
+## License
 
 See LICENSE file in the project root.
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please ensure:
 - Code follows Go conventions
@@ -1839,7 +1839,7 @@ Contributions are welcome! Please ensure:
 
 ---
 
-## 📞 Support
+## Support
 
 For issues, questions, or contributions:
 - **Repository**: https://github.com/robertkonga/yekonga-server
