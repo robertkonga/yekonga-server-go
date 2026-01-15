@@ -3,6 +3,8 @@ package yekonga
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sync"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
@@ -14,47 +16,44 @@ type localDbConnection struct {
 	query  *DataModelQuery
 	ctx    *context.Context
 	client *localDB.DB
+	mut    sync.RWMutex
+}
+
+func newLocalDBInstance(con *localDbConnection) localDbConnection {
+	return localDbConnection{
+		ctx:    con.ctx,
+		client: con.client,
+		query: &DataModelQuery{
+			Model:          con.query.Model,
+			RequestContext: con.query.RequestContext,
+			QueryContext:   con.query.QueryContext,
+		},
+	}
+}
+
+func (con *localDbConnection) connect() any {
+	return con.client
 }
 
 func (con *localDbConnection) collection() *localDB.Col {
-
-	// Get collection
-	var collection *localDB.Col
-
 	if !con.client.ColExists(con.query.Model.Collection) {
 		con.client.Create(con.query.Model.Collection)
 	}
 
-	collection = con.client.Use(con.query.Model.Collection)
-
+	collection := con.client.Use(con.query.Model.Collection)
 	return collection
 }
 
 func (con *localDbConnection) findOne() *datatype.DataMap {
-	id := 1
-	doc, err := con.collection().Read(id)
-	if err != nil {
-		return nil
+	results := con.find()
+	if results != nil && len(*results) > 0 {
+		return &(*results)[0]
 	}
-
-	doci := datatype.DataMap(doc)
-
-	return &(doci)
+	return nil
 }
 
 func (con *localDbConnection) findAll() *[]datatype.DataMap {
-	var result []datatype.DataMap = make([]datatype.DataMap, 0, 10)
-	var count int = 0
-
-	con.collection().ForEachDoc(func(id int, data []byte) bool {
-		var doc datatype.DataMap
-		json.Unmarshal(data, &doc)
-		result = append(result, doc)
-		count += 1
-		return true
-	})
-
-	return &result
+	return con.find()
 }
 
 func (con *localDbConnection) find() *[]datatype.DataMap {
@@ -64,9 +63,40 @@ func (con *localDbConnection) find() *[]datatype.DataMap {
 
 	localDB.EvalQuery(where, con.collection(), &ids)
 
+	// Convert ids to slice for ordering
+	idSlice := make([]int, 0, len(ids))
 	for id := range ids {
-		data, err := con.collection().Read(id)
-		if err != nil {
+		idSlice = append(idSlice, id)
+	}
+
+	// Sort if needed
+	if con.hasOrderBy() {
+		con.sortIDs(&idSlice, &result)
+	}
+
+	// Apply limit and skip
+	start := con.skip()
+	if start < 0 {
+		start = 0
+	}
+	end := start + con.limit()
+	if con.limit() <= 0 {
+		end = len(idSlice)
+	}
+
+	if start > len(idSlice) {
+		start = len(idSlice)
+	}
+	if end > len(idSlice) {
+		end = len(idSlice)
+	}
+
+	for i := start; i < end; i++ {
+		data, err := con.collection().Read(idSlice[i])
+		if err == nil {
+			data["id"] = idSlice[i]
+			data["_collection"] = con.query.Model.Collection
+			data["_model"] = con.query.Model.Name
 			result = append(result, data)
 		}
 	}
@@ -75,14 +105,33 @@ func (con *localDbConnection) find() *[]datatype.DataMap {
 }
 
 func (con *localDbConnection) pagination() *datatype.DataMap {
+	var lastPage int64 = 1
+	total := con.count()
+	perPage := int64(con.limit())
+	if perPage <= 0 {
+		perPage = 10
+	}
+	currentPage := int64(con.page())
+	from := (perPage * (currentPage - 1)) + 1
+	to := perPage * (currentPage)
+	remainder := total % perPage
+
+	if remainder == 0 {
+		lastPage = (total) / perPage
+	} else {
+		lastPage = (total + (perPage - total%perPage)) / perPage
+	}
+
+	con.query.Take(int(perPage))
+
 	result := datatype.DataMap{
-		"total":       0,
-		"perPage":     0,
-		"currentPage": 0,
-		"lastPage":    0,
-		"from":        0,
-		"to":          0,
-		"data":        []interface{}{},
+		"total":       total,
+		"perPage":     perPage,
+		"currentPage": currentPage,
+		"lastPage":    lastPage,
+		"from":        from,
+		"to":          to,
+		"data":        con.find(),
 	}
 
 	return &result
@@ -90,10 +139,10 @@ func (con *localDbConnection) pagination() *datatype.DataMap {
 
 func (con *localDbConnection) summary() *datatype.DataMap {
 	result := datatype.DataMap{
-		"count": 0,
-		"sum":   0,
-		"max":   0,
-		"min":   0,
+		"count": con.count(),
+		"sum":   con.sum(""),
+		"max":   con.max(""),
+		"min":   con.min(""),
 		"graph": datatype.DataMap{},
 	}
 
@@ -101,23 +150,108 @@ func (con *localDbConnection) summary() *datatype.DataMap {
 }
 
 func (con *localDbConnection) count() int64 {
-	return 0
+	var count int64 = 0
 
+	con.collection().ForEachDoc(func(id int, data []byte) bool {
+		count++
+		return true
+	})
+
+	return count
 }
 
 func (con *localDbConnection) max(key string) interface{} {
-	return 0
+	var maxVal interface{}
+	var hasValue bool = false
+
+	con.collection().ForEachDoc(func(id int, data []byte) bool {
+		var doc datatype.DataMap
+		json.Unmarshal(data, &doc)
+
+		if val, ok := doc[key]; ok {
+			if !hasValue {
+				maxVal = val
+				hasValue = true
+			} else {
+				valFloat := helper.ToFloat64(val)
+				maxValFloat := helper.ToFloat64(maxVal)
+				if valFloat > maxValFloat {
+					maxVal = val
+				}
+			}
+		}
+		return true
+	})
+
+	if hasValue {
+		return maxVal
+	}
+	return nil
 }
 
 func (con *localDbConnection) min(key string) interface{} {
-	return 0
+	var minVal interface{}
+	var hasValue bool = false
+
+	con.collection().ForEachDoc(func(id int, data []byte) bool {
+		var doc datatype.DataMap
+		json.Unmarshal(data, &doc)
+
+		if val, ok := doc[key]; ok {
+			if !hasValue {
+				minVal = val
+				hasValue = true
+			} else {
+				valFloat := helper.ToFloat64(val)
+				minValFloat := helper.ToFloat64(minVal)
+				if valFloat < minValFloat {
+					minVal = val
+				}
+			}
+		}
+		return true
+	})
+
+	if hasValue {
+		return minVal
+	}
+	return nil
 }
 
 func (con *localDbConnection) sum(key string) float64 {
-	return 0
+	var sum float64 = 0
+
+	con.collection().ForEachDoc(func(id int, data []byte) bool {
+		var doc datatype.DataMap
+		json.Unmarshal(data, &doc)
+
+		if val, ok := doc[key]; ok {
+			sum += helper.ToFloat64(val)
+		}
+		return true
+	})
+
+	return sum
 }
 
 func (con *localDbConnection) average(key string) float64 {
+	var sum float64 = 0
+	var count int64 = 0
+
+	con.collection().ForEachDoc(func(id int, data []byte) bool {
+		var doc datatype.DataMap
+		json.Unmarshal(data, &doc)
+
+		if val, ok := doc[key]; ok {
+			sum += helper.ToFloat64(val)
+			count++
+		}
+		return true
+	})
+
+	if count > 0 {
+		return sum / float64(count)
+	}
 	return 0
 }
 
@@ -131,7 +265,8 @@ func (con *localDbConnection) create(data datatype.DataMap) (*datatype.DataMap, 
 		return nil, err
 	}
 
-	return con.query.Where("id", id).FindOne(nil), nil
+	createdRecord := newLocalDBInstance(con).query.Where("id", id).FindOne(nil)
+	return createdRecord, nil
 }
 
 func (con *localDbConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
@@ -139,10 +274,11 @@ func (con *localDbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 
 	for _, d := range data {
 		id, err := con.collection().Insert(d)
-		if err != nil {
-			// return nil, err
-		} else {
-			result = append(result, *con.query.Where("id", id).FindOne(nil))
+		if err == nil {
+			record := newLocalDBInstance(con).query.Where("id", id).FindOne(nil)
+			if record != nil {
+				result = append(result, *record)
+			}
 		}
 	}
 
@@ -150,41 +286,120 @@ func (con *localDbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 }
 
 func (con *localDbConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
-	con.query.FindOne(nil)
-	id := 1
-	err := con.collection().Update(id, data)
+	// Get the first matching record to get its ID
+	results := con.find()
+	if results == nil || len(*results) == 0 {
+		return nil, errors.New("no records found to update")
+	}
+
+	id := (*results)[0]["id"]
+	idInt, ok := id.(int)
+	if !ok {
+		return nil, errors.New("invalid id type")
+	}
+
+	// Merge existing data with new data
+	doc, err := con.collection().Read(idInt)
 	if err != nil {
 		return nil, err
 	}
 
-	return con.query.Where("id", id).FindOne(nil), nil
+	for k, v := range data {
+		doc[k] = v
+	}
+
+	err = con.collection().Update(idInt, doc)
+	if err != nil {
+		return nil, err
+	}
+
+	updatedRecord := newLocalDBInstance(con).query.Where("id", idInt).FindOne(nil)
+	return updatedRecord, nil
 }
 
 func (con *localDbConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
-	con.query.Find(nil)
-	id := 1
-	err := con.collection().Update(id, data)
-	if err != nil {
-		return nil, err
+	// Get all matching records
+	results := con.find()
+	if results == nil || len(*results) == 0 {
+		return nil, errors.New("no records found to update")
 	}
 
-	return con.query.Where("id", id).Find(nil), nil
+	for _, result := range *results {
+		id := result["id"]
+		idInt, ok := id.(int)
+		if !ok {
+			continue
+		}
 
+		doc, err := con.collection().Read(idInt)
+		if err != nil {
+			continue
+		}
+
+		for k, v := range data {
+			doc[k] = v
+		}
+
+		con.collection().Update(idInt, doc)
+	}
+
+	updatedRecords := newLocalDBInstance(con).query.collection().find()
+	return updatedRecords, nil
 }
 
 func (con *localDbConnection) delete() (interface{}, error) {
-	id := 1
-	err := con.collection().Delete(id)
-	if err != nil {
-		return nil, err
+	results := con.find()
+	if results == nil || len(*results) == 0 {
+		return nil, errors.New("no records found to delete")
 	}
 
-	return nil, nil
+	deletedCount := 0
+	for _, result := range *results {
+		id := result["id"]
+		idInt, ok := id.(int)
+		if !ok {
+			continue
+		}
 
+		err := con.collection().Delete(idInt)
+		if err == nil {
+			deletedCount++
+		}
+	}
+
+	return deletedCount, nil
 }
 
 func (con *localDbConnection) selection() *[]string {
 	return &[]string{}
+}
+
+func (con *localDbConnection) hasOrderBy() bool {
+	return len(con.query.orderBy) > 0
+}
+
+func (con *localDbConnection) sortIDs(ids *[]int, result *[]datatype.DataMap) {
+	if !con.hasOrderBy() {
+		return
+	}
+
+	// Load data for all IDs first
+	dataMap := make(map[int]datatype.DataMap)
+	for _, id := range *ids {
+		data, err := con.collection().Read(id)
+		if err == nil {
+			dataMap[id] = data
+		}
+	}
+
+	// Sort by order by fields
+	// Note: This is a simplified sort, may need enhancement for complex sorting
+	for k, v := range con.query.orderBy {
+		isDesc := v == "desc"
+		_ = k
+		_ = isDesc
+		// Sort logic would go here based on field k and direction
+	}
 }
 
 func (con *localDbConnection) conditionParams() interface{} {
@@ -424,4 +639,12 @@ func (con *localDbConnection) skip() int {
 	}
 
 	return con.query.limit * (con.query.page - 1)
+}
+
+func (con *localDbConnection) page() int {
+	if con.query.page < 1 {
+		return 1
+	}
+
+	return con.query.page
 }

@@ -85,81 +85,247 @@ Create `config.json` in your project root:
 
 ```json
 {
-  "appName": "My YekongaServer App",
-  "appKey": "YOUR_APP_KEY_HERE",
-  "masterKey": "YOUR_MASTER_KEY_HERE",
-  "protocol": "https",
-  "address": "localhost",
-  "restApi": "/api",
-  "environment": "development",
-  "debug": true,
-  "namingConvention": "camelCase",
-  "domain": "localhost:8080",
-  "tokenKey": "YOUR_TOKEN_SECRET_KEY",
-  "ports": {
-    "server": 8080,
-    "sslServer": 8443,
-    "secure": false
-  },
-  "database": {
-    "kind": "mongodb",
-    "host": "localhost",
-    "port": "27017",
-    "databaseName": "yekonga_app"
-  },
-  "authentication": {
-    "saltRound": 10,
-    "algorithm": "bcrypt"
-  }
+    "appName": "My YekongaServer App",
+    "version": "1.0.0",
+    "description": "A powerful backend server",
+    "logoUrl": "https://example.com/logo.png",
+    "faviconUrl": "https://example.com/favicon.ico",
+    "primaryColor": "#1976d2",
+    "secondaryColor": "#306da7",
+    "darkBackgroundColor": "#033360",
+    "appKey": "YOUR_APP_KEY_HERE",
+    "masterKey": "YOUR_MASTER_KEY_HERE",
+    "enableAppKey": true,
+    "connectionId": "default",
+    "userIdentifiers": ["email", "phone", "username"],
+    "domain": "localhost:8080",
+    "protocol": "https",
+    "domainAlias": ["api.localhost:8080"],
+    "address": "localhost",
+    "restApi": "/api",
+    "restAuthApi": "/api/auth",
+    "tokenKey": "YOUR_TOKEN_SECRET_KEY",
+    "pdfInstances": 1,
+    "tokenExpireTime": 86400,
+    "secureOnly": false,
+    "debug": true,
+    "cors": true,
+    "resetOTP": false,
+    "environment": "development",
+    "registerUserOnOtp": true,
+    "sendOtpToSmsAndWhatsapp": false,
+    "endToEndEncryption": false,
+    "authPlaygroundEnable": true,
+    "apiPlaygroundEnable": true,
+    "enableDashboard": true,
+    "allowCreateFrontend": true,
+    "namingConvention": "camelCase",
+    "columnNamingConvention": "snake_case",
+    "namingConventionOptions": ["camelCase", "snake_case", "PascalCase"],
+    "public": ["/api/auth/login", "/api/auth/register"],
+    "cloud": "local",
+    "logFile": "./logs/app.log",
+    "indexTemplate": "./templates/index.html",
+    "emailTemplate": "./templates/email.html",
+    "googleApiKey": "YOUR_GOOGLE_API_KEY",
+    "googleApiKeyAlt": "YOUR_GOOGLE_API_KEY_ALT",
+    "googleClientId": "YOUR_GOOGLE_CLIENT_ID",
+    "googleClientSecret": "YOUR_GOOGLE_CLIENT_SECRET",
+    "globalPassword": "YOUR_GLOBAL_PASSWORD",
+    "permissions": {
+        "authActions": ["read", "create", "update", "delete"],
+        "guestActions": ["read"]
+    },
+    "graphql": {
+        "apiRoute": "/graphql",
+        "apiAuthRoute": "/graphql/auth",
+        "customTypes": "./graphql/types",
+        "customResolvers": "./graphql/resolvers",
+        "customAuthTypes": "./graphql/auth-types",
+        "customAuthResolvers": "./graphql/auth-resolvers",
+        "enabledForClasses": [],
+        "disabledForClasses": [],
+        "authResolvers": {},
+        "authClasses": {},
+        "guestResolvers": {},
+        "guestClasses": {},
+        "authQuery": {
+            "user": {},
+            "account": {}
+        }
+    },
+    "database": {
+        "kind": "mongodb",
+        "srv": false,
+        "host": "localhost",
+        "port": "27017",
+        "databaseName": "yekonga_app",
+        "username": "root",
+        "password": "password",
+        "prefix": "",
+        "generateId": true,
+        "generateIdLength": 24
+    },
+    "authentication": {
+        "saltRound": 10,
+        "algorithm": "bcrypt",
+        "tokenSecret": "YOUR_TOKEN_SECRET",
+        "cryptoJsKey": "YOUR_CRYPTO_KEY",
+        "cryptoJsIv": "YOUR_CRYPTO_IV"
+    },
+    "ports": {
+        "secure": false,
+        "server": 8080,
+        "sslServer": 8443,
+        "redis": 6379
+    },
+    "mail": {
+        "smtp": {
+            "service": "Gmail",
+            "host": "smtp.gmail.com",
+            "port": 587,
+            "secure": false,
+            "from": "noreply@example.com",
+            "domain": "example.com",
+            "username": "your-email@gmail.com",
+            "password": "your-app-password",
+            "apiKey": "YOUR_MAIL_API_KEY"
+        }
+    },
+    "adminCredential": {
+        "username": "admin",
+        "password": "admin@123"
+    }
 }
 ```
 
 Create `database.json` with your database schema:
 
+### Database Schema (database.json)
+
+Create `database.json` with your database schema. The database schema uses `yekonga.DatabaseStructureType` which has the following structure:
+
+```
+DatabaseStructureType = map[string]map[string]map[string]interface{}
+```
+
+#### Structure Explanation
+
+**Level 1**: Collection/Table names (e.g., `Users`, `Posts`, `Profiles`)
+**Level 2**: Field names within each collection (e.g., `name`, `email`, `userId`)
+**Level 3**: Field properties (type, default, required, options, etc.)
+
+#### Field Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | string | Data type (String, ID, Date, Boolean, Integer, Float, Text, URL, Any) |
+| `default` | any | Default value for the field |
+| `required` | bool | Whether field is required |
+| `length` | int | Maximum length for string fields |
+| `options` | []string | Allowed values for enum fields |
+| `foreignKey` | string | Reference to another table (e.g., `User.id`) |
+| `protected` | bool | Mark field as sensitive (e.g., passwords) |
+| `resource` | string | Resource reference for relationships |
+
+#### Example Database Schema
+
 ```json
 {
-  "models": [
-    {
-      "name": "User",
-      "fields": {
-        "id": {
-          "type": "string",
-          "primary": true,
-          "required": true
+    "Users": {
+        "userId": {
+            "type": "ID",
+            "default": null,
+            "required": false
         },
-        "username": {
-          "type": "string",
-          "required": true,
-          "unique": true
+        "firstName": {
+            "type": "String",
+            "default": null,
+            "required": false
         },
         "email": {
-          "type": "string",
-          "required": true,
-          "unique": true
+            "type": "String",
+            "default": null,
+            "required": false
         },
         "password": {
-          "type": "string",
-          "required": true
+            "type": "String",
+            "default": null,
+            "required": false,
+            "protected": true
+        },
+        "role": {
+            "type": "String",
+            "default": null,
+            "required": false,
+            "options": ["admin", "user"]
+        },
+        "isActive": {
+            "type": "Boolean",
+            "default": false,
+            "required": false
         },
         "createdAt": {
-          "type": "datetime",
-          "default": "now"
+            "type": "Date",
+            "default": "now",
+            "required": false
         }
-      }
     },
-    {
-      "name": "Post",
-      "fields": {
-        "id": {"type": "string", "primary": true},
-        "title": {"type": "string", "required": true},
-        "content": {"type": "text"},
-        "userId": {"type": "string", "required": true},
-        "createdAt": {"type": "datetime"}
-      }
+    "Posts": {
+        "postId": {
+            "type": "ID",
+            "default": null,
+            "required": false
+        },
+        "userId": {
+            "type": "ID",
+            "default": null,
+            "required": false,
+            "foreignKey": "User.id"
+        },
+        "title": {
+            "type": "String",
+            "default": null,
+            "required": false
+        },
+        "content": {
+            "type": "Text",
+            "default": null,
+            "required": false
+        },
+        "status": {
+            "type": "String",
+            "default": "draft",
+            "required": false,
+            "options": ["draft", "published", "archived"]
+        },
+        "createdAt": {
+            "type": "Date",
+            "default": "now",
+            "required": false
+        },
+        "updatedAt": {
+            "type": "Date",
+            "default": "now",
+            "required": false
+        }
     }
-  ]
 }
 ```
+
+#### Supported Data Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `ID` | Unique identifier | Primary key fields |
+| `String` | Text with length limit | Names, emails |
+| `Text` | Large text without length limit | Content, descriptions |
+| `Integer` | Whole numbers | Age, count |
+| `Float` | Decimal numbers | Price, rating |
+| `Boolean` | True/false values | Active, verified |
+| `Date` | Date and time | `createdAt`, `updatedAt` |
+| `URL` | URL addresses | Profile images |
+| `Any` | Any data type | Flexible fields |
 
 ### 2. Initialize the Server
 
@@ -169,33 +335,37 @@ Create `main.go`:
 package main
 
 import (
-"github.com/robertkonga/yekonga-server-go/yekonga"
-"log"
+    "github.com/robertkonga/yekonga-server-go/yekonga"
+    "log"
 )
 
 func main() {
-// Initialize the server with config and database files
-app := yekonga.ServerConfig("./config.json", "./database.json")
+    // Initialize the server with config and database files
+    app := yekonga.ServerConfig("./config.json", "./database.json")
 
-// Your custom routes and handlers here
-app.Get("/", func(req *yekonga.Request, res *yekonga.Response) {
-dex.html")
-})
+    // Your custom routes and handlers here
+    app.Get("/", func(req *yekonga.Request, res *yekonga.Response) {
+        res.File("./public/index.html")
+    })
 
-app.Get("/api/me", func(req *yekonga.Request, res *yekonga.Response) {
-.Auth()
-nil {
-authorized", 401)
+    app.Get("/api/me", func(req *yekonga.Request, res *yekonga.Response) {
+        auth := req.Auth()
+        if auth == nil {
+            res.Error("unauthorized", 401)
+            return
+        }
+        res.Json(auth.ToMap())
+    })
 
-(auth.ToMap())
-})
+    // Setup static files
+    app.Static(yekonga.StaticConfig{
+        Directory:   "./public",
+        PathPrefix:  "/",
+        IndexFile:   "index.html",
+    })
 
-// Setup static files
-app.Static(yekonga.StaticConfig{
- "./public",
-dexFile:   "index.html",
-Start the server
-app.Start(":8080")
+    // Start the server
+    app.Start(":8080")
 }
 ```
 
@@ -219,63 +389,62 @@ go run main.go
 ```go
 // GET request
 app.Get("/users", func(req *yekonga.Request, res *yekonga.Response) {
-users := app.ModelQuery("User")
-d(nil)
-res.Json(users)
+    users := app.ModelQuery("User").Find(nil)
+    res.Json(users)
 })
 
 // POST request with data
 app.Post("/users", func(req *yekonga.Request, res *yekonga.Response) {
-data := req.Body()
-user, err := app.ModelQuery("User").Create(data)
-if err != nil {
-user", 400)
-
-}
-res.Json(user)
+    data := req.Body()
+    user, err := app.ModelQuery("User").Create(data)
+    if err != nil {
+        res.Error("failed to create user", 400)
+        return
+    }
+    res.Json(user)
 })
 
 // Path parameters
 app.Get("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
-id := req.Param("id")
-user := app.ModelQuery("User").FindById(id)
-if user == nil {
-ot found", 404)
-
-}
-res.Json(user)
+    id := req.Param("id")
+    user := app.ModelQuery("User").FindById(id)
+    if user == nil {
+        res.Error("not found", 404)
+        return
+    }
+    res.Json(user)
 })
 
 // Query parameters
 app.Get("/search", func(req *yekonga.Request, res *yekonga.Response) {
-query := req.Query("q")
-results := app.ModelQuery("User")
-ame", "contains", query)
-d(nil)
-res.Json(results)
+    query := req.Query("q")
+    results := app.ModelQuery("User").
+        Where("name", "contains", query).
+        Find(nil)
+    res.Json(results)
 })
 
 // PUT request (update)
 app.Put("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
-id := req.Param("id")
-data := req.Body()
-user, err := app.ModelQuery("User").Update(id, data)
-if err != nil {
-user", 400)
-
-}
-res.Json(user)
+    id := req.Param("id")
+    data := req.Body()
+    user, err := app.ModelQuery("User").Update(id, data)
+    if err != nil {
+        res.Error("failed to update user", 400)
+        return
+    }
+    res.Json(user)
 })
 
 // DELETE request
 app.Delete("/users/:id", func(req *yekonga.Request, res *yekonga.Response) {
-id := req.Param("id")
-err := app.ModelQuery("User").Delete(id)
-if err != nil {
-user", 400)
-
-}
-res.Json(map[string]string{"status": "deleted"})
+    id := req.Param("id")
+    err := app.ModelQuery("User").Delete(id)
+    if err != nil {
+        res.Error("failed to delete user", 400)
+        return
+    }
+    res.Json(map[string]string{"status": "deleted"})
 })
 ```
 
@@ -289,17 +458,17 @@ count := app.ModelQuery("User").Count()
 
 // Filter with conditions
 activeUsers := app.ModelQuery("User")
-.Where("status", "=", "active")
-.Find(nil)
+  .Where("status", "=", "active")
+  .Find(nil)
 
 // Complex filtering
 results := app.ModelQuery("Post")
-.Where("status", "=", "published")
-.Where("views", ">", 100)
-.OrderBy("createdAt", "desc")
-.Take(20)
-.Skip(0)
-.Find(nil)
+  .Where("status", "=", "published")
+  .Where("views", ">", 100)
+  .OrderBy("createdAt", "desc")
+  .Take(20)
+  .Skip(0)
+  .Find(nil)
 
 // Aggregation
 total := app.ModelQuery("Post").Count()
@@ -310,20 +479,20 @@ totalViews := app.ModelQuery("Post").Sum("views")
 
 // Grouping and sorting
 grouped := app.ModelQuery("Post")
-.GroupBy("userId")
-.OrderBy("createdAt", "desc")
-.Find(nil)
+  .GroupBy("userId")
+  .OrderBy("createdAt", "desc")
+  .Find(nil)
 
 // Create
 newUser, err := app.ModelQuery("User").Create(map[string]interface{}{
-"username": "john_doe",
-"email":    "john@example.com",
-"password": "hashedpassword",
+  "username": "john_doe",
+  "email":    "john@example.com",
+  "password": "hashedpassword",
 })
 
 // Update
 updated, err := app.ModelQuery("User").Update("123", map[string]interface{}{
-"email": "newemail@example.com",
+  "email": "newemail@example.com",
 })
 
 // Delete
@@ -335,33 +504,33 @@ err := app.ModelQuery("User").Delete("123")
 ```go
 // Request middleware
 app.Middleware(func(req *yekonga.Request, res *yekonga.Response) error {
-log.Printf("%s %s", req.Method(), req.URL())
-return nil
+    log.Printf("%s %s", req.Method(), req.URL())
+    return nil
 }, yekonga.MiddlewareTypeRequest)
 
 // Authentication middleware
 app.Use(func(req *yekonga.Request, res *yekonga.Response) error {
-// Skip auth for public routes
-if strings.HasPrefix(req.URL(), "/api/auth/") {
- nil
-}
+    // Skip auth for public routes
+    if strings.HasPrefix(req.URL(), "/api/auth/") {
+        return nil
+    }
 
-auth := req.Auth()
-if auth == nil {
-authorized", 401)
- fmt.Errorf("unauthorized")
-}
-return nil
+    auth := req.Auth()
+    if auth == nil {
+        res.Error("unauthorized", 401)
+        return fmt.Errorf("unauthorized")
+    }
+    return nil
 })
 
 // Custom validation middleware
 app.Use(func(req *yekonga.Request, res *yekonga.Response) error {
-contentType := req.Header("Content-Type")
-if req.Method() == "POST" && contentType == "" {
-tent-Type header required", 400)
- fmt.Errorf("missing content-type")
-}
-return nil
+    contentType := req.Header("Content-Type")
+    if req.Method() == "POST" && contentType == "" {
+        res.Error("Content-Type header required", 400)
+        return fmt.Errorf("missing content-type")
+    }
+    return nil
 })
 ```
 
@@ -370,30 +539,30 @@ return nil
 ```go
 // Define a basic cloud function
 app.Define("sendWelcomeEmail", func(data interface{}, rc *yekonga.RequestContext) (interface{}, error) {
-// Email sending logic
-return map[string]string{"status": "sent"}, nil
+    // Email sending logic
+    return map[string]string{"status": "sent"}, nil
 })
 
 // Database trigger - after finding records
 app.AfterFind("User", nil, nil, func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
-// Process user records after fetch
-users := qc.Data
-// Add computed fields, mask sensitive data, etc.
-return users, nil
+    // Process user records after fetch
+    users := qc.Data
+    // Add computed fields, mask sensitive data, etc.
+    return users, nil
 })
 
 // Database trigger - before creating
 app.BeforeCreate("User", func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
-data := qc.Data
-// Validate data before insert
-// Hash passwords, set defaults, etc.
-return data, nil
+    data := qc.Data
+    // Validate data before insert
+    // Hash passwords, set defaults, etc.
+    return data, nil
 })
 
 // Database trigger - after updating
 app.AfterUpdate("User", func(rc *yekonga.RequestContext, qc *yekonga.QueryContext) (interface{}, error) {
-// Log updates, send notifications, etc.
-return qc.Data, nil
+    // Log updates, send notifications, etc.
+    return qc.Data, nil
 })
 ```
 
@@ -404,28 +573,28 @@ import "time"
 
 // Run every 24 hours
 app.RegisterCronjob("daily-cleanup", 24*time.Hour, func(app *yekonga.YekongaData, t time.Time) {
-log.Println("Running cleanup job at", t)
-// Cleanup database, delete old records, etc.
+    log.Println("Running cleanup job at", t)
+    // Cleanup database, delete old records, etc.
 })
 
 // Run every hour
 app.RegisterCronjob("hourly-stats", time.Hour, func(app *yekonga.YekongaData, t time.Time) {
-log.Println("Updating statistics at", t)
+    log.Println("Updating statistics at", t)
 })
 
 // Run every minute
 app.RegisterCronjob("check-notifications", time.Minute, func(app *yekonga.YekongaData, t time.Time) {
-// Process notifications, send alerts, etc.
+    // Process notifications, send alerts, etc.
 })
 
 // Run at specific times
 app.RegisterCronjobAt(
-"daily-report",
-yekonga.JobFrequencyDaily,
-time.Now().Add(24*time.Hour),
-func(app *yekonga.YekongaData, t time.Time) {
-tln("Daily report generated at", t)
-},
+    "daily-report",
+    yekonga.JobFrequencyDaily,
+    time.Now().Add(24*time.Hour),
+    func(app *yekonga.YekongaData, t time.Time) {
+        log.Println("Daily report generated at", t)
+    },
 )
 ```
 
@@ -434,24 +603,24 @@ tln("Daily report generated at", t)
 ```go
 // Serve static files from public directory
 app.Static(yekonga.StaticConfig{
-Directory:   "./public",
-PathPrefix:  "/public",
-IndexFile:   "index.html",
-Extensions:  []string{".html", ".css", ".js", ".jpg", ".png", ".gif"},
-CacheMaxAge: 3600, // Cache for 1 hour
+    Directory:   "./public",
+    PathPrefix:  "/public",
+    IndexFile:   "index.html",
+    Extensions:  []string{".html", ".css", ".js", ".jpg", ".png", ".gif"},
+    CacheMaxAge: 3600, // Cache for 1 hour
 })
 
 // Multiple static directories
 app.Static(yekonga.StaticConfig{
-Directory:   "./assets",
-PathPrefix:  "/assets",
-CacheMaxAge: 86400, // Cache for 1 day
+    Directory:   "./assets",
+    PathPrefix:  "/assets",
+    CacheMaxAge: 86400, // Cache for 1 day
 })
 
 app.Static(yekonga.StaticConfig{
-Directory:   "./uploads",
-PathPrefix:  "/downloads",
-CacheMaxAge: 0, // No caching
+    Directory:   "./uploads",
+    PathPrefix:  "/downloads",
+    CacheMaxAge: 0, // No caching
 })
 ```
 
@@ -459,21 +628,21 @@ CacheMaxAge: 0, // No caching
 
 ```go
 app.Get("/products/:id", func(req *yekonga.Request, res *yekonga.Response) {
-id := req.Param("id")
-if id == "" {
-required", 400)
+    id := req.Param("id")
+    if id == "" {
+        res.Error("id required", 400)
+        return
+    }
 
-}
+    product := app.ModelQuery("Product").FindById(id)
+    if product == nil {
+        res.Error("not found", 404)
+        return
+    }
 
-product := app.ModelQuery("Product").FindById(id)
-if product == nil {
-ot found", 404)
-
-}
-
-res.Status(200)
-res.Header("Content-Type", "application/json")
-res.Json(product)
+    res.Status(200)
+    res.Header("Content-Type", "application/json")
+    res.Json(product)
 })
 ```
 
@@ -1276,15 +1445,15 @@ Access authenticated user data:
 
 ```go
 app.Get("/protected", func(req *yekonga.Request, res *yekonga.Response) {
-auth := req.Auth()
-if auth == nil {
-authorized", 401)
+    auth := req.Auth()
+    if auth == nil {
+        res.Error("unauthorized", 401)
+        return
+    }
 
-}
-
-userID := auth.UserId()
-userData := auth.ToMap()
-res.Json(userData)
+    userID := auth.UserId()
+    userData := auth.ToMap()
+    res.Json(userData)
 })
 ```
 
@@ -1309,32 +1478,200 @@ curl -H "X-App-Key: YOUR_APP_KEY" https://api.example.com/api/users
 
 ## 🔄 Configuration
 
-Key configuration parameters:
+YekongaConfig parameters:
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `appName` | string | Application name |
-| `environment` | string | `development`, `staging`, or `production` |
-| `debug` | boolean | Enable debug logging |
-| `protocol` | string | `http` or `https` |
+| `version` | string | Application version |
+| `description` | string | Application description |
+| `logoUrl` | string | Application logo URL |
+| `faviconUrl` | string | Favicon URL |
+| `primaryColor` | string | Primary theme color |
+| `secondaryColor` | string | Secondary theme color |
+| `darkBackgroundColor` | string | Dark mode background color |
+| `appKey` | string | Application key for authentication |
+| `masterKey` | string | Master key for administrative access |
+| `enableAppKey` | bool | Enable app key authentication |
+| `connectionID` | string | Unique connection identifier |
+| `userIdentifiers` | []string | Fields used to identify users |
+| `domain` | string | Domain name |
+| `protocol` | string | Protocol (`http` or `https`) |
+| `domainAlias` | []string | Alternative domain names |
 | `address` | string | Server address/IP |
-| `domain` | string | Domain name for the application |
-| `restApi` | string | REST API endpoint prefix (default: `/api`) |
-| `enableAppKey` | boolean | Require app key authentication |
-| `secureOnly` | boolean | Only allow HTTPS |
-| `tokenExpireTime` | int | JWT token expiration time in seconds |
+| `restApi` | string | REST API endpoint prefix |
+| `restAuthApi` | string | REST Auth API endpoint prefix |
+| `tokenKey` | string | JWT token key |
+| `pdfInstances` | int | Number of PDF processing instances |
+| `tokenExpireTime` | int | Token expiration time in seconds |
+| `secureOnly` | bool | Only allow HTTPS connections |
+| `debug` | bool | Enable debug logging |
+| `cors` | bool | Enable CORS |
+| `resetOTP` | bool | Allow OTP reset |
+| `environment` | string | Environment (`development`, `staging`, `production`) |
+| `registerUserOnOtp` | bool | Auto-register users on OTP verification |
+| `sendOtpToSmsAndWhatsapp` | bool | Send OTP via SMS and WhatsApp |
+| `endToEndEncryption` | bool | Enable end-to-end encryption |
+| `authPlaygroundEnable` | bool | Enable authentication playground |
+| `apiPlaygroundEnable` | bool | Enable API playground |
+| `enableDashboard` | bool | Enable admin dashboard |
+| `allowCreateFrontend` | bool | Allow frontend creation |
+| `namingConvention` | string | Table naming convention |
+| `columnNamingConvention` | string | Column naming convention |
+| `namingConventionOptions` | []string | Available naming conventions |
+| `public` | []string | Public routes/actions |
+| `cloud` | string | Cloud provider name |
+| `logFile` | string | Log file path |
+| `indexTemplate` | string | Index template path |
+| `emailTemplate` | string | Email template path |
+| `googleApiKey` | string | Google API key |
+| `googleApiKeyAlt` | string | Alternative Google API key |
+| `googleClientId` | string | Google OAuth client ID |
+| `googleClientSecret` | string | Google OAuth client secret |
+| `globalPassword` | string | Global default password |
+| `permissions` | [object](#permissions) | Permission rules and actions |
+| `graphql` | [object](#graphql-configuration) | GraphQL settings |
+| `database` | [object](#database-configuration) | Database connection settings |
+| `authentication` | [object](#authentication-configuration) | Authentication settings |
+| `ports` | [object](#ports-configuration) | Server port settings |
+| `mail` | [object](#mail-configuration) | Email configuration |
+| `adminCredential` | [object](#admin-credential) | Admin user credentials |
 
-### Database Configuration
+### Nested Configuration Objects
+
+#### Permissions
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `authActions` | []string | Actions available to authenticated users |
+| `guestActions` | []string | Actions available to guests |
+
+#### Permissions
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `authActions` | []string | Actions available to authenticated users |
+| `guestActions` | []string | Actions available to guests |
+
+#### GraphQL Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `apiRoute` | string | GraphQL API route |
+| `apiAuthRoute` | string | GraphQL auth API route |
+| `customTypes` | string | Custom GraphQL types |
+| `customResolvers` | string | Custom resolvers |
+| `customAuthTypes` | string | Custom auth types |
+| `customAuthResolvers` | string | Custom auth resolvers |
+| `enabledForClasses` | interface{} | Classes with GraphQL enabled |
+| `disabledForClasses` | interface{} | Classes with GraphQL disabled |
+| `authResolvers` | interface{} | Auth-specific resolvers |
+| `authClasses` | interface{} | Classes requiring auth |
+| `guestResolvers` | interface{} | Guest-accessible resolvers |
+| `guestClasses` | interface{} | Classes for guests |
+| `authQuery.user` | interface{} | User query |
+| `authQuery.account` | interface{} | Account query |
+
+#### Database Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `kind` | string | Database type (`mongodb`, `mysql`, `sql`, or `local`) |
+| `srv` | bool | Use MongoDB SRV connection |
+| `host` | string | Database host |
+| `port` | string | Database port |
+| `databaseName` | string | Database name |
+| `username` | interface{} | Database username |
+| `password` | interface{} | Database password |
+| `prefix` | string | Table/collection prefix |
+| `generateID` | bool | Auto-generate IDs |
+| `generateIDLength` | int | Generated ID length |
+
+#### Authentication Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `saltRound` | int | Bcrypt salt rounds |
+| `algorithm` | string | Encryption algorithm |
+| `tokenSecret` | string | Token signing secret |
+| `cryptoJsKey` | string | CryptoJS encryption key |
+| `cryptoJsIv` | string | CryptoJS initialization vector |
+
+#### Ports Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `secure` | bool | Use secure ports |
+| `server` | int | HTTP server port |
+| `sslServer` | int | HTTPS server port |
+| `redis` | int | Redis port |
+
+#### Mail Configuration
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `smtp.service` | string | Mail service name |
+| `smtp.host` | string | SMTP host |
+| `smtp.port` | int | SMTP port |
+| `smtp.secure` | bool | Use TLS/SSL |
+| `smtp.from` | string | From address |
+| `smtp.domain` | string | Domain |
+| `smtp.username` | interface{} | SMTP username |
+| `smtp.password` | interface{} | SMTP password |
+| `smtp.apiKey` | string | Mail service API key |
+
+#### Admin Credential
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `username` | interface{} | Admin username |
+| `password` | interface{} | Admin password |
+
+### Example Configuration
 
 ```json
 {
+  "appName": "YekongaApp",
+  "version": "1.0.0",
+  "environment": "production",
+  "debug": false,
+  "protocol": "https",
+  "address": "0.0.0.0",
+  "domain": "example.com",
+  "restApi": "/api",
+  "tokenExpireTime": 86400,
+  "secureOnly": true,
+  "enableAppKey": true,
+  "appKey": "your-app-key-here",
   "database": {
-    "kind": "mongodb|mysql|sql|local",
-    "host": "localhost",
+    "kind": "mongodb",
+    "host": "mongodb.example.com",
     "port": "27017",
-    "databaseName": "app_db",
-    "username": "root",
-    "password": "password"
+    "databaseName": "yekonga_db",
+    "username": "dbuser",
+    "password": "dbpassword"
+  },
+  "authentication": {
+    "saltRound": 10,
+    "algorithm": "bcrypt",
+    "tokenSecret": "your-secret-key"
+  },
+  "ports": {
+    "secure": true,
+    "server": 80,
+    "sslServer": 443,
+    "redis": 6379
+  },
+  "mail": {
+    "smtp": {
+      "service": "gmail",
+      "host": "smtp.gmail.com",
+      "port": 587,
+      "secure": true,
+      "from": "noreply@example.com",
+      "username": "your-email@gmail.com",
+      "password": "your-app-password"
+    }
   }
 }
 ```
@@ -1385,23 +1722,24 @@ Example test setup:
 package main
 
 import (
-"testing"
-"github.com/robertkonga/yekonga-server-go/yekonga"
+  "testing"
+  "github.com/robertkonga/yekonga-server-go/yekonga"
 )
 
 func TestUserCreation(t *testing.T) {
-app := yekonga.ServerConfig("./config.json", "./database.json")
+    app := yekonga.ServerConfig("./config.json", "./database.json")
 
-user, err := app.ModelQuery("User").Create(map[string]interface{}{
-ame": "testuser",
- "test@example.com",
-err != nil {
-user: %v", err)
-}
+    user, err := app.ModelQuery("User").Create(map[string]interface{}{
+        "username": "testuser",
+        "email":    "test@example.com",
+    })
+    if err != nil {
+        t.Errorf("Failed to create user: %v", err)
+    }
 
-if user == nil {
-nil")
-}
+    if user == nil {
+        t.Error("User is nil")
+    }
 }
 ```
 
@@ -1414,11 +1752,11 @@ nil")
 ```go
 environment := os.Getenv("APP_ENV")
 if environment == "production" {
-// Use production config
-app := yekonga.ServerConfig("./config.production.json", "./database.json")
+    // Use production config
+    app := yekonga.ServerConfig("./config.production.json", "./database.json")
 } else {
-// Use development config
-app := yekonga.ServerConfig("./config.json", "./database.json")
+    // Use development config
+    app := yekonga.ServerConfig("./config.json", "./database.json")
 }
 ```
 

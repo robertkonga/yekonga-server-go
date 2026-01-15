@@ -78,6 +78,23 @@ func ToFloat(value interface{}) float64 {
 	return number
 }
 
+func ToFloat64(value interface{}) float64 {
+	return ToFloat(value)
+}
+
+func CompareValues(a, b interface{}) int {
+	// Convert both values to float64 for comparison
+	aVal := ToFloat64(a)
+	bVal := ToFloat64(b)
+
+	if aVal < bVal {
+		return -1
+	} else if aVal > bVal {
+		return 1
+	}
+	return 0
+}
+
 func ToJson(data interface{}) string {
 	jsonData, _ := json.MarshalIndent(data, "", " ")
 

@@ -26,7 +26,7 @@ type mongodbConnection struct {
 	client *mongo.Client
 }
 
-func newInstance(con *mongodbConnection) mongodbConnection {
+func newMongodbInstance(con *mongodbConnection) mongodbConnection {
 	return mongodbConnection{
 		ctx:    con.ctx,
 		client: con.client,
@@ -417,7 +417,7 @@ func (con *mongodbConnection) create(data datatype.DataMap) (*datatype.DataMap, 
 	}
 
 	if res.Acknowledged {
-		result = newInstance(con).query.Where("_id", res.InsertedID).collection().findOne()
+		result = newMongodbInstance(con).query.Where("_id", res.InsertedID).collection().findOne()
 	}
 
 	return result, nil
@@ -435,7 +435,7 @@ func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 	if res.Acknowledged {
 		where := map[string]interface{}{"_id": map[string]interface{}{"in": res.InsertedIDs}}
 		// console.Log("ssss", res.InsertedIDs)
-		result = newInstance(con).query.WhereAll(where).collection().find()
+		result = newMongodbInstance(con).query.WhereAll(where).collection().find()
 	}
 
 	return result, nil
@@ -453,7 +453,7 @@ func (con *mongodbConnection) update(data datatype.DataMap) (*datatype.DataMap, 
 	}
 
 	if res.Acknowledged && res.ModifiedCount > 0 {
-		result = newInstance(con).query.WhereAll(con.where()).FindOne(nil)
+		result = newMongodbInstance(con).query.WhereAll(con.where()).FindOne(nil)
 	}
 
 	return result, nil
@@ -471,7 +471,7 @@ func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.Dat
 	}
 
 	if res.Acknowledged {
-		result = newInstance(con).query.WhereAll(con.where()).Find(nil)
+		result = newMongodbInstance(con).query.WhereAll(con.where()).Find(nil)
 	}
 
 	return result, nil

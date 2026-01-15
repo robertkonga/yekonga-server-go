@@ -282,15 +282,21 @@ func (y *YekongaData) GetLoginData(ctx context.Context, input *LoginData) interf
 			user["profileRole"] = "admin"
 		}
 
-		// if config.Config.Graphql && config.Config.Graphql.AuthQuery.User != nil {
-		// 	if profileKeys, ok := config.Config.Graphql.AuthQuery["profile"].([]interface{}); ok {
-		// 		for _, key := range profileKeys {
-		// 			if keyStr, ok := key.(string); ok {
-		// 				user["AdditionalFields"][keyStr] = profile.AdditionalFields[keyStr]
-		// 			}
-		// 		}
-		// 	}
-		// }
+		if y.Config.Graphql.AuthQuery.User != nil && profile != nil && *profile != nil {
+			if authQuery, ok := y.Config.Graphql.AuthQuery.User.(map[string]interface{}); ok {
+				if profileKeys, ok := authQuery["profile"].([]interface{}); ok {
+					extraFields := make(map[string]interface{})
+
+					for _, key := range profileKeys {
+						if keyStr, ok := key.(string); ok {
+							extraFields[keyStr] = helper.GetValueOf(profile, keyStr)
+						}
+					}
+
+					user["AdditionalFields"] = extraFields
+				}
+			}
+		}
 	}
 
 	return user

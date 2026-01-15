@@ -2,6 +2,7 @@ package yekonga
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 
@@ -67,8 +68,8 @@ type DatabaseConnections struct {
 	appPath       string
 	mongodbClient *mongo.Client
 	localClient   *localDB.DB
-	mysqlClient   *interface{}
-	sqlClient     *interface{}
+	mysqlClient   *sql.DB
+	sqlClient     *sql.DB
 }
 
 func NewDatabaseConnections(config *config.YekongaConfig) *DatabaseConnections {
