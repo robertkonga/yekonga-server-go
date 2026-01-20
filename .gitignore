@@ -12,8 +12,6 @@
 desktop/**/build
 desktop/**/frontend/dist
 
-dev
+
 documentation
-_dist
-_backup
-_development
+schema.graphql
