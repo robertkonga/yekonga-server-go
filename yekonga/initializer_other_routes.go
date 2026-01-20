@@ -1,0 +1,319 @@
+package yekonga
+
+import (
+	"path"
+
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
+)
+
+type WebConfig struct {
+	config                map[string]any
+	profileConfig         map[string]any
+	systemLanguages       []map[string]any
+	systemDefaultLanguage []map[string]any
+	systemPermissions     []map[string]any
+	systemTemplateConfig  map[string]any
+}
+
+func (y *YekongaData) initializer_config(req *Request) WebConfig {
+	locale := "en"
+	// auth := *req.Auth()
+	client := *req.Client()
+	config := map[string]any{}
+	profileConfig := map[string]any{}
+	systemTemplateConfig := map[string]any{}
+	systemPermissions := []map[string]any{}
+	baseUrl := client.Proto + "://" + client.Host + ":" + client.Port
+
+	systemLanguages := []map[string]interface{}{}
+	systemDefaultLanguage := []map[string]interface{}{}
+
+	listA := y.ModelQuery("TranslatorLanguage").Find(nil)
+	countA := len(*listA)
+
+	for i := 0; i < countA; i++ {
+		e := (*listA)[i]
+		d := datatype.DataMap{
+			"locale": e["locale"],
+			"name":   e["name"],
+			"flag":   e["flag"],
+			"id":     e["id"],
+		}
+
+		systemLanguages = append(systemLanguages, d)
+	}
+
+	listB := y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale})
+	countB := len(*listB)
+
+	for i := 0; i < countB; i++ {
+		e := (*listB)[i]
+		d := datatype.DataMap{
+			"id":           e["id"],
+			"locale":       e["locale"],
+			"name":         e["name"],
+			"namespace":    e["namespace"],
+			"group":        e["group"],
+			"item":         e["item"],
+			"descriptions": e["descriptions"],
+			"text":         e["text"],
+			"locked":       e["locked"],
+		}
+
+		systemDefaultLanguage = append(systemDefaultLanguage, d)
+	}
+
+	config["baseUrl"] = baseUrl
+	config["host"] = client.Host
+	config["appName"] = y.Config.AppName
+	config["endToEndEncryption"] = y.Config.EndToEndEncryption
+	config["apiRoute"] = y.Config.Graphql.ApiRoute
+	config["authRoute"] = y.Config.Graphql.ApiAuthRoute
+	config["googleApiKey"] = y.Config.GoogleApiKey
+	config["googleClientId"] = y.Config.GoogleClientId
+	config["googleClientSecret"] = y.Config.GoogleClientSecret
+	config["cryptojsKey"] = y.Config.Authentication.CryptoJsKey
+	config["cryptojsIv"] = y.Config.Authentication.CryptoJsIv
+	config["userIdentifiers"] = y.Config.UserIdentifiers
+	config["locale"] = locale
+	config["language"] = locale
+
+	return WebConfig{
+		config:                config,
+		profileConfig:         profileConfig,
+		systemLanguages:       systemLanguages,
+		systemDefaultLanguage: systemDefaultLanguage,
+		systemPermissions:     systemPermissions,
+		systemTemplateConfig:  systemTemplateConfig,
+	}
+}
+
+func (y *YekongaData) initializer_other_routes() {
+
+	y.All("/languages", func(req *Request, res *Response) {
+		languages := []map[string]interface{}{}
+		list := y.ModelQuery("TranslatorLanguage").Find(nil)
+		count := len(*list)
+
+		for i := 0; i < count; i++ {
+			e := (*list)[i]
+			d := datatype.DataMap{
+				"locale": e["locale"],
+				"name":   e["name"],
+				"flag":   e["flag"],
+				"id":     e["id"],
+			}
+
+			languages = append(languages, d)
+		}
+
+		res.Json(languages)
+	})
+
+	y.All("/translations/:locale", func(req *Request, res *Response) {
+		locale := req.Param("locale")
+		translations := []map[string]interface{}{}
+		list := y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale})
+		count := len(*list)
+
+		for i := 0; i < count; i++ {
+			e := (*list)[i]
+			d := datatype.DataMap{
+				"id":           e["id"],
+				"locale":       e["locale"],
+				"name":         e["name"],
+				"namespace":    e["namespace"],
+				"group":        e["group"],
+				"item":         e["item"],
+				"descriptions": e["descriptions"],
+				"text":         e["text"],
+				"locked":       e["locked"],
+			}
+
+			translations = append(translations, d)
+		}
+
+		res.Json(translations)
+	})
+
+	y.All("/config/data", func(req *Request, res *Response) {
+		wetConfig := y.initializer_config(req)
+
+		res.Json(map[string]interface{}{
+			"config":                wetConfig.config,
+			"profileConfig":         wetConfig.profileConfig,
+			"systemLanguages":       wetConfig.systemLanguages,
+			"systemDefaultLanguage": wetConfig.systemDefaultLanguage,
+			"systemPermissions":     wetConfig.systemPermissions,
+			"systemTemplateConfig":  wetConfig.systemTemplateConfig,
+		})
+	})
+
+	y.All("/config/report", func(req *Request, res *Response) {
+		config := map[string]any{"reportConfig": nil}
+
+		res.Json(config)
+	})
+
+	y.All("/permissions", func(req *Request, res *Response) {
+		config := map[string]any{}
+
+		auth := req.Auth()
+		if auth == nil {
+			config["error"] = "You must login first"
+		} else {
+			config["permissions"] = []interface{}{}
+		}
+
+		res.Json(config)
+	})
+
+	y.All("/config", func(req *Request, res *Response) {
+		wetConfig := y.initializer_config(req)
+
+		content := "window['systemLanguages'] = " + helper.ToJson(wetConfig.systemLanguages) + ";\n" +
+			"window['systemDefaultLanguage'] = " + helper.ToJson(wetConfig.systemDefaultLanguage) + ";\n" +
+			"window['systemTemplateConfig'] = {};\n" +
+			"window['systemPermissions'] = " + helper.ToJson(wetConfig.systemPermissions) + ";\n" +
+			"window['systemConfig'] = " + helper.ToJson(wetConfig.config) + ";\n" +
+			"window['ProfileConfig'] = " + helper.ToJson(wetConfig.profileConfig) + ";\n"
+
+		res.Header("Cache-Control", "public, max-age=0")
+		res.Header("content-type", "application/javascript; charset=UTF-8")
+		res.Byte([]byte(content))
+	})
+
+	y.All("/download/:filename", func(req *Request, res *Response) {
+		filename := req.Param("filename")
+		title := req.Query("title")
+		// console.Log(filename)
+
+		publicDir, _ := helper.GetPublicPath()
+		file := path.Join(publicDir, "tmp", filename)
+
+		console.Log(file)
+
+		res.Download(file, title)
+	})
+
+	y.Get("/yekonga/yekonga.js", func(req *Request, res *Response) {
+		scripts := ""
+		client := *req.Client()
+		var content []byte
+
+		content, _ = StaticFS.ReadFile("static/dk/axios.min.js")
+		scripts += string(content) + "\n"
+
+		content, _ = StaticFS.ReadFile("static/sdk/simplepeer.min.js")
+		scripts += string(content) + "\n"
+
+		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
+		scripts += string(content) + "\n"
+
+		var config string = "window.YekongaServer = {};\n" +
+			"window.YekongaServer.Applications = {};\n" +
+			"window.socket = null;\n" +
+			"window.socketSystem = null;\n" +
+			"window.YekongaServer.Host = '" + client.Host + "';\n" +
+			"window.YekongaServer.Proto = '" + client.Proto + "';\n" +
+			"window.YekongaServer.Port = '" + client.Port + "';\n" +
+			"window.YekongaServer.graphql = '" + y.Config.Graphql.ApiRoute + "';"
+
+		scripts += config + "\n"
+
+		content, _ = StaticFS.ReadFile("static/sdk/webRTC.js")
+		scripts += string(content) + "\n"
+
+		content, _ = StaticFS.ReadFile("static/sdk/yekonga.js")
+		scripts += string(content) + "\n"
+
+		res.Header("Cache-Control", "public, max-age=0")
+		res.Header("content-type", "application/javascript")
+		res.Byte([]byte(scripts))
+	})
+
+	y.Get("/custom-style.css", func(req *Request, res *Response) {
+		content := "/* @charset \"UTF-8\"; */" +
+			"" +
+			""
+
+		res.Header("Cache-Control", "public, max-age=0")
+		res.Header("content-type", "text/css; charset=utf-8")
+		res.Byte([]byte(content))
+	})
+
+	y.Get("/playground", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/playground/index.html")
+		html := string(content)
+
+		apiRoute := y.appendBaseUrl(y.Config.Graphql.ApiRoute)
+		baseUrl := y.appendBaseUrl("")
+		data := map[string]interface{}{
+			"apiRoute": apiRoute,
+			"baseUrl":  baseUrl,
+		}
+		html = helper.TextTemplate(html, data, nil)
+
+		res.Html(html)
+	})
+
+	y.Get("/playground/font.css", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/playground/font.css")
+
+		res.Header("content-type", "text/css; charset=utf-8")
+		res.Byte(content)
+	})
+
+	y.Get("/playground/index.css", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/playground/index.css")
+
+		res.Header("content-type", "text/css; charset=utf-8")
+		res.Byte(content)
+	})
+
+	y.Get("/playground/favicon.png", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/playground/fovicon.png")
+
+		res.Header("content-type", "image/png")
+		res.Byte(content)
+	})
+
+	y.Get("/playground/middleware.js", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/playground/middleware.js")
+
+		res.Header("content-type", "text/javascript")
+		res.Byte(content)
+	})
+
+	y.Get("/placeholder.jpg", func(req *Request, res *Response) {
+		content, _ := StaticFS.ReadFile("static/placeholder.jpg")
+
+		res.Header("content-type", "image/jpeg")
+		res.Byte(content)
+	})
+}
+
+func (y *YekongaData) initializer_socket_routes() {
+
+	y.Get("/yekonga.io/yekonga.io.js", func(req *Request, res *Response) {
+		scripts := ""
+		var content []byte
+
+		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
+		scripts += string(content) + "\n"
+
+		res.Header("Cache-Control", "public, max-age=0")
+		res.Header("content-type", "application/javascript")
+		res.Byte([]byte(scripts))
+	})
+
+	y.All("/yekonga.io/", func(req *Request, res *Response) {
+
+		(*res.httpResponseWriter).Header().Set("access-control-allow-origin", "*")
+		(*res.httpResponseWriter).Header().Add("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
+
+		y.socketServer.ServeWS(req, res)
+	})
+}

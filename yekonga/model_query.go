@@ -1,0 +1,899 @@
+package yekonga
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+)
+
+type FilterOperator string
+
+// Filter operation constants
+const (
+	FilterEqualTo                 FilterOperator = "equalTo"
+	FilterNotEqualTo              FilterOperator = "notEqualTo"
+	FilterLessThan                FilterOperator = "lessThan"
+	FilterNotLessThan             FilterOperator = "notLessThan"
+	FilterLessThanOrEqualTo       FilterOperator = "lessThanOrEqualTo"
+	FilterNotLessThanOrEqualTo    FilterOperator = "notLessThanOrEqualTo"
+	FilterGreaterThan             FilterOperator = "greaterThan"
+	FilterNotGreaterThan          FilterOperator = "notGreaterThan"
+	FilterGreaterThanOrEqualTo    FilterOperator = "greaterThanOrEqualTo"
+	FilterNotGreaterThanOrEqualTo FilterOperator = "notGreaterThanOrEqualTo"
+	FilterMatchesRegex            FilterOperator = "matchesRegex"
+	FilterOptions                 FilterOperator = "options"
+)
+
+type QueryContext struct {
+	Data       interface{}
+	Input      interface{}
+	Filters    *datatype.DataMap
+	Parent     interface{}
+	Params     map[string]interface{}
+	AccessRole string
+	Route      string
+}
+
+type DataModelQuery struct {
+	Model          *DataModel
+	RequestContext *RequestContext
+	QueryContext   QueryContext
+
+	limit      int
+	page       int
+	skip       int
+	where      datatype.DataMap
+	orderBy    map[string]string
+	selection  []string
+	distinct   []string
+	groupBy    []string
+	groupByRaw map[string]interface{}
+}
+
+func NewDataModelQuery(model *DataModel) DataModelQuery {
+
+	return DataModelQuery{
+		Model: model,
+		limit: 10,
+	}
+}
+
+func (m *DataModelQuery) NewInstance() *DataModelQuery {
+	return &DataModelQuery{
+		Model: m.Model,
+		QueryContext: QueryContext{
+			Params: make(map[string]interface{}),
+		},
+	}
+}
+
+func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
+	var newValue = value
+	if m.where == nil {
+		m.where = make(datatype.DataMap)
+	}
+
+	if helper.Contains(m.Model.RelativeKeys, name) || name == "id" || name == "_id" {
+		if name == "id" || name == "_id" {
+			name = "_id"
+		}
+
+		if v, ok := value.(string); ok {
+			switch v {
+			case string(NULLValue):
+				newValue = nil
+			case string(NullValue):
+				newValue = nil
+			case string(nullValue):
+				newValue = nil
+			default:
+				newValue = helper.ObjectID(v)
+			}
+		} else if helper.IsArray(value) {
+			array := helper.ToList[interface{}](value)
+			count := len(array)
+			vpi := make([]bson.ObjectID, 0, count)
+
+			for i := 0; i < count; i++ {
+				vpi = append(vpi, helper.ObjectID(array[i]))
+			}
+
+			newValue = vpi
+		} else if v, ok := value.(map[string]interface{}); ok {
+			vp := make(map[string]interface{})
+
+			for ki, vi := range v {
+				if vii, ok := vi.(string); ok {
+					switch vii {
+					case string(NULLValue):
+						vp[ki] = nil
+					case string(NullValue):
+						vp[ki] = nil
+					case string(nullValue):
+						vp[ki] = nil
+					default:
+						vp[ki] = helper.ObjectID(vii)
+					}
+				} else if helper.IsArray(vi) {
+					array := helper.ToList[interface{}](vi)
+					count := len(array)
+					vpi := make([]bson.ObjectID, 0, count)
+
+					for i := 0; i < count; i++ {
+						vpi = append(vpi, helper.ObjectID(array[i]))
+					}
+
+					vp[ki] = vpi
+				} else {
+					switch vi {
+					case string(NULLValue):
+						vp[ki] = nil
+					case string(NullValue):
+						vp[ki] = nil
+					case string(nullValue):
+						vp[ki] = nil
+					default:
+						vp[ki] = helper.ObjectID(vi)
+					}
+				}
+			}
+
+			newValue = vp
+		}
+	}
+
+	if w, ok := m.where[name]; ok {
+		w1, ok1 := w.(map[string]interface{})
+		w2, ok2 := newValue.(map[string]interface{})
+
+		if ok1 && ok2 {
+			for kii, vii := range w2 {
+				w1[kii] = vii
+			}
+		} else {
+			m.where[name] = newValue
+		}
+	} else {
+		m.where[name] = newValue
+	}
+
+	return m
+}
+
+func (m *DataModelQuery) WhereMany(where interface{}) *DataModelQuery {
+	if m.where == nil {
+		m.where = make(datatype.DataMap)
+	}
+
+	if helper.IsMap(where) {
+		p := helper.ToMap[interface{}](where)
+		for k, v := range p {
+			m.Where(k, v)
+		}
+	}
+
+	return m
+}
+
+func (m *DataModelQuery) WhereAll(where interface{}) *DataModelQuery {
+	return m.WhereMany(where)
+}
+
+func (m *DataModelQuery) Distinct(name string) *DataModelQuery {
+	if m.distinct == nil {
+		m.distinct = make([]string, 0, 3)
+	}
+
+	m.distinct = append(m.distinct, name)
+
+	return m
+}
+
+func (m *DataModelQuery) DistinctAll(values []string) *DataModelQuery {
+	if m.distinct == nil {
+		m.distinct = make([]string, 0, 3)
+	}
+
+	m.distinct = append(m.distinct, values...)
+
+	return m
+}
+
+func (m *DataModelQuery) OrderBy(name string, value string) *DataModelQuery {
+	if m.orderBy == nil {
+		m.orderBy = make(map[string]string)
+	}
+
+	m.orderBy[name] = value
+
+	return m
+}
+
+func (m *DataModelQuery) OrderByAll(values []map[string]string) *DataModelQuery {
+	if m.orderBy == nil {
+		m.orderBy = make(map[string]string)
+	}
+
+	for _, o := range values {
+		for k, v := range o {
+			m.orderBy[k] = v
+		}
+	}
+
+	return m
+}
+
+func (m *DataModelQuery) GroupBy(name string) *DataModelQuery {
+	if m.groupBy == nil {
+		m.groupBy = make([]string, 0, 3)
+	}
+
+	m.groupBy = append(m.groupBy, name)
+
+	return m
+}
+
+func (m *DataModelQuery) GroupByRaw(key string, value interface{}) *DataModelQuery {
+	if m.groupByRaw == nil {
+		m.groupByRaw = make(map[string]interface{})
+	}
+
+	m.groupByRaw[key] = value
+
+	return m
+}
+
+func (m *DataModelQuery) Page(value int) *DataModelQuery {
+	m.page = value
+	m.skip = (m.page - 1) * m.limit
+
+	return m
+}
+
+func (m *DataModelQuery) Take(value int) *DataModelQuery {
+	m.limit = value
+
+	return m
+}
+
+func (m *DataModelQuery) Skip(value int) *DataModelQuery {
+	m.skip = value
+
+	return m
+}
+
+func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
+	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAction, data)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		data = v
+	}
+
+	result, err := m.collection().create(*(m.formatInputData(data, CreateInputAction)))
+
+	if err != nil {
+		return err
+	}
+
+	triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
+		"action": "create",
+		"model":  m.Model.Name,
+	}, nil)
+
+	return result
+}
+
+func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interface{} {
+	m.WhereAll(where)
+
+	triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAction, data)
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		data = v
+	}
+
+	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
+
+	if err != nil {
+		return err
+	}
+
+	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
+		"action": "update",
+		"model":  m.Model.Name,
+	}, nil)
+
+	return result
+}
+
+func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interface{} {
+	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAction, data)
+	uniqueKeys = append(uniqueKeys, "_id")
+
+	message := "FAIL"
+	status := false
+	deleted := 0
+	ignored := 0
+	imported := 0
+	updated := 0
+	afterData := []interface{}{}
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.([]interface{}); ok {
+		data = v
+	}
+
+	result := map[string]interface{}{}
+	formattedCreateData := make([]datatype.DataMap, 0, len(data))
+	formattedUpdateData := make([]datatype.DataMap, 0, len(data))
+	// inputIds := []string{}
+
+ParentLoop:
+	for _, v := range data {
+		vi, _ := helper.ConvertTo[map[string]interface{}](v)
+
+		if vi != nil {
+			whereData := make(datatype.DataMap)
+
+			for _, key := range uniqueKeys {
+				if value, ok := vi[key]; ok {
+					if helper.IsNotEmpty(value) {
+						whereData[key] = value
+					} else {
+						ignored++
+						continue ParentLoop // Skip if unique key value is empty
+					}
+				}
+			}
+
+			if len(whereData) > 0 {
+				existsData := m.NewInstance().FindOne(whereData)
+
+				if existsData != nil && (*existsData) != nil {
+					// Update existing data
+					vi["_id"] = (*existsData)["_id"]
+					formattedUpdateData = append(formattedUpdateData, vi)
+				} else {
+					// Create new data
+					formattedCreateData = append(formattedCreateData, *m.formatInputData(vi, ImportInputAction))
+				}
+			} else {
+				// No unique keys found, treat as new data
+				formattedCreateData = append(formattedCreateData, *m.formatInputData(vi, ImportInputAction))
+			}
+		}
+	}
+
+	if len(formattedCreateData) > 0 {
+		createData, err := m.collection().createMany(formattedCreateData)
+
+		if err != nil {
+			console.Error("DataModelQuery.Import", err.Error())
+		} else if createData != nil {
+			imported = len(*createData)
+			interfaceData := helper.ToList[interface{}](createData)
+			afterData = append(afterData, interfaceData...)
+
+			status = true
+			message = "SUCCESS"
+		}
+
+		triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, createData)
+		if result, ok := triggerAfter.([]datatype.DataMap); ok {
+			createData = &(result)
+		}
+	}
+
+	if len(formattedUpdateData) > 0 {
+		for _, v := range formattedUpdateData {
+			vi := helper.ToMap[interface{}](v)
+			vii, _ := helper.ConvertTo[datatype.DataMap](vi)
+
+			updateData := m.NewInstance().Where("id", vii["_id"]).Update(*m.formatInputData(vii, UpdateInputAction), nil)
+
+			if ud, ok := updateData.(*datatype.DataMap); ok && ud != nil {
+				updated++
+				interfaceData := helper.ToList[interface{}](updateData)
+				afterData = append(afterData, interfaceData...)
+
+				status = true
+				message = "SUCCESS"
+			} else {
+				ignored++
+			}
+		}
+	}
+
+	result["message"] = message
+	result["status"] = status
+	result["deleted"] = deleted
+	result["ignored"] = ignored
+	result["imported"] = imported
+	result["updated"] = updated
+	result["data"] = afterData
+
+	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
+		"action": "import",
+		"model":  m.Model.Name,
+	}, nil)
+
+	return result
+}
+
+func (m *DataModelQuery) Delete(where interface{}) interface{} {
+	m.WhereAll(where)
+
+	triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	result, err := m.collection().delete()
+
+	if err != nil {
+		return err
+	}
+
+	triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = v
+	}
+
+	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
+		"action": "delete",
+		"model":  m.Model.Name,
+	}, nil)
+
+	return result
+}
+
+func (m *DataModelQuery) First(where interface{}) *datatype.DataMap {
+	m.WhereAll(where)
+
+	return m.FindOne(where)
+}
+
+func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
+	m.WhereAll(where)
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	result := m.collection().findOne()
+
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	return result
+}
+
+func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
+	m.WhereAll(where)
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	result := m.collection().find()
+
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	if v, ok := triggerAfter.([]datatype.DataMap); ok {
+		result = &v
+	}
+
+	return result
+}
+
+func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
+	m.WhereAll(where)
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	result := m.collection().pagination()
+
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	return result
+}
+
+func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return m.collection().summary()
+}
+
+func (m *DataModelQuery) Count(where interface{}) int64 {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return int64(m.collection().count())
+}
+
+func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return float64(m.collection().sum(target))
+}
+
+func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return m.collection().max(target)
+}
+
+func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return m.collection().min(target)
+}
+
+func (m *DataModelQuery) Average(target string, where interface{}) float64 {
+	m.WhereAll(where)
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	}
+
+	if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	return m.collection().average(target)
+}
+
+func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) interface{} {
+	m.WhereAll(where)
+	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
+	parent := p.Source
+
+	var accessRole string = helper.GetValueOfString(p.Args, "accessRole")
+	var route string = helper.GetValueOfString(p.Args, "route")
+
+	if m.QueryContext.Params == nil {
+		m.QueryContext.Params = make(map[string]interface{})
+	}
+
+	if pp, ok := p.Source.(graphql.ResolveParams); ok {
+		localWhere := helper.ToMap[interface{}](pp.Args["where"])
+		if localWhere != nil {
+			m.WhereAll(localWhere)
+		}
+
+		accessRole = helper.GetValueOfString(pp.Args, "accessRole")
+		route = helper.GetValueOfString(pp.Args, "route")
+
+		if pp.Args != nil {
+			for k, v := range pp.Args {
+				m.QueryContext.Params[k] = v
+			}
+		}
+	}
+
+	// console.Log("p.Params 1", m.QueryContext.Params)
+	filters := helper.ConvertToDataMap(helper.GetValueOfMap(p.Args, "where"))
+
+	m.QueryContext.AccessRole = accessRole
+	m.QueryContext.Route = route
+	m.QueryContext.Filters = &filters
+
+	if p.Args != nil {
+		for k, v := range p.Args {
+			m.QueryContext.Params[k] = v
+		}
+	}
+
+	if ctx != nil {
+		m.setRequest(ctx)
+	}
+
+	if p, ok := parent.(datatype.DataMap); ok {
+		m.QueryContext.Parent = &p
+	}
+
+	localWhere := helper.ToMap[interface{}](p.Args["where"])
+	if localWhere != nil {
+		m.WhereAll(localWhere)
+	}
+
+	localOrderBy := helper.ToMapList[string](p.Args["orderBy"])
+	if localOrderBy != nil {
+		m.OrderByAll(localOrderBy)
+	}
+
+	if v, ok := p.Args["limit"].(int); ok {
+		m.Take(v)
+	}
+
+	if v, ok := p.Args["page"].(int); ok {
+		m.Page(v)
+	}
+
+	if v, ok := p.Args["skip"].(int); ok {
+		m.Skip(v)
+	}
+
+	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	}
+
+	if where == nil {
+		where = map[string]interface{}{}
+	}
+
+	var whereFilter map[string]FilterValue
+	if err := json.Unmarshal(helper.ToByte(where), &whereFilter); err != nil {
+		return nil
+	}
+
+	// console.Log("where", where)
+	// console.Log("p.Args", p.Args)
+	chart := NewChartBuilder(m)
+
+	chartData, err := chart.BuildGraph(whereFilter, false)
+	if err != nil {
+		return err
+	}
+
+	return helper.ToMap[interface{}](chartData)
+}
+
+func (m *DataModelQuery) Download(where interface{}, fileType string) interface{} {
+	result := make(map[string]interface{})
+	data := m.Find(where)
+
+	result["data"], _ = helper.ConvertJSONArrayToCSV(data, []string{}, "")
+
+	return result
+}
+
+func (m *DataModelQuery) setRequest(value *RequestContext) *DataModelQuery {
+	m.RequestContext = value
+
+	return m
+}
+
+func (m *DataModelQuery) setRequestAccessRole(value string) *DataModelQuery {
+	m.QueryContext.AccessRole = value
+
+	return m
+}
+
+func (m *DataModelQuery) setRequestRoute(value string) *DataModelQuery {
+	m.QueryContext.Route = value
+
+	return m
+}
+
+func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAction) *datatype.DataMap {
+	formatInput := datatype.DataMap{}
+
+	switch action {
+	case CreateInputAction, ImportInputAction:
+		for _, k := range m.Model.ValidFields {
+			var v interface{} = nil
+
+			if k == "id" {
+				if _, exist := input["_id"]; !exist {
+					k = "_id"
+				} else {
+					v = input["_id"]
+				}
+
+				if _, exist := input["id"]; exist {
+					v = input["id"]
+				}
+			}
+
+			if k == "_id" {
+				v = helper.ObjectID(v)
+			}
+
+			if vi, exist := input[k]; exist {
+				v = vi
+			} else if field, exist := m.Model.Fields[k]; exist {
+				v = field.DefaultValue
+			}
+
+			formatInput[k] = m.formatInputDataField(k, v)
+		}
+	case UpdateInputAction:
+		for _, k := range m.Model.ValidFields {
+			if k != "_id" && k != "id" {
+				if v, ok := input[k]; ok {
+					formatInput[k] = m.formatInputDataField(k, v)
+				}
+			}
+		}
+
+	case ActionInputAction:
+		for k, v := range input {
+			formatInput[k] = m.formatInputDataField(k, v)
+		}
+	}
+
+	return &formatInput
+}
+
+func (m *DataModelQuery) formatInputDataField(key string, value interface{}) interface{} {
+	var v interface{}
+
+	if helper.IsNotEmpty(value) {
+		if helper.Contains(m.Model.RelativeKeys, key) || key == "id" || key == "_id" {
+			v = helper.ObjectID(value)
+		} else if helper.Contains(m.Model.DateFields, key) {
+			v = helper.GetTimestamp(value)
+		} else if helper.Contains(m.Model.NumberFields, key) {
+			v = helper.ToInt(value)
+		} else if helper.Contains(m.Model.FloatFields, key) {
+			v = helper.ToFloat(value)
+		} else {
+			v = value
+		}
+	} else {
+		v = value
+	}
+
+	return v
+}
+
+func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}) interface{} {
+	model := m.Model
+
+	switch action {
+	case BeforeFindTriggerAction:
+		if v, ok := data.(datatype.DataMap); ok {
+			m.QueryContext.Filters = &v
+		}
+	case AfterFindTriggerAction:
+		m.QueryContext.Data = data
+	case BeforeCreateTriggerAction:
+		if v, ok := data.(datatype.DataMap); ok {
+			m.QueryContext.Input = &v
+		}
+	case AfterCreateTriggerAction:
+		m.QueryContext.Data = data
+	case BeforeUpdateTriggerAction:
+		if v, ok := data.(datatype.DataMap); ok {
+			m.QueryContext.Input = &v
+		}
+	case AfterUpdateTriggerAction:
+		m.QueryContext.Data = data
+	case BeforeDeleteTriggerAction:
+		if v, ok := data.(datatype.DataMap); ok {
+			m.QueryContext.Filters = &v
+		}
+	case AfterDeleteTriggerAction:
+		m.QueryContext.Data = data
+	}
+
+	result, err := model.App.triggerCallback(model.Name, action, m.RequestContext, &m.QueryContext)
+	if err != nil {
+
+		// logger.Error("runTriggerAction", err.Error())
+	}
+
+	return result
+}
+
+func (m *DataModelQuery) collection() dataModelQueryStructure {
+	ctx := context.TODO()
+
+	switch m.Model.DatabaseType {
+	case config.DBTypeMongodb:
+		return &mongodbConnection{
+			query:  m,
+			ctx:    &ctx,
+			client: m.Model.DBConnect.mongodbClient,
+		}
+	case config.DBTypeSql:
+		return &sqlConnection{
+			query:  m,
+			ctx:    &ctx,
+			client: m.Model.DBConnect.sqlClient,
+		}
+	case config.DBTypeMysql:
+		return &mysqlConnection{
+			query:  m,
+			ctx:    &ctx,
+			client: m.Model.DBConnect.mysqlClient,
+		}
+	}
+
+	return &localDbConnection{
+		query:  m,
+		ctx:    &ctx,
+		client: m.Model.DBConnect.localClient,
+	}
+}
