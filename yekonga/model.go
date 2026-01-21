@@ -102,8 +102,14 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructureTy
 				parentForeign.PrimaryKey,
 				parentForeign.ForeignKey,
 			)
-			parentForeign.Model = models[parentForeign.ModelName]
-			m.ParentFields[parentName] = parentForeign
+
+			if _, ok := models[parentForeign.ModelName]; ok {
+				parentForeign.Model = models[parentForeign.ModelName]
+			}
+
+			if _, ok := m.ParentFields[parentName]; ok {
+				m.ParentFields[parentName] = parentForeign
+			}
 
 			// --------------------------------
 
@@ -114,10 +120,15 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructureTy
 				childForeign.PrimaryKey,
 				childForeign.ForeignKey,
 			)
-			childForeign.Model = models[m.Name]
-			childForeign.ModelName = childForeign.Model.Name
+			if _, ok := models[m.Name]; ok {
+				childForeign.Model = models[m.Name]
+				childForeign.ModelName = childForeign.Model.Name
+			}
 
-			models[parentForeign.ModelName].ChildrenFields[childName] = childForeign
+			if _, ok := models[parentForeign.ModelName]; ok {
+				models[parentForeign.ModelName].ChildrenFields[childName] = childForeign
+			}
+
 		}
 	}
 

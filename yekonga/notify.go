@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
-// User represents the user data structure
-type User struct {
+// NotifiedUser represents the user data structure
+type NotifiedUser struct {
 	UserID   string `json:"userId"`
 	Email    string `json:"email"`
 	Phone    string `json:"phone"`
@@ -32,10 +33,13 @@ type NotificationParams struct {
 
 // NotificationBody represents the body for the notification request
 type NotificationBody struct {
+	ID             string  `json:"id,omitempty"`
+	NotificationID string  `json:"notificationId,omitempty"`
 	ProfileID      *string `json:"profileId,omitempty"`
 	UserID         string  `json:"userId"`
 	ReferenceID    *string `json:"referenceId,omitempty"`
 	ReferenceName  *string `json:"referenceName,omitempty"`
+	Recipient      string  `json:"recipient"`
 	RecipientName  *string `json:"recipientName,omitempty"`
 	ReplyTo        *string `json:"replyTo,omitempty"`
 	Title          string  `json:"title"`
@@ -45,18 +49,18 @@ type NotificationBody struct {
 	SenderName     *string `json:"senderName,omitempty"`
 	Status         string  `json:"status"`
 	Timestamp      string  `json:"timestamp"`
-	Recipient      string  `json:"recipient"`
 	Type           string  `json:"type"`
-	NotificationID string  `json:"notificationId,omitempty"`
 	Content        string  `json:"content"`
 }
 
-func (y *YekongaData) Notify(user *User, params NotificationParams) error {
+func (y *YekongaData) Notify(user *NotifiedUser, params NotificationParams) error {
 	if user == nil {
 		return fmt.Errorf("user is nil")
 	}
 
 	modelName := "Notification"
+
+	console.Warn("user", user, params)
 
 	// Common notification body
 	body := NotificationBody{
@@ -82,9 +86,9 @@ func (y *YekongaData) Notify(user *User, params NotificationParams) error {
 			mailBody := body
 			mailBody.Recipient = emailContact
 			mailBody.Type = "mail"
-			mailBody.NotificationID = helper.GetHexString(24)
+			mailBody.ID = helper.GetHexString(24)
 			mailBody.Content = helper.TextTemplate(params.HTML, map[string]interface{}{
-				"notificationId": mailBody.NotificationID,
+				"notificationId": mailBody.ID,
 			}, nil)
 
 			// jsonBody, err := json.Marshal(mailBody)

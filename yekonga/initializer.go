@@ -11,7 +11,6 @@ import (
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
@@ -95,7 +94,7 @@ func (y *YekongaData) initialize() {
 
 	if y.Config.IsAuthorizationServer {
 		y.All(y.Config.Graphql.ApiAuthRoute, func(req *Request, res *Response) {
-			requestString := req.Query("query")
+			requestQuery := req.Query("query")
 			requestBody := req.Body()
 			variableValues := map[string]interface{}{}
 			operationName := ""
@@ -112,7 +111,7 @@ func (y *YekongaData) initialize() {
 			if body, oki := requestBody.(map[string]interface{}); oki {
 				if data, ok := body["query"]; ok {
 					if str, ok := data.(string); ok {
-						requestString = str
+						requestQuery = str
 					}
 				}
 				if data, ok := body["operationName"]; ok {
@@ -126,6 +125,18 @@ func (y *YekongaData) initialize() {
 					}
 				}
 			}
+
+			if !y.Config.AuthPlaygroundEnable {
+				if isIntrospectionQuery(requestQuery) {
+					res.Json(datatype.DataMap{
+						"errors": []map[string]string{
+							{"message": "Introspection is disabled"},
+						},
+					})
+					return
+				}
+			}
+
 			// requestStringMap := helper.ToMap(graphql.Parser(requestString))
 			// querySelectors := helper.ExtractGraphqlQuery(requestStringMap, 0)
 			// graphqlContext.QuerySelectors = querySelectors
@@ -137,7 +148,7 @@ func (y *YekongaData) initialize() {
 			// start := time.Now()
 			result := graphql.Do(graphql.Params{
 				Schema:         y.graphqlBuild.AuthSchema,
-				RequestString:  requestString,
+				RequestString:  requestQuery,
 				Context:        currentContext,
 				VariableValues: variableValues,
 				OperationName:  operationName,
@@ -151,7 +162,7 @@ func (y *YekongaData) initialize() {
 	}
 
 	y.All(y.Config.Graphql.ApiRoute, func(req *Request, res *Response) {
-		requestString := req.Query("query")
+		requestQuery := req.Query("query")
 		requestBody := req.Body()
 		variableValues := map[string]interface{}{}
 		operationName := ""
@@ -168,7 +179,7 @@ func (y *YekongaData) initialize() {
 		if body, oki := requestBody.(map[string]interface{}); oki {
 			if data, ok := body["query"]; ok {
 				if str, ok := data.(string); ok {
-					requestString = str
+					requestQuery = str
 				}
 			}
 			if data, ok := body["operationName"]; ok {
@@ -182,6 +193,18 @@ func (y *YekongaData) initialize() {
 				}
 			}
 		}
+
+		if !y.Config.ApiPlaygroundEnable {
+			if isIntrospectionQuery(requestQuery) {
+				res.Json(datatype.DataMap{
+					"errors": []map[string]string{
+						{"message": "Introspection is disabled"},
+					},
+				})
+				return
+			}
+		}
+
 		// requestStringMap := helper.ToMap(graphql.Parser(requestString))
 		// querySelectors := helper.ExtractGraphqlQuery(requestStringMap, 0)
 		// graphqlContext.QuerySelectors = querySelectors
@@ -193,10 +216,11 @@ func (y *YekongaData) initialize() {
 		// start := time.Now()
 		result := graphql.Do(graphql.Params{
 			Schema:         y.graphqlBuild.Schema,
-			RequestString:  requestString,
+			RequestString:  requestQuery,
 			Context:        currentContext,
 			VariableValues: variableValues,
 			OperationName:  operationName,
+			RootObject:     make(map[string]interface{}),
 		})
 
 		// helper.TrackTime(&start, "Graphql query execute")
@@ -256,6 +280,12 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 	status := http.StatusUnauthorized
 	result := datatype.DataMap{}
 
+	cookieEnabled := ""
+	cookie, err := req.HttpRequest.Cookie(COOKIE_ENABLED_KEY)
+	if err == nil {
+		cookieEnabled = cookie.Value
+	}
+
 	if helper.IsEmpty(refreshToken) {
 		refreshToken = req.GetContext(string(RefreshTokenKey))
 	}
@@ -297,8 +327,14 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 						newRefreshToken := y.getRefreshToken(*req.Client(), payload)
 
 						status = http.StatusOK
-						result[string(AccessTokenKey)] = newAccessToken
-						result[string(RefreshTokenKey)] = newRefreshToken
+
+						if helper.IsEmpty(cookieEnabled) {
+							result[string(AccessTokenKey)] = newAccessToken
+							result[string(RefreshTokenKey)] = newRefreshToken
+						} else {
+							result[string(AccessTokenKey)] = "Cookie is set"
+							result[string(RefreshTokenKey)] = "Cookie is set"
+						}
 
 						y.setAuthCookies(&RequestContext{
 							App:      y,
@@ -311,8 +347,6 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 							"revoked": true,
 						}, nil)
 					} else {
-						console.Log(req.Client())
-						console.Log(data)
 						result["error"] = "Domain mismatch"
 					}
 				} else {
@@ -371,4 +405,43 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 
 	return &databaseStructure
 
+}
+
+// isIntrospectionQuery checks if the query is an introspection query
+func isIntrospectionQuery(query string) bool {
+	// Check for common introspection patterns
+	introspectionPatterns := []string{
+		"__schema",
+		"__type",
+		"__typename",
+		"IntrospectionQuery",
+	}
+
+	for _, pattern := range introspectionPatterns {
+		if containsPattern(query, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPattern(s, pattern string) bool {
+	// Simple contains check - in production, use a proper parser
+	return len(s) > 0 && len(pattern) > 0 &&
+		(s == pattern || (len(s) >= len(pattern) &&
+			findSubstring(s, pattern)))
+}
+
+func findSubstring(s, pattern string) bool {
+	for i := 0; i <= len(s)-len(pattern); i++ {
+		if s[i:i+len(pattern)] == pattern {
+			return true
+		}
+	}
+	return false
+}
+
+func parseRequest(r *http.Request, params interface{}) error {
+	// Simplified request parsing - in production, use proper JSON decoder
+	return json.NewDecoder(r.Body).Decode(params)
 }

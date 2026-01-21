@@ -16,6 +16,7 @@ import (
 )
 
 type AttemptData struct {
+	ProfileID    string
 	UserID       string
 	UsernameType string
 	Username     string
@@ -112,17 +113,8 @@ func (y *YekongaData) RecordLoginAttempt(status string, ctx context.Context, inp
 	const loginAttemptModelName = "LoginAttempt"
 	const profileModelName = "Profile"
 	req, _ := ctx.Value(RequestContextKey).(*RequestContext)
-	domain := req.Client.Origin
-	profileId := ""
-	profile := y.ModelQuery(profileModelName).Where("domain", domain).FindOne(nil)
-
-	if helper.IsEmpty(profile) {
-		profile = y.ModelQuery(profileModelName).Where("subdomain", domain).FindOne(nil)
-	}
-
-	if helper.IsNotEmpty(profile) {
-		profileId = helper.GetValueOfString(profile, "_id")
-	}
+	domain := req.Client.OriginDomain()
+	profileId := input.ProfileID
 
 	y.ModelQuery(loginAttemptModelName).Create(datatype.DataMap{
 		"domain":    domain,
@@ -132,7 +124,6 @@ func (y *YekongaData) RecordLoginAttempt(status string, ctx context.Context, inp
 		"status":    status,
 		"timestamp": helper.GetTimestamp(nil),
 	})
-
 }
 
 func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*datatype.DataMap, error) {
@@ -263,6 +254,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	domain := req.Client.OriginDomain()
 
 	const userModelName = "User"
+	const profileTenantName = "Tenant"
 	const profileModelName = "Profile"
 	const profileUserModelName = "ProfileUser"
 	var profile *datatype.DataMap
@@ -270,6 +262,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 
 	user := y.GetUser(datatype.DataMap{"userId": userId}, false)
 	profileIds := GetProfileIds(y, userId)
+	tenant := y.ModelQuery(profileTenantName).Where("id", domain).FindOne(nil)
 
 	filteredData := datatype.DataMap{}
 
@@ -288,11 +281,8 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	if helper.IsNotEmpty(user) {
 		model := y.Model(userModelName)
 		payload := TokenPayload{
-			Domain: domain,
-			// TenantId: 	nil,
-			// ProfileId:   nil,
-			UserId: userId,
-			// AdminId:     nil,
+			Domain:      domain,
+			UserId:      userId,
 			Roles:       make([]string, 0), // ["admin", "finance"],
 			Permissions: make([]string, 0), // ["payroll.read", "asset.write"],
 			ExpiresAt:   time.Now().Add(time.Minute * 15),
@@ -301,16 +291,25 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		userRole := helper.GetValueOf(user, "role")
 		userIsAdmin := (userRole == "1" || userRole == "admin")
 
-		if profile != nil && *profile != nil {
+		if helper.IsNotEmpty(tenant) {
+			tenantId := helper.GetValueOfString(tenant, "_id")
+
+			payload.TenantId = tenantId
+			user["tenantId"] = tenantId
+		}
+
+		if helper.IsNotEmpty(profile) {
+			profileId := helper.GetValueOfString(profile, "_id")
+
 			user["owner"] = false
 			user["profileRole"] = "member"
 			user["profileName"] = helper.GetValueOfString(profile, "name")
-			user["profileId"] = helper.GetValueOfString(profile, "_id")
+			user["profileId"] = profileId
+			payload.ProfileId = profileId
+		}
 
-			payload.ProfileId = helper.GetValueOfString(profile, "profileId")
-			if userIsAdmin {
-				payload.AdminId = userId
-			}
+		if userIsAdmin {
+			payload.AdminId = userId
 		}
 
 		var token interface{}

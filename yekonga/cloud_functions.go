@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/gateway"
+	"github.com/robertkonga/yekonga-server-go/gateway/setting"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
@@ -84,7 +88,7 @@ func (y *YekongaData) Run(name string, data interface{}, ctx *RequestContext, ti
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendSms(fn CloudFunction) error {
+func (y *YekongaData) SetSendSMS(fn BackendCloudFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
@@ -97,24 +101,23 @@ func (y *YekongaData) SetSendSms(fn CloudFunction) error {
 	return nil
 }
 
-func (y *YekongaData) SendSms(data interface{}, ctx *RequestContext, timeout time.Duration) (interface{}, error) {
+func (y *YekongaData) SendSMS(data setting.SendParams, config *config.SMSGatewayConfig) (*setting.SendResponse, error) {
 	y.mut.RLock()
 	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
 	y.mut.RUnlock()
 
 	if exists {
-		if ctx == nil {
-			ctx = &RequestContext{}
-		}
-
-		return fun(data, ctx)
+		return fun(data)
 	}
 
-	return nil, nil
+	provider := gateway.NewSMSProvider(&y.Config.ApiGateway.SMS)
+	result, err := provider.Send(data, config)
+
+	return result, err
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendEmail(fn CloudFunction) error {
+func (y *YekongaData) SetSendEmail(fn BackendCloudFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
@@ -127,24 +130,38 @@ func (y *YekongaData) SetSendEmail(fn CloudFunction) error {
 	return nil
 }
 
-func (y *YekongaData) SendEmail(data interface{}, ctx *RequestContext, timeout time.Duration) (interface{}, error) {
+func (y *YekongaData) SendEmail(data helper.EmailMessage, config *config.SMTPConfig) (*setting.SendResponse, error) {
 	y.mut.RLock()
 	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
 	y.mut.RUnlock()
 
 	if exists {
-		if ctx == nil {
-			ctx = &RequestContext{}
-		}
-
-		return fun(data, ctx)
+		return fun(data)
 	}
 
-	return nil, nil
+	// Initialize with your config
+	sender := helper.NewEmailSender(&y.Config.Mail.Smtp)
+
+	// Example 4: Send complex email with all features
+	err := sender.Send(&data, config)
+
+	var result *setting.SendResponse
+
+	if err != nil {
+		console.Error("Error sending complex email: %v\n", err)
+	} else {
+		result = &setting.SendResponse{
+			Status:  "SUCCESS",
+			Message: "Complex email sent successfully!",
+		}
+		fmt.Println("Complex email sent successfully!")
+	}
+
+	return result, err
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendWhatsapp(fn CloudFunction) error {
+func (y *YekongaData) SetSendWhatsapp(fn BackendCloudFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
@@ -157,20 +174,19 @@ func (y *YekongaData) SetSendWhatsapp(fn CloudFunction) error {
 	return nil
 }
 
-func (y *YekongaData) SendWhatsapp(data interface{}, ctx *RequestContext, timeout time.Duration) (interface{}, error) {
+func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.WhatsappGatewayConfig) (*setting.SendResponse, error) {
 	y.mut.RLock()
 	fun, exists := y.primaryFunctions[SendWhatsappCloudFunctionKey]
 	y.mut.RUnlock()
 
 	if exists {
-		if ctx == nil {
-			ctx = &RequestContext{}
-		}
-
-		return fun(data, ctx)
+		return fun(data)
 	}
 
-	return nil, nil
+	provider := gateway.NewWhatsappProvider(&y.Config.ApiGateway.Whatsapp)
+	result, err := provider.Send(data, config)
+
+	return result, err
 }
 
 // AddCloudFunction registers a new cloud function

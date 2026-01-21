@@ -14,9 +14,12 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/gateway/setting"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
+
+const COOKIE_ENABLED_KEY = "YEKONGA_ENABLED"
 
 // StaticConfig holds configuration for static file serving
 type StaticConfig struct {
@@ -41,6 +44,7 @@ type Handler func(req *Request, res *Response)
 type Middleware func(req *Request, res *Response) error
 
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
+type BackendCloudFunction func(interface{}) (*setting.SendResponse, error)
 type TriggerCloudFunction func(*RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
@@ -50,7 +54,7 @@ var Server *YekongaData
 type YekongaData struct {
 	routes                 map[string][]Route // method -> routes
 	functions              map[string]CloudFunction
-	primaryFunctions       map[PrimaryCloudKey]CloudFunction
+	primaryFunctions       map[PrimaryCloudKey]BackendCloudFunction
 	authTriggerFunctions   map[TriggerAction]TriggerCloudFunction
 	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerCloudFunction
 	graphqlActionFunctions map[string]map[string]map[string]ActionCloudFunction
@@ -91,7 +95,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		initMiddlewares:        make([]Middleware, 0, 5),
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		functions:              make(map[string]CloudFunction),
-		primaryFunctions:       make(map[PrimaryCloudKey]CloudFunction),
+		primaryFunctions:       make(map[PrimaryCloudKey]BackendCloudFunction),
 		graphqlActionFunctions: make(map[string]map[string]map[string]ActionCloudFunction),
 		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerCloudFunction),
 		authTriggerFunctions:   make(map[TriggerAction]TriggerCloudFunction),
@@ -106,8 +110,8 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 	dbConnect.connect()
 	Server.graphqlBuild = graphqlBuild
 	Server.initialize()
-
 	Server.cronjob = NewCronjob(Server)
+	Server.setNotification()
 
 	return Server
 }
@@ -432,17 +436,15 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Keep-Alive", "timeout=5, max=98")
 	w.Header().Add("Connection", "Keep-Alive")
 
-	cookieKey := "YEKONGA_ENABLED"
 	cookieValue := y.Config.ConnectionID
-
-	cookie, err := r.Cookie(cookieKey)
+	cookie, err := r.Cookie(COOKIE_ENABLED_KEY)
 	if helper.IsEmpty(cookieValue) {
 		cookieValue = "YEKONGA_CONNECTED"
 	}
 
 	if err != nil || helper.IsEmpty(cookie.Value) {
 		http.SetCookie(w, &http.Cookie{
-			Name:     cookieKey,
+			Name:     COOKIE_ENABLED_KEY,
 			Value:    cookieValue,
 			Domain:   "",
 			HttpOnly: true,

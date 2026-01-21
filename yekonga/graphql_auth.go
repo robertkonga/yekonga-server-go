@@ -87,6 +87,7 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			var user datatype.DataMap
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var username = helper.GetValueOfString(data, "username")
+			var usernameType = helper.GetValueOfString(data, "usernameType")
 			if helper.IsPhone(username) {
 				username = helper.PhoneFormat(username)
 			}
@@ -114,6 +115,19 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 				result.Message = "Success"
 
 				otpCode := helper.GetValueOfString(user, "otpCode")
+				phone := helper.GetValueOfString(user, "phone")
+				email := helper.GetValueOfString(user, "email")
+				whatsapp := helper.GetValueOfString(user, "whatsapp")
+
+				if helper.IsPhone(username) {
+					if usernameType == "whatsapp" {
+						whatsapp = username
+					} else {
+						phone = username
+					}
+				} else if helper.IsEmail(username) {
+					email = username
+				}
 
 				if helper.IsEmpty(user["otpCode"]) {
 					otpCode = helper.GetRandomInt(4)
@@ -127,17 +141,18 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 
 				message := otpCode + " is your verification code. For security, do not share this code."
 
-				g.yekonga.Notify(&User{
+				g.yekonga.Notify(&NotifiedUser{
 					UserID:   userId,
-					Email:    helper.GetValueOfString(user, "email"),
-					Phone:    helper.GetValueOfString(user, "phone"),
-					Whatsapp: helper.GetValueOfString(user, "whatsapp"),
+					Email:    email,
+					Phone:    phone,
+					Whatsapp: whatsapp,
 				}, NotificationParams{
 					Title:    "OTP",
 					Text:     message,
 					HTML:     message,
 					Whatsapp: message,
 				})
+
 			}
 
 			g.yekonga.authTriggerCallback(AfterOtpTriggerAction, req, &QueryContext{
@@ -182,6 +197,12 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 			var password = helper.GetValueOfString(input, "password")
 			var loginType = helper.GetValueOfString(input, "type")
 
+			cookieEnabled := ""
+			cookie, err := req.Request.HttpRequest.Cookie(COOKIE_ENABLED_KEY)
+			if err == nil {
+				cookieEnabled = cookie.Value
+			}
+
 			if helper.IsPhone(username) {
 				username = helper.PhoneFormat(username)
 			}
@@ -207,11 +228,15 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 					Password:     password,
 					LoginType:    loginType,
 				}
+
 				u, e := g.yekonga.AttemptLogin(p.Context, attemptData)
 
 				if helper.IsNotEmpty(u) {
-					userId := helper.GetValueOfString(u, "id")
 					user = *u
+					userId := helper.GetValueOfString(user, "id")
+
+					attemptData.UserID = userId
+					attemptData.ProfileID = helper.GetValueOfString(user, "profileId")
 
 					g.yekonga.RecordLoginAttempt("success", p.Context, attemptData)
 					g.yekonga.authTriggerCallback(AfterLoginTriggerAction, req, &QueryContext{
@@ -236,8 +261,13 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
 						})
 
-						user[helper.ToVariable(string(AccessTokenKey))] = accessToken
-						user[helper.ToVariable(string(RefreshTokenKey))] = refreshToken
+						if helper.IsEmpty(cookieEnabled) {
+							user[helper.ToVariable(string(AccessTokenKey))] = accessToken
+							user[helper.ToVariable(string(RefreshTokenKey))] = refreshToken
+						} else {
+							user[helper.ToVariable(string(AccessTokenKey))] = "Cookie is set"
+							user[helper.ToVariable(string(RefreshTokenKey))] = "Cookie is set"
+						}
 
 						g.yekonga.setAuthCookies(req, accessToken, refreshToken)
 					}

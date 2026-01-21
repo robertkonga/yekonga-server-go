@@ -244,48 +244,50 @@ func (y *YekongaData) initializer_other_routes() {
 		res.Byte([]byte(content))
 	})
 
-	y.Get("/playground", func(req *Request, res *Response) {
-		content, _ := StaticFS.ReadFile("static/playground/index.html")
-		html := string(content)
+	if y.Config.ApiPlaygroundEnable || y.Config.AuthPlaygroundEnable {
+		y.Get("/playground", func(req *Request, res *Response) {
+			content, _ := StaticFS.ReadFile("static/playground/index.html")
+			html := string(content)
 
-		apiRoute := y.appendBaseUrl(y.Config.Graphql.ApiRoute)
-		baseUrl := y.appendBaseUrl("")
-		data := map[string]interface{}{
-			"apiRoute": apiRoute,
-			"baseUrl":  baseUrl,
-		}
-		html = helper.TextTemplate(html, data, nil)
+			apiRoute := y.appendBaseUrl(y.Config.Graphql.ApiRoute)
+			baseUrl := y.appendBaseUrl("")
+			data := map[string]interface{}{
+				"apiRoute": apiRoute,
+				"baseUrl":  baseUrl,
+			}
+			html = helper.TextTemplate(html, data, nil)
 
-		res.Html(html)
-	})
+			res.Html(html)
+		})
 
-	y.Get("/playground/font.css", func(req *Request, res *Response) {
-		content, _ := StaticFS.ReadFile("static/playground/font.css")
+		y.Get("/playground/font.css", func(req *Request, res *Response) {
+			content, _ := StaticFS.ReadFile("static/playground/font.css")
 
-		res.Header("content-type", "text/css; charset=utf-8")
-		res.Byte(content)
-	})
+			res.Header("content-type", "text/css; charset=utf-8")
+			res.Byte(content)
+		})
 
-	y.Get("/playground/index.css", func(req *Request, res *Response) {
-		content, _ := StaticFS.ReadFile("static/playground/index.css")
+		y.Get("/playground/index.css", func(req *Request, res *Response) {
+			content, _ := StaticFS.ReadFile("static/playground/index.css")
 
-		res.Header("content-type", "text/css; charset=utf-8")
-		res.Byte(content)
-	})
+			res.Header("content-type", "text/css; charset=utf-8")
+			res.Byte(content)
+		})
 
-	y.Get("/playground/favicon.png", func(req *Request, res *Response) {
-		content, _ := StaticFS.ReadFile("static/playground/fovicon.png")
+		y.Get("/playground/favicon.png", func(req *Request, res *Response) {
+			content, _ := StaticFS.ReadFile("static/playground/fovicon.png")
 
-		res.Header("content-type", "image/png")
-		res.Byte(content)
-	})
+			res.Header("content-type", "image/png")
+			res.Byte(content)
+		})
 
-	y.Get("/playground/middleware.js", func(req *Request, res *Response) {
-		content, _ := StaticFS.ReadFile("static/playground/middleware.js")
+		y.Get("/playground/middleware.js", func(req *Request, res *Response) {
+			content, _ := StaticFS.ReadFile("static/playground/middleware.js")
 
-		res.Header("content-type", "text/javascript")
-		res.Byte(content)
-	})
+			res.Header("content-type", "text/javascript")
+			res.Byte(content)
+		})
+	}
 
 	y.Get("/placeholder.jpg", func(req *Request, res *Response) {
 		content, _ := StaticFS.ReadFile("static/placeholder.jpg")

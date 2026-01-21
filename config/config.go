@@ -18,6 +18,45 @@ const (
 	DBTypeLocal   DatabaseType = "local"
 )
 
+type GatewayProvider string
+
+const (
+	ProviderBeem    GatewayProvider = "beem"
+	ProviderInfobip GatewayProvider = "infobip"
+	ProviderAlibaba GatewayProvider = "alibaba"
+)
+
+type SMSGatewayConfig struct {
+	Provider  GatewayProvider
+	BaseURL   string
+	Sender    string
+	APIKey    string
+	SecretKey string
+	Username  string
+	Password  string
+}
+
+type WhatsappGatewayConfig struct {
+	Provider GatewayProvider
+	Sender   string
+	Sandbox  string
+	BaseURL  string
+	APIKey   string
+}
+
+// SMTPConfig holds SMTP configuration
+type SMTPConfig struct {
+	Service  string `json:"service"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	Secure   bool   `json:"secure"`
+	From     string `json:"from"`
+	Domain   string `json:"domain"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	APIKey   string `json:"apiKey"`
+}
+
 type YekongaConfig struct {
 	AppName                 string
 	Version                 string
@@ -117,18 +156,13 @@ type YekongaConfig struct {
 		SSLServer int
 		Redis     int
 	}
+
 	Mail struct {
-		Smtp struct {
-			Service  string
-			Host     string
-			Port     int
-			Secure   bool
-			From     string
-			Domain   string
-			Username interface{}
-			Password interface{}
-			ApiKey   string
-		}
+		Smtp SMTPConfig
+	}
+	ApiGateway struct {
+		SMS      SMSGatewayConfig
+		Whatsapp WhatsappGatewayConfig
 	}
 	AdminCredential struct {
 		Username interface{}
