@@ -20,8 +20,64 @@ const (
 	PreloadMiddleware MiddlewareType = "preload"
 )
 
+// Middleware to set client detail
+func ClientMiddleware(req *Request, res *Response) error {
+	r := req.HttpRequest
+	tenantModelName := "Tenant"
+	protoList := strings.Split(strings.ToLower(r.Proto), "/")
+	hostList := strings.Split(strings.ToLower(r.Host), ":")
+	proto := protoList[0]
+	host := hostList[0]
+	port := ""
+	ipAddress := helper.GetClientIP(r)
+	origin := r.Header.Get("origin")
+
+	if len(hostList) > 1 {
+		port = hostList[len(hostList)-1]
+	}
+
+	if helper.IsEmpty(origin) {
+		referer := r.Header.Get("referer")
+		origin = helper.ExtractDomain(referer)
+	}
+
+	if helper.IsEmpty(origin) {
+		origin = proto + "://" + host
+	}
+
+	client := ClientPayload{
+		Host:      host,
+		Proto:     proto,
+		Port:      port,
+		Path:      r.URL.Path,
+		Method:    strings.ToLower(r.Method),
+		Origin:    origin,
+		UserAgent: r.UserAgent(),
+		IpAddress: ipAddress,
+	}
+
+	if req.App.Config.HasTenant && req.App.Config.IsAuthorizationServer {
+		tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+			"domain": host,
+		})
+
+		if helper.IsNotEmpty(tenant) {
+			client.TenantId = helper.GetValueOfString(tenant, "_id")
+		}
+	}
+
+	req.SetContext(string(ClientPayloadKey), client)
+
+	return nil
+}
+
 // Middleware to add token as a string
 func TokenMiddleware(req *Request, res *Response) error {
+	app := req.App
+	config := req.App.Config
+	client := req.Client()
+	domain := client.OriginDomain()
+
 	var accessToken string
 	var refreshToken string
 	var tokenPayload datatype.DataMap
@@ -45,7 +101,7 @@ func TokenMiddleware(req *Request, res *Response) error {
 	}
 
 	if helper.IsNotEmpty(accessToken) {
-		_, tokenPayload = jwt.DecodeJWT(accessToken, req.App.Config.Authentication.SecretToken)
+		_, tokenPayload = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
 
 		var payload TokenPayload
 		json.Unmarshal([]byte(helper.ToJson(tokenPayload)), &payload)
@@ -54,12 +110,29 @@ func TokenMiddleware(req *Request, res *Response) error {
 			return errors.New("Token expired")
 		}
 
+		if domain != payload.Domain {
+			return errors.New("Domain mismatch expired")
+		}
+
 		req.SetContext(string(AccessTokenKey), accessToken)
 		req.SetContext(string(TokenPayloadKey), payload)
 	}
 
 	if helper.IsNotEmpty(refreshToken) {
 		req.SetContext(string(RefreshTokenKey), refreshToken)
+	}
+
+	if config.MustAuthorized {
+		paths := []string{
+			app.AppendBaseUrl("/me"),
+			app.AppendBaseUrl(config.RestApi),
+			app.AppendBaseUrl(config.Graphql.ApiRoute),
+		}
+		currentPath := req.HttpRequest.URL.Path
+
+		if helper.Contains(paths, currentPath) && helper.IsEmpty(accessToken) {
+			return errors.New("Must be authorized/login")
+		}
 	}
 
 	return nil

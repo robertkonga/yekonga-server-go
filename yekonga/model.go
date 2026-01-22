@@ -8,6 +8,8 @@ import (
 	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
+const TenantIDKey = "tenantId"
+
 type DataModelFieldType string
 
 const (
@@ -69,6 +71,7 @@ type DataModel struct {
 	ForeignKey     string
 	PrimaryKey     string
 	PrimaryName    string
+	HasTenant      bool
 	Required       []string
 	Protected      []string
 	DateFields     []string
@@ -213,6 +216,10 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 	for k, v := range fields {
 		if k == "id" {
 			continue
+		}
+
+		if k == TenantIDKey {
+			m.HasTenant = true
 		}
 
 		field := *m.getDataModelField(k, v)

@@ -45,7 +45,8 @@ type Middleware func(req *Request, res *Response) error
 
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type BackendCloudFunction func(interface{}) (*setting.SendResponse, error)
-type TriggerCloudFunction func(*RequestContext, *QueryContext) (interface{}, error)
+type TriggerFunction func(*RequestContext, *QueryContext) (interface{}, error)
+type TriggerAllFunction func(*DataModel, *RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
 var Server *YekongaData
@@ -55,8 +56,9 @@ type YekongaData struct {
 	routes                 map[string][]Route // method -> routes
 	functions              map[string]CloudFunction
 	primaryFunctions       map[PrimaryCloudKey]BackendCloudFunction
-	authTriggerFunctions   map[TriggerAction]TriggerCloudFunction
-	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerCloudFunction
+	authTriggerFunctions   map[TriggerAction]TriggerFunction
+	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerFunction
+	triggerAllFunctions    map[TriggerAction]TriggerAllFunction
 	graphqlActionFunctions map[string]map[string]map[string]ActionCloudFunction
 	middlewares            []Middleware
 	initMiddlewares        []Middleware
@@ -97,8 +99,8 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		functions:              make(map[string]CloudFunction),
 		primaryFunctions:       make(map[PrimaryCloudKey]BackendCloudFunction),
 		graphqlActionFunctions: make(map[string]map[string]map[string]ActionCloudFunction),
-		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerCloudFunction),
-		authTriggerFunctions:   make(map[TriggerAction]TriggerCloudFunction),
+		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerFunction),
+		authTriggerFunctions:   make(map[TriggerAction]TriggerFunction),
 		logger:                 &log.Logger{},
 	}
 
@@ -194,7 +196,7 @@ func (y *YekongaData) addRoute(method, pattern string, handler Handler) {
 	}
 
 	paramNames, _ := parseRoute(pattern)
-	pattern = y.appendBaseUrl(pattern)
+	pattern = y.AppendBaseUrl(pattern)
 
 	y.routes[method] = append(y.routes[method], Route{
 		pattern:    pattern,
@@ -203,7 +205,7 @@ func (y *YekongaData) addRoute(method, pattern string, handler Handler) {
 	})
 }
 
-func (y *YekongaData) appendBaseUrl(pattern string) string {
+func (y *YekongaData) AppendBaseUrl(pattern string) string {
 	if helper.IsNotEmpty(y.Config.BaseUrl) {
 		baseUrl := y.Config.BaseUrl
 
@@ -417,12 +419,15 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if len(originList) > 0 {
 		origin = originList[0]
-
 	} else {
 		originList = r.Header["Referer"]
 
 		if len(originList) > 0 {
 			origin = originList[0]
+		}
+
+		if helper.IsEmpty(origin) {
+			origin = r.Host
 		}
 	}
 
@@ -511,6 +516,13 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	// Apply middlewares
+	err = ClientMiddleware(&req, &res)
+	if err != nil {
+		res.Abort(http.StatusBadRequest, err.Error())
+		return
 	}
 
 	// Apply middlewares

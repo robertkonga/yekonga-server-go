@@ -251,10 +251,10 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 }
 
 func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datatype.DataMap {
-	domain := req.Client.OriginDomain()
+	client := req.Client
+	domain := client.OriginDomain()
 
 	const userModelName = "User"
-	const profileTenantName = "Tenant"
 	const profileModelName = "Profile"
 	const profileUserModelName = "ProfileUser"
 	var profile *datatype.DataMap
@@ -262,7 +262,6 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 
 	user := y.GetUser(datatype.DataMap{"userId": userId}, false)
 	profileIds := GetProfileIds(y, userId)
-	tenant := y.ModelQuery(profileTenantName).Where("id", domain).FindOne(nil)
 
 	filteredData := datatype.DataMap{}
 
@@ -291,8 +290,8 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		userRole := helper.GetValueOf(user, "role")
 		userIsAdmin := (userRole == "1" || userRole == "admin")
 
-		if helper.IsNotEmpty(tenant) {
-			tenantId := helper.GetValueOfString(tenant, "_id")
+		if helper.IsNotEmpty(client.TenantId) {
+			tenantId := client.TenantId
 
 			payload.TenantId = tenantId
 			user["tenantId"] = tenantId
@@ -445,7 +444,7 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken, refreshTo
 	http.SetCookie(*w, &http.Cookie{
 		Name:     string(RefreshTokenKey),
 		Value:    refreshToken,
-		Path:     y.appendBaseUrl("/refresh"),
+		Path:     y.AppendBaseUrl("/refresh"),
 		Domain:   domain,
 		HttpOnly: true,
 		Secure:   true,

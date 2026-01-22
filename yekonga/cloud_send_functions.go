@@ -1,0 +1,114 @@
+package yekonga
+
+import (
+	"fmt"
+
+	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/gateway"
+	"github.com/robertkonga/yekonga-server-go/gateway/setting"
+	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
+)
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetSendSMS(fn BackendCloudFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.primaryFunctions[SendSMSCloudFunctionKey]; exists {
+		return fmt.Errorf("cloud function %s already exists", SendSMSCloudFunctionKey)
+	}
+
+	y.primaryFunctions[SendSMSCloudFunctionKey] = fn
+	logger.Error("Registered cloud function", SendSMSCloudFunctionKey)
+	return nil
+}
+
+func (y *YekongaData) SendSMS(data setting.SendParams, config *config.SMSGatewayConfig) (*setting.SendResponse, error) {
+	y.mut.RLock()
+	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
+	y.mut.RUnlock()
+
+	if exists {
+		return fun(data)
+	}
+
+	provider := gateway.NewSMSProvider(&y.Config.ApiGateway.SMS)
+	result, err := provider.Send(data, config)
+
+	return result, err
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetSendEmail(fn BackendCloudFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.primaryFunctions[SendEmailCloudFunctionKey]; exists {
+		return fmt.Errorf("cloud function %s already exists", SendEmailCloudFunctionKey)
+	}
+
+	y.primaryFunctions[SendEmailCloudFunctionKey] = fn
+	logger.Error("Registered cloud function", SendEmailCloudFunctionKey)
+	return nil
+}
+
+func (y *YekongaData) SendEmail(data helper.EmailMessage, config *config.SMTPConfig) (*setting.SendResponse, error) {
+	y.mut.RLock()
+	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
+	y.mut.RUnlock()
+
+	if exists {
+		return fun(data)
+	}
+
+	// Initialize with your config
+	sender := helper.NewEmailSender(&y.Config.Mail.Smtp)
+
+	// Example 4: Send complex email with all features
+	err := sender.Send(&data, config)
+
+	var result *setting.SendResponse
+
+	if err != nil {
+		console.Error("Error sending complex email: %v\n", err)
+	} else {
+		result = &setting.SendResponse{
+			Status:  "SUCCESS",
+			Message: "Complex email sent successfully!",
+		}
+		fmt.Println("Complex email sent successfully!")
+	}
+
+	return result, err
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetSendWhatsapp(fn BackendCloudFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.primaryFunctions[SendWhatsappCloudFunctionKey]; exists {
+		return fmt.Errorf("cloud function %s already exists", SendWhatsappCloudFunctionKey)
+	}
+
+	y.primaryFunctions[SendWhatsappCloudFunctionKey] = fn
+	logger.Error("Registered cloud function", SendWhatsappCloudFunctionKey)
+	return nil
+}
+
+func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.WhatsappGatewayConfig) (*setting.SendResponse, error) {
+	y.mut.RLock()
+	fun, exists := y.primaryFunctions[SendWhatsappCloudFunctionKey]
+	y.mut.RUnlock()
+
+	if exists {
+		return fun(data)
+	}
+
+	provider := gateway.NewWhatsappProvider(&y.Config.ApiGateway.Whatsapp)
+	result, err := provider.Send(data, config)
+
+	return result, err
+}

@@ -249,8 +249,8 @@ func (y *YekongaData) initializer_other_routes() {
 			content, _ := StaticFS.ReadFile("static/playground/index.html")
 			html := string(content)
 
-			apiRoute := y.appendBaseUrl(y.Config.Graphql.ApiRoute)
-			baseUrl := y.appendBaseUrl("")
+			apiRoute := y.AppendBaseUrl(y.Config.Graphql.ApiRoute)
+			baseUrl := y.AppendBaseUrl("")
 			data := map[string]interface{}{
 				"apiRoute": apiRoute,
 				"baseUrl":  baseUrl,

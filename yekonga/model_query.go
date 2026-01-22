@@ -269,7 +269,22 @@ func (m *DataModelQuery) Skip(value int) *DataModelQuery {
 }
 
 func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
-	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAction, data)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
+
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			data[TenantIDKey] = payload.TenantId
+		}
+	}
+
+	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		data = v
+	}
+
+	triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
 	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
@@ -282,7 +297,12 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		return err
 	}
 
-	triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, result)
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = &v
 	}
@@ -298,8 +318,14 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interface{} {
 	m.WhereAll(where)
 
-	triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAction, data)
+	triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAllAction, data)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		data = v
+	}
 
+	triggerBefore = m.runTriggerAction(BeforeUpdateTriggerAction, data)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
 	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
@@ -312,7 +338,12 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		return err
 	}
 
-	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAllAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterUpdateTriggerAction, result)
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = &v
 	}
@@ -326,7 +357,20 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 }
 
 func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interface{} {
-	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAction, data)
+	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.([]interface{}); ok {
+		data = v
+	}
+
+	triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.([]interface{}); ok {
+		data = v
+	}
+
 	uniqueKeys = append(uniqueKeys, "_id")
 
 	message := "FAIL"
@@ -336,12 +380,6 @@ func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interfa
 	imported := 0
 	updated := 0
 	afterData := []interface{}{}
-
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if v, ok := triggerBefore.([]interface{}); ok {
-		data = v
-	}
 
 	result := map[string]interface{}{}
 	formattedCreateData := make([]datatype.DataMap, 0, len(data))
@@ -353,6 +391,14 @@ ParentLoop:
 		vi, _ := helper.ConvertTo[map[string]interface{}](v)
 
 		if vi != nil {
+			if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+				payload := m.RequestContext.TokenPayload
+
+				if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+					vi[TenantIDKey] = payload.TenantId
+				}
+			}
+
 			whereData := make(datatype.DataMap)
 
 			for _, key := range uniqueKeys {
@@ -398,7 +444,12 @@ ParentLoop:
 			message = "SUCCESS"
 		}
 
-		triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, createData)
+		triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, createData)
+		if result, ok := triggerAfter.([]datatype.DataMap); ok {
+			createData = &(result)
+		}
+
+		triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, createData)
 		if result, ok := triggerAfter.([]datatype.DataMap); ok {
 			createData = &(result)
 		}
@@ -441,10 +492,24 @@ ParentLoop:
 }
 
 func (m *DataModelQuery) Delete(where interface{}) interface{} {
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
+
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+
 	m.WhereAll(where)
 
-	triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
+	triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAllAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
 
+	triggerBefore = m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
 	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
@@ -457,7 +522,12 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 		return err
 	}
 
-	triggerAfter := m.runTriggerAction(AfterCreateTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, result)
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = v
 	}
@@ -471,26 +541,45 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 }
 
 func (m *DataModelQuery) First(where interface{}) *datatype.DataMap {
+
 	m.WhereAll(where)
 
 	return m.FindOne(where)
 }
 
 func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
-	m.WhereAll(where)
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
 	}
 
-	if v, ok := triggerBefore.(datatype.DataMap); ok {
+	m.WhereAll(where)
+
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
 	result := m.collection().findOne()
 
-	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = &v
 	}
@@ -499,20 +588,38 @@ func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
 }
 
 func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
-	m.WhereAll(where)
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
 	}
 
-	if v, ok := triggerBefore.(datatype.DataMap); ok {
+	m.WhereAll(where)
+
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
+	}
+
+	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
 	result := m.collection().find()
 
-	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
+	if v, ok := triggerAfter.([]datatype.DataMap); ok {
+		result = &v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
 	if v, ok := triggerAfter.([]datatype.DataMap); ok {
 		result = &v
 	}
@@ -521,20 +628,37 @@ func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
 }
 
 func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
-	m.WhereAll(where)
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := triggerBefore.(datatype.DataMap); ok {
+	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := triggerBefore.(bool); ok && !v {
+		return nil
+	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
 	result := m.collection().pagination()
 
-	triggerAfter := m.runTriggerAction(AfterFindTriggerAction, result)
+	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
+	if v, ok := triggerAfter.(datatype.DataMap); ok {
+		result = &v
+	}
+
+	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
 	if v, ok := triggerAfter.(datatype.DataMap); ok {
 		result = &v
 	}
@@ -543,14 +667,26 @@ func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
 }
 
 func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -558,14 +694,26 @@ func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
 }
 
 func (m *DataModelQuery) Count(where interface{}) int64 {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -573,14 +721,26 @@ func (m *DataModelQuery) Count(where interface{}) int64 {
 }
 
 func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -588,14 +748,26 @@ func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
 }
 
 func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -603,14 +775,26 @@ func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
 }
 
 func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -618,14 +802,26 @@ func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
 }
 
 func (m *DataModelQuery) Average(target string, where interface{}) float64 {
-	m.WhereAll(where)
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
 
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
+	m.WhereAll(where)
+
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
+		m.WhereAll(v)
 	}
 
-	if v, ok := result.(datatype.DataMap); ok {
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return 0
+	} else if v, ok := result.(datatype.DataMap); ok {
 		m.WhereAll(v)
 	}
 
@@ -633,6 +829,13 @@ func (m *DataModelQuery) Average(target string, where interface{}) float64 {
 }
 
 func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) interface{} {
+	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+		payload := m.RequestContext.TokenPayload
+
+		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+			m.Where(TenantIDKey, payload.TenantId)
+		}
+	}
 	m.WhereAll(where)
 	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 	parent := p.Source
@@ -703,7 +906,12 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		m.Skip(v)
 	}
 
-	result := m.runTriggerAction(BeforeFindTriggerAction, m.where)
+	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+	if v, ok := result.(bool); ok && !v {
+		return nil
+	}
+
+	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
 	}
@@ -830,37 +1038,54 @@ func (m *DataModelQuery) formatInputDataField(key string, value interface{}) int
 
 func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}) interface{} {
 	model := m.Model
+	listAll := []string{
+		string(BeforeFindTriggerAllAction),
+		string(AfterFindTriggerAllAction),
+		string(BeforeCreateTriggerAllAction),
+		string(AfterCreateTriggerAllAction),
+		string(BeforeUpdateTriggerAllAction),
+		string(AfterUpdateTriggerAllAction),
+		string(BeforeDeleteTriggerAllAction),
+		string(AfterDeleteTriggerAllAction),
+	}
 
 	switch action {
-	case BeforeFindTriggerAction:
+	case BeforeFindTriggerAction, BeforeFindTriggerAllAction:
 		if v, ok := data.(datatype.DataMap); ok {
 			m.QueryContext.Filters = &v
 		}
-	case AfterFindTriggerAction:
+	case AfterFindTriggerAction, AfterFindTriggerAllAction:
 		m.QueryContext.Data = data
-	case BeforeCreateTriggerAction:
+	case BeforeCreateTriggerAction, BeforeCreateTriggerAllAction:
 		if v, ok := data.(datatype.DataMap); ok {
 			m.QueryContext.Input = &v
 		}
-	case AfterCreateTriggerAction:
+	case AfterCreateTriggerAction, AfterCreateTriggerAllAction:
 		m.QueryContext.Data = data
-	case BeforeUpdateTriggerAction:
+	case BeforeUpdateTriggerAction, BeforeUpdateTriggerAllAction:
 		if v, ok := data.(datatype.DataMap); ok {
 			m.QueryContext.Input = &v
 		}
-	case AfterUpdateTriggerAction:
+	case AfterUpdateTriggerAction, AfterUpdateTriggerAllAction:
 		m.QueryContext.Data = data
-	case BeforeDeleteTriggerAction:
+	case BeforeDeleteTriggerAction, BeforeDeleteTriggerAllAction:
 		if v, ok := data.(datatype.DataMap); ok {
 			m.QueryContext.Filters = &v
 		}
-	case AfterDeleteTriggerAction:
+	case AfterDeleteTriggerAction, AfterDeleteTriggerAllAction:
 		m.QueryContext.Data = data
 	}
 
-	result, err := model.App.triggerCallback(model.Name, action, m.RequestContext, &m.QueryContext)
-	if err != nil {
+	var result interface{}
+	var err error
 
+	if helper.Contains(listAll, string(action)) {
+		result, err = model.App.triggerAllCallback(action, model, m.RequestContext, &m.QueryContext)
+	} else {
+		result, err = model.App.triggerCallback(model.Name, action, m.RequestContext, &m.QueryContext)
+	}
+
+	if err != nil {
 		// logger.Error("runTriggerAction", err.Error())
 	}
 

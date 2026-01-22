@@ -2025,17 +2025,22 @@ func getEmailLayout(layout, content string, data map[string]interface{}) string 
 	logo := website + "/img/mail/@notificationId/logo.png"
 	appName := config.Config.AppName
 	year := ToTimestampString(nil, "2006") // Go uses "2006" for YYYY
-	primaryColor := config.Config.PrimaryColor
-	if primaryColor == "" {
-		primaryColor = "#306da7"
-	}
-	secondaryColor := config.Config.SecondaryColor
-	if secondaryColor == "" {
-		secondaryColor = "#306da7"
-	}
-	darkBackgroundColor := config.Config.DarkBackgroundColor
-	if darkBackgroundColor == "" {
-		darkBackgroundColor = "#033360"
+	primaryColor := "#306da7"
+	secondaryColor := "#306da7"
+	darkBackgroundColor := "#033360"
+
+	if IsNotEmpty(config.Config.Branding) {
+		if IsNotEmpty(config.Config.Branding.PrimaryColor) {
+			primaryColor = config.Config.Branding.PrimaryColor
+		}
+
+		if IsNotEmpty(config.Config.Branding.SecondaryColor) {
+			secondaryColor = config.Config.Branding.SecondaryColor
+		}
+
+		if IsNotEmpty(config.Config.Branding.DarkBackgroundColor) {
+			darkBackgroundColor = config.Config.Branding.DarkBackgroundColor
+		}
 	}
 
 	if layout != "" {

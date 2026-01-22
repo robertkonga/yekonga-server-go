@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -276,33 +275,16 @@ func (r *Request) Auth() *AuthPayload {
 }
 
 func (r *Request) Client() *ClientPayload {
-	protoList := strings.Split(strings.ToLower(r.HttpRequest.Proto), "/")
-	hostList := strings.Split(strings.ToLower(r.HttpRequest.Host), ":")
-	proto := protoList[0]
-	host := hostList[0]
-	port := hostList[len(hostList)-1]
-	ipAddress := helper.GetClientIP(r.HttpRequest)
-	origin := r.HttpRequest.Header.Get("origin")
-
-	if helper.IsEmpty(origin) {
-		referer := r.HttpRequest.Header.Get("referer")
-		origin = helper.ExtractDomain(referer)
+	data, exists := r.Context[string(ClientPayloadKey)]
+	if !exists {
+		return nil
 	}
 
-	if helper.IsEmpty(origin) {
-		origin = proto + "://" + host
+	if m, ok := data.(ClientPayload); ok {
+		return &m
 	}
 
-	return &ClientPayload{
-		Host:      host,
-		Proto:     proto,
-		Port:      port,
-		Path:      r.HttpRequest.URL.Path,
-		Method:    strings.ToLower(r.HttpRequest.Method),
-		Origin:    origin,
-		UserAgent: r.HttpRequest.Header.Get("user-agent"),
-		IpAddress: ipAddress,
-	}
+	return nil
 }
 
 func (r *Request) TokenPayload() *TokenPayload {

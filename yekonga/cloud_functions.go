@@ -5,11 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robertkonga/yekonga-server-go/config"
-	"github.com/robertkonga/yekonga-server-go/gateway"
-	"github.com/robertkonga/yekonga-server-go/gateway/setting"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
@@ -22,6 +18,20 @@ const (
 	BeforeLoginTriggerAction TriggerAction = "BeforeLogin"
 	AfterLoginTriggerAction  TriggerAction = "AfterLogin"
 
+	// Before ALL
+	BeforeFindTriggerAllAction TriggerAction = "AllBeforeFind"
+	AfterFindTriggerAllAction  TriggerAction = "AllAfterFind"
+
+	BeforeCreateTriggerAllAction TriggerAction = "AllBeforeCreate"
+	AfterCreateTriggerAllAction  TriggerAction = "AllAfterCreate"
+
+	BeforeUpdateTriggerAllAction TriggerAction = "AllBeforeUpdate"
+	AfterUpdateTriggerAllAction  TriggerAction = "AllAfterUpdate"
+
+	BeforeDeleteTriggerAllAction TriggerAction = "AllBeforeDelete"
+	AfterDeleteTriggerAllAction  TriggerAction = "AllAfterDelete"
+
+	// Before Specific model
 	BeforeFindTriggerAction TriggerAction = "BeforeFind"
 	AfterFindTriggerAction  TriggerAction = "AfterFind"
 
@@ -85,108 +95,6 @@ func (y *YekongaData) Run(name string, data interface{}, ctx *RequestContext, ti
 	}
 
 	return nil, nil
-}
-
-// AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendSMS(fn BackendCloudFunction) error {
-	y.mut.Lock()
-	defer y.mut.Unlock()
-
-	if _, exists := y.primaryFunctions[SendSMSCloudFunctionKey]; exists {
-		return fmt.Errorf("cloud function %s already exists", SendSMSCloudFunctionKey)
-	}
-
-	y.primaryFunctions[SendSMSCloudFunctionKey] = fn
-	logger.Error("Registered cloud function", SendSMSCloudFunctionKey)
-	return nil
-}
-
-func (y *YekongaData) SendSMS(data setting.SendParams, config *config.SMSGatewayConfig) (*setting.SendResponse, error) {
-	y.mut.RLock()
-	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
-	y.mut.RUnlock()
-
-	if exists {
-		return fun(data)
-	}
-
-	provider := gateway.NewSMSProvider(&y.Config.ApiGateway.SMS)
-	result, err := provider.Send(data, config)
-
-	return result, err
-}
-
-// AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendEmail(fn BackendCloudFunction) error {
-	y.mut.Lock()
-	defer y.mut.Unlock()
-
-	if _, exists := y.primaryFunctions[SendEmailCloudFunctionKey]; exists {
-		return fmt.Errorf("cloud function %s already exists", SendEmailCloudFunctionKey)
-	}
-
-	y.primaryFunctions[SendEmailCloudFunctionKey] = fn
-	logger.Error("Registered cloud function", SendEmailCloudFunctionKey)
-	return nil
-}
-
-func (y *YekongaData) SendEmail(data helper.EmailMessage, config *config.SMTPConfig) (*setting.SendResponse, error) {
-	y.mut.RLock()
-	fun, exists := y.primaryFunctions[SendSMSCloudFunctionKey]
-	y.mut.RUnlock()
-
-	if exists {
-		return fun(data)
-	}
-
-	// Initialize with your config
-	sender := helper.NewEmailSender(&y.Config.Mail.Smtp)
-
-	// Example 4: Send complex email with all features
-	err := sender.Send(&data, config)
-
-	var result *setting.SendResponse
-
-	if err != nil {
-		console.Error("Error sending complex email: %v\n", err)
-	} else {
-		result = &setting.SendResponse{
-			Status:  "SUCCESS",
-			Message: "Complex email sent successfully!",
-		}
-		fmt.Println("Complex email sent successfully!")
-	}
-
-	return result, err
-}
-
-// AddCloudFunction registers a new cloud function
-func (y *YekongaData) SetSendWhatsapp(fn BackendCloudFunction) error {
-	y.mut.Lock()
-	defer y.mut.Unlock()
-
-	if _, exists := y.primaryFunctions[SendWhatsappCloudFunctionKey]; exists {
-		return fmt.Errorf("cloud function %s already exists", SendWhatsappCloudFunctionKey)
-	}
-
-	y.primaryFunctions[SendWhatsappCloudFunctionKey] = fn
-	logger.Error("Registered cloud function", SendWhatsappCloudFunctionKey)
-	return nil
-}
-
-func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.WhatsappGatewayConfig) (*setting.SendResponse, error) {
-	y.mut.RLock()
-	fun, exists := y.primaryFunctions[SendWhatsappCloudFunctionKey]
-	y.mut.RUnlock()
-
-	if exists {
-		return fun(data)
-	}
-
-	provider := gateway.NewWhatsappProvider(&y.Config.ApiGateway.Whatsapp)
-	result, err := provider.Send(data, config)
-
-	return result, err
 }
 
 // AddCloudFunction registers a new cloud function
@@ -265,69 +173,101 @@ func (y *YekongaData) actionCallback(model string, action string, ctxRequest *Re
 	return nil, errors.New("not exists")
 }
 
-func (y *YekongaData) BeforeOtp(fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeOtp(fn TriggerFunction) interface{} {
 	return y.setAuthTrigger(BeforeOtpTriggerAction, fn)
 }
 
-func (y *YekongaData) AfterOtp(fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterOtp(fn TriggerFunction) interface{} {
 	return y.setAuthTrigger(AfterOtpTriggerAction, fn)
 }
 
-func (y *YekongaData) BeforeLogin(fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeLogin(fn TriggerFunction) interface{} {
 	return y.setAuthTrigger(BeforeLoginTriggerAction, fn)
 }
 
-func (y *YekongaData) AfterLogin(fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterLogin(fn TriggerFunction) interface{} {
 	return y.setAuthTrigger(AfterLoginTriggerAction, fn)
 }
 
-func (y *YekongaData) BeforeFind(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeFindAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(BeforeFindTriggerAllAction, fn)
+}
+
+func (y *YekongaData) BeforeFind(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, BeforeFindTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) AfterFind(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterFindAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(AfterFindTriggerAllAction, fn)
+}
+
+func (y *YekongaData) AfterFind(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, AfterFindTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) BeforeCreate(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeCreateAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(BeforeCreateTriggerAllAction, fn)
+}
+
+func (y *YekongaData) BeforeCreate(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, BeforeCreateTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) AfterCreate(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterCreateAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(AfterCreateTriggerAllAction, fn)
+}
+
+func (y *YekongaData) AfterCreate(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, AfterCreateTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) BeforeUpdate(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeUpdateAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(BeforeUpdateTriggerAllAction, fn)
+}
+
+func (y *YekongaData) BeforeUpdate(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, BeforeUpdateTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) AfterUpdate(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterUpdateAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(AfterUpdateTriggerAllAction, fn)
+}
+
+func (y *YekongaData) AfterUpdate(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, AfterUpdateTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) BeforeDelete(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) BeforeDeleteAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(BeforeDeleteTriggerAllAction, fn)
+}
+
+func (y *YekongaData) BeforeDelete(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, BeforeDeleteTriggerAction, accessRole, route, fn)
 }
 
-func (y *YekongaData) AfterDelete(model string, accessRole interface{}, route interface{}, fn TriggerCloudFunction) interface{} {
+func (y *YekongaData) AfterDeleteAll(fn TriggerAllFunction) interface{} {
+	return y.setTriggerAll(AfterDeleteTriggerAllAction, fn)
+}
+
+func (y *YekongaData) AfterDelete(model string, accessRole interface{}, route interface{}, fn TriggerFunction) interface{} {
 	return y.setTrigger(model, AfterDeleteTriggerAction, accessRole, route, fn)
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) setTrigger(model string, action TriggerAction, accessRole interface{}, route interface{}, fn TriggerCloudFunction) error {
+func (y *YekongaData) setTrigger(model string, action TriggerAction, accessRole interface{}, route interface{}, fn TriggerFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
 	if y.triggerFunctions == nil {
-		y.triggerFunctions = make(map[string]map[TriggerAction]map[string]TriggerCloudFunction)
+		y.triggerFunctions = make(map[string]map[TriggerAction]map[string]TriggerFunction)
 	}
 
 	if y.triggerFunctions[model] == nil {
-		y.triggerFunctions[model] = map[TriggerAction]map[string]TriggerCloudFunction{}
+		y.triggerFunctions[model] = map[TriggerAction]map[string]TriggerFunction{}
 	}
 
 	if y.triggerFunctions[model][action] == nil {
-		y.triggerFunctions[model][action] = map[string]TriggerCloudFunction{}
+		y.triggerFunctions[model][action] = map[string]TriggerFunction{}
 	}
 
 	actionAccess := ""
@@ -392,12 +332,12 @@ func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxReq
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) setAuthTrigger(action TriggerAction, fn TriggerCloudFunction) error {
+func (y *YekongaData) setAuthTrigger(action TriggerAction, fn TriggerFunction) error {
 	y.mut.Lock()
 	defer y.mut.Unlock()
 
 	if y.authTriggerFunctions == nil {
-		y.authTriggerFunctions = make(map[TriggerAction]TriggerCloudFunction)
+		y.authTriggerFunctions = make(map[TriggerAction]TriggerFunction)
 	}
 
 	y.authTriggerFunctions[action] = fn
@@ -416,6 +356,46 @@ func (y *YekongaData) authTriggerCallback(action TriggerAction, ctxRequest *Requ
 		var err error
 
 		result, err = y.authTriggerFunctions[action](ctxRequest, ctxQuery)
+
+		return result, err
+	}
+
+	return nil, errors.New("not exists")
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) setTriggerAll(action TriggerAction, fn TriggerAllFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if y.triggerAllFunctions == nil {
+		y.triggerAllFunctions = map[TriggerAction]TriggerAllFunction{}
+	}
+
+	if y.triggerAllFunctions[action] == nil {
+		y.triggerAllFunctions[action] = fn
+
+		logger.Warn("Registered cloud function: %s", action)
+	} else {
+		logger.Error("Registered Trigger All function: %s All ready exists", action)
+	}
+
+	return nil
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModel, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
+	y.mut.RLock()
+	defer y.mut.RUnlock()
+
+	if y.triggerAllFunctions[action] == nil {
+		return nil, fmt.Errorf("%v -> %v action not exists", action)
+	}
+
+	if _, exists := y.triggerAllFunctions[action]; exists {
+		var result interface{}
+		var err error
+		result, err = y.triggerAllFunctions[action](model, ctxRequest, ctxQuery)
 
 		return result, err
 	}
