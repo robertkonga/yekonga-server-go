@@ -26,14 +26,16 @@ type AttemptData struct {
 	Whatsapp     string
 	LoginType    string
 	IsAdmin      bool
+	RememberMe   bool
 	Client       map[string]interface{}
 }
 
 type LoginData struct {
-	UserID    string
-	Username  string
-	ProfileID string
-	IsAdmin   bool
+	ProfileID  string
+	UserID     string
+	Username   string
+	RememberMe bool
+	IsAdmin    bool
 }
 
 func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMap {
@@ -224,8 +226,9 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 			}
 
 			result = y.GetLoginData(req, &LoginData{
-				UserID:   userId,
-				Username: input.Username,
+				UserID:     userId,
+				Username:   input.Username,
+				RememberMe: input.RememberMe,
 			})
 
 			if input.LoginType == "registration" {
@@ -388,7 +391,7 @@ func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, re
 	return result
 }
 
-func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload) string {
+func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload, rememberMe bool) string {
 	token := helper.GetRandomString(64, "")
 	var profileId interface{} = payload.ProfileId
 	var tenantId interface{} = payload.TenantId
@@ -408,6 +411,11 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		userId = nil
 	}
 
+	var days time.Duration = 7
+	if rememberMe {
+		days = 30
+	}
+
 	body := datatype.DataMap{
 		"domain":    payload.Domain,
 		"tenantId":  tenantId,
@@ -418,7 +426,7 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		"userAgent": client.UserAgent,
 		"ipAddress": client.IpAddress,
 		"revoked":   false,
-		"expiresAt": time.Now().Add(time.Hour * 24 * 7),
+		"expiresAt": time.Now().Add(time.Hour * 24 * days),
 	}
 
 	y.ModelQuery("RefreshToken").Create(body)
@@ -426,7 +434,7 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 	return token
 }
 
-func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken, refreshToken string) {
+func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, refreshToken string) {
 	w := req.Response.httpResponseWriter
 	domain := req.Client.OriginDomain()
 
@@ -441,7 +449,7 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken, refreshTo
 		MaxAge:   15 * 60, // 15 minutes
 	})
 
-	http.SetCookie(*w, &http.Cookie{
+	refreshTokenCookie1 := http.Cookie{
 		Name:     string(RefreshTokenKey),
 		Value:    refreshToken,
 		Path:     y.AppendBaseUrl("/refresh"),
@@ -450,7 +458,46 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken, refreshTo
 		Secure:   true,
 		SameSite: http.SameSiteDefaultMode,
 		MaxAge:   30 * 24 * 60 * 60, // 30 days
+	}
+
+	refreshTokenCookie2 := refreshTokenCookie1
+	refreshTokenCookie2.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
+
+	http.SetCookie(*w, &refreshTokenCookie1)
+	http.SetCookie(*w, &refreshTokenCookie2)
+}
+
+func (y *YekongaData) clearAuthCookies(req *RequestContext) {
+	w := req.Response.httpResponseWriter
+	domain := req.Client.OriginDomain()
+
+	http.SetCookie(*w, &http.Cookie{
+		Name:     string(AccessTokenKey),
+		Value:    "",
+		Path:     "/",
+		Domain:   domain,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteDefaultMode,
+		MaxAge:   -1,
 	})
+
+	refreshTokenCookie1 := http.Cookie{
+		Name:     string(RefreshTokenKey),
+		Value:    "",
+		Path:     y.AppendBaseUrl("/refresh"),
+		Domain:   domain,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteDefaultMode,
+		MaxAge:   -1,
+	}
+
+	refreshTokenCookie2 := refreshTokenCookie1
+	refreshTokenCookie2.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
+
+	http.SetCookie(*w, &refreshTokenCookie1)
+	http.SetCookie(*w, &refreshTokenCookie2)
 }
 
 func GetProfileIds(y *YekongaData, userId string) []string {

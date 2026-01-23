@@ -14,6 +14,7 @@ import (
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
 )
 
 // Allowed file extensions
@@ -59,11 +60,14 @@ func (y *YekongaData) initialize() {
 		y.Get("/me", y.authHandler)
 		y.Post("/me", y.authHandler)
 
+		y.Get("/logout", y.logoutHandler)
+		y.Post("/logout", y.logoutHandler)
+
 		y.Get("/refresh", y.refreshHandler)
 		y.Post("/refresh", y.refreshHandler)
 	}
 
-	y.initializer_socket_routes()
+	y.initializerSocketRoutes()
 
 	for _, public := range y.Config.Public {
 		if !(strings.HasPrefix(public, "/") || strings.HasPrefix(public, "./")) {
@@ -77,9 +81,9 @@ func (y *YekongaData) initialize() {
 		if helper.FileExists(public) {
 			// Configure static file serving
 			err := y.Static(StaticConfig{
-				Directory:   public,       // Serve files from ./public directory
-				PathPrefix:  "/",          // Access files at /public URL path
-				IndexFile:   "index.html", // Default index file
+				Directory:   public,               // Serve files from ./public directory
+				PathPrefix:  y.AppendBaseUrl("/"), // Access files at /public URL path
+				IndexFile:   "index.html",         // Default index file
 				Extensions:  DefaultExtensions[:],
 				CacheMaxAge: 86400, // Cache for 24 hours
 			})
@@ -154,6 +158,10 @@ func (y *YekongaData) initialize() {
 				OperationName:  operationName,
 			})
 
+			if len(result.Errors) > 0 {
+				result.Errors = formatErrors(result.Errors)
+			}
+
 			// helper.TrackTime(&start, "Graphql query execute")
 			res.Json(result)
 			// helper.TrackTime(&start, "Json encode")
@@ -223,13 +231,17 @@ func (y *YekongaData) initialize() {
 			RootObject:     make(map[string]interface{}),
 		})
 
+		if len(result.Errors) > 0 {
+			result.Errors = formatErrors(result.Errors)
+		}
+
 		// helper.TrackTime(&start, "Graphql query execute")
 		res.Json(result)
 		// helper.TrackTime(&start, "Json encode")
 		// logger.Error("===== end ======")
 	})
 
-	y.initializer_other_routes()
+	y.initializerOtherRoutes()
 }
 
 func (y *YekongaData) authHandler(req *Request, res *Response) {
@@ -261,6 +273,22 @@ func (y *YekongaData) authHandler(req *Request, res *Response) {
 	res.Status(http.StatusUnauthorized)
 	res.Json(datatype.DataMap{
 		"error": "Missing or Invalid token",
+	})
+}
+
+func (y *YekongaData) logoutHandler(req *Request, res *Response) {
+	requestContext := &RequestContext{
+		App:      y,
+		Auth:     req.Auth(),
+		Client:   req.Client(),
+		Request:  req,
+		Response: res,
+	}
+	y.clearAuthCookies(requestContext)
+
+	res.Status(http.StatusOK)
+	res.Json(datatype.DataMap{
+		"status": "SUCCESS",
 	})
 }
 
@@ -324,7 +352,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 						}
 
 						newAccessToken, _ := jwt.EncodeJWT(payload.ToMap(), y.Config.Authentication.SecretToken)
-						newRefreshToken := y.getRefreshToken(*req.Client(), payload)
+						newRefreshToken := y.getRefreshToken(*req.Client(), payload, false)
 
 						status = http.StatusOK
 
@@ -350,14 +378,14 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 						result["error"] = "Domain mismatch"
 					}
 				} else {
-					result["error"] = "refresh_token expired"
+					result["error"] = "Refresh Token expired"
 				}
 			}
 		} else {
-			result["error"] = "Invalid refresh_token"
+			result["error"] = "Invalid Refresh Token"
 		}
 	} else {
-		result["error"] = "Empty refresh_token"
+		result["error"] = "Empty Refresh Token"
 	}
 
 	return result, status
@@ -444,4 +472,27 @@ func findSubstring(s, pattern string) bool {
 func parseRequest(r *http.Request, params interface{}) error {
 	// Simplified request parsing - in production, use proper JSON decoder
 	return json.NewDecoder(r.Body).Decode(params)
+}
+
+func formatErrors(errs []gqlerrors.FormattedError) []gqlerrors.FormattedError {
+	formatted := make([]gqlerrors.FormattedError, len(errs))
+
+	// console.Error("GraphQL Error", errs)
+
+	for i, err := range errs {
+		// Intercept Schema/Validation errors
+		if strings.Contains(err.Message, "Unknown field") || strings.Contains(err.Message, "got invalid value") {
+			formatted[i] = gqlerrors.FormattedError{
+				Message: "Invalid request format. Please check your input fields.",
+				// You can add custom extensions for the frontend to read
+			}
+		} else {
+			// Keep the original error or mask it for production
+			formatted[i] = gqlerrors.FormattedError{
+				Message: err.Message,
+				// You can add custom extensions for the frontend to read
+			}
+		}
+	}
+	return formatted
 }

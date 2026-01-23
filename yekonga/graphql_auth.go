@@ -196,6 +196,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 			var usernameType = helper.GetValueOfString(input, "usernameType")
 			var password = helper.GetValueOfString(input, "password")
 			var loginType = helper.GetValueOfString(input, "type")
+			var rememberMe = helper.GetValueOfBoolean(input, "rememberMe")
 
 			cookieEnabled := ""
 			cookie, err := req.Request.HttpRequest.Cookie(COOKIE_ENABLED_KEY)
@@ -227,6 +228,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 					UsernameType: usernameType,
 					Password:     password,
 					LoginType:    loginType,
+					RememberMe:   rememberMe,
 				}
 
 				u, e := g.yekonga.AttemptLogin(p.Context, attemptData)
@@ -259,7 +261,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							Roles:       make([]string, 0), // ["admin", "finance"],
 							Permissions: make([]string, 0), // ["payroll.read", "asset.write"],
 							ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
-						})
+						}, rememberMe)
 
 						if helper.IsEmpty(cookieEnabled) {
 							user[helper.ToVariable(string(AccessTokenKey))] = accessToken
@@ -311,13 +313,12 @@ func _refreshToken(g *GraphqlAutoBuild) *graphql.Field {
 		Type: targetType,
 		Args: graphql.FieldConfigArgument{
 			"refreshToken": &graphql.ArgumentConfig{
-				Type: LoginInput,
+				Type: graphql.String,
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var input map[string]interface{} = g.getInputData(p.Args)
-			refreshToken := helper.GetValueOfString(input, "refreshToken")
+			refreshToken := helper.GetValueOfString(p.Args, "refreshToken")
 
 			if g.yekonga.Config.SecureAuthentication {
 				result, status := req.App.refreshTokenProcess(req.Request, req.Response, refreshToken)

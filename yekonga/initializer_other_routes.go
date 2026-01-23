@@ -17,7 +17,7 @@ type WebConfig struct {
 	systemTemplateConfig  map[string]any
 }
 
-func (y *YekongaData) initializer_config(req *Request) WebConfig {
+func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 	locale := "en"
 	// auth := *req.Auth()
 	client := *req.Client()
@@ -90,8 +90,7 @@ func (y *YekongaData) initializer_config(req *Request) WebConfig {
 	}
 }
 
-func (y *YekongaData) initializer_other_routes() {
-
+func (y *YekongaData) initializerOtherRoutes() {
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
 		list := y.ModelQuery("TranslatorLanguage").Find(nil)
@@ -139,7 +138,7 @@ func (y *YekongaData) initializer_other_routes() {
 	})
 
 	y.All("/config/data", func(req *Request, res *Response) {
-		wetConfig := y.initializer_config(req)
+		wetConfig := y.initializerConfig(req)
 
 		res.Json(map[string]interface{}{
 			"config":                wetConfig.config,
@@ -171,7 +170,7 @@ func (y *YekongaData) initializer_other_routes() {
 	})
 
 	y.All("/config", func(req *Request, res *Response) {
-		wetConfig := y.initializer_config(req)
+		wetConfig := y.initializerConfig(req)
 
 		content := "window['systemLanguages'] = " + helper.ToJson(wetConfig.systemLanguages) + ";\n" +
 			"window['systemDefaultLanguage'] = " + helper.ToJson(wetConfig.systemDefaultLanguage) + ";\n" +
@@ -297,7 +296,7 @@ func (y *YekongaData) initializer_other_routes() {
 	})
 }
 
-func (y *YekongaData) initializer_socket_routes() {
+func (y *YekongaData) initializerSocketRoutes() {
 
 	y.Get("/yekonga.io/yekonga.io.js", func(req *Request, res *Response) {
 		scripts := ""
