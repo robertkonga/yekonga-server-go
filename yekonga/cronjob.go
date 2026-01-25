@@ -50,70 +50,73 @@ type Cronjob struct {
 }
 
 func (c *Cronjob) initialize() {
-	go func() {
-		ticker := time.NewTicker(time.Second * 1)
-		defer ticker.Stop()
 
-		for {
-			t := <-ticker.C
-			// console.Error("Count", t.String())
-			for i, job := range c.jobs {
-				c.jobs[i].time += time.Duration(1) * time.Second
+	if c.app.Config.HasCronjob {
+		go func() {
+			ticker := time.NewTicker(time.Second * 1)
+			defer ticker.Stop()
 
-				if job.kind == interval {
-					c.jobs[i].lastCheck = t
+			for {
+				t := <-ticker.C
+				// console.Error("Count", t.String())
+				for i, job := range c.jobs {
+					c.jobs[i].time += time.Duration(1) * time.Second
 
-					if job.time >= job.delay && !job.process {
-						c.jobs[i].lastRun = t
-						c.jobs[i].time = time.Duration(0)
-						c.jobs[i].process = true
+					if job.kind == interval {
+						c.jobs[i].lastCheck = t
 
-						go func() {
-							job.callback(c.app, t)
-							c.jobs[i].process = false
-						}()
+						if job.time >= job.delay && !job.process {
+							c.jobs[i].lastRun = t
+							c.jobs[i].time = time.Duration(0)
+							c.jobs[i].process = true
+
+							go func() {
+								job.callback(c.app, t)
+								c.jobs[i].process = false
+							}()
+						}
+					} else {
+						runNow := false
+						processed := false
+
+						switch job.frequency {
+						case HOURLY:
+							format := "04"
+							runNow = (job.runTime.Format(format) == t.Format(format))
+							processed = (job.lastCheck.Format(format) == t.Format(format))
+						case DAILY:
+							format := time.Kitchen
+							runNow = (job.runTime.Format(format) == t.Format(format))
+							processed = (job.lastCheck.Format(format) == t.Format(format))
+						case WEEKLY:
+							format := "Monday 15:04"
+							runNow = (job.runTime.Format(format) == t.Format(format))
+							processed = (job.lastCheck.Format(format) == t.Format(format))
+						case MONTHLY:
+							format := "02T15:04"
+							runNow = (job.runTime.Format(format) == t.Format(format))
+							processed = (job.lastCheck.Format(format) == t.Format(format))
+						}
+
+						if runNow && !job.process && !processed {
+							c.jobs[i].lastRun = t
+							c.jobs[i].time = time.Duration(0)
+							c.jobs[i].process = true
+
+							go func() {
+								job.callback(c.app, t)
+								c.jobs[i].process = false
+							}()
+						}
+
+						c.jobs[i].lastCheck = t
 					}
-				} else {
-					runNow := false
-					processed := false
 
-					switch job.frequency {
-					case HOURLY:
-						format := "04"
-						runNow = (job.runTime.Format(format) == t.Format(format))
-						processed = (job.lastCheck.Format(format) == t.Format(format))
-					case DAILY:
-						format := time.Kitchen
-						runNow = (job.runTime.Format(format) == t.Format(format))
-						processed = (job.lastCheck.Format(format) == t.Format(format))
-					case WEEKLY:
-						format := "Monday 15:04"
-						runNow = (job.runTime.Format(format) == t.Format(format))
-						processed = (job.lastCheck.Format(format) == t.Format(format))
-					case MONTHLY:
-						format := "02T15:04"
-						runNow = (job.runTime.Format(format) == t.Format(format))
-						processed = (job.lastCheck.Format(format) == t.Format(format))
-					}
-
-					if runNow && !job.process && !processed {
-						c.jobs[i].lastRun = t
-						c.jobs[i].time = time.Duration(0)
-						c.jobs[i].process = true
-
-						go func() {
-							job.callback(c.app, t)
-							c.jobs[i].process = false
-						}()
-					}
-
-					c.jobs[i].lastCheck = t
+					// console.Info("Info", job.name, job.delay, job.time)
 				}
-
-				// console.Info("Info", job.name, job.delay, job.time)
 			}
-		}
-	}()
+		}()
+	}
 }
 
 func (c *Cronjob) registerJob(name string, delay time.Duration, callback func(app *YekongaData, time time.Time)) {

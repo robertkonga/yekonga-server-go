@@ -76,7 +76,7 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 
 		user = y.ModelQuery(userModelName).Where("username", username).FindOne(nil)
 
-		if *user == nil && canCreate {
+		if helper.IsEmpty(user) && canCreate {
 			res := y.ModelQuery(userModelName).Create(datatype.DataMap{
 				"usernameType": usernameType,
 				"username":     username,
@@ -94,7 +94,7 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 		}
 	}
 
-	if *user != nil {
+	if helper.IsNotEmpty(user) {
 		userId := helper.GetValueOfString(user, "id")
 		profile := y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
 
@@ -152,7 +152,7 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 		if helper.IsPhone(input.Username) {
 			input.Username = helper.FormatPhone(input.Username)
 		} else if helper.IsEmail(input.Username) {
-			input.UsernameType = "email"
+			input.UsernameType = "username"
 		}
 	} else if helper.IsEmail(input.Email) && helper.IsEmailIdentifier() {
 		input.UsernameType = "email"

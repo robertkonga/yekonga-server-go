@@ -86,6 +86,14 @@ var DefaultAuthorizationDatabaseStructure DatabaseStructureType = DatabaseStruct
 		"status":          {"type": "String", "default": "active", "required": false, "options": []string{"active", "inactive"}},
 		"deletedAt":       {"type": "Date", "default": "now", "required": false},
 	},
+	"TenantUsers": {
+		"id":        {"type": "ID", "default": nil, "required": false},
+		"tenantId":  {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},
+		"userId":    {"type": "ID", "default": nil, "required": false, "foreignKey": "User.id"},
+		"role":      {"type": "String", "default": nil, "required": false, "options": []string{"manager", "user"}},
+		"status":    {"type": "String", "default": "active", "required": false, "options": []string{"active", "inactive"}},
+		"createdAt": {"type": "Date", "default": "now", "required": false},
+	},
 	"ProfileUsers": {
 		"id":        {"type": "ID", "default": nil, "required": false},
 		"tenantId":  {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},

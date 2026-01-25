@@ -275,28 +275,72 @@ func setField(field reflect.Value, value interface{}) error {
 	return nil
 }
 
-func IsEmpty(value interface{}) bool {
-	if IsPointer(value) {
-		v := reflect.ValueOf(value).Elem()
+// IsEmpty checks if a value is empty/zero for various types
+func IsEmpty(v interface{}) bool {
+	if v == nil {
+		return true
+	}
 
-		if v.IsValid() {
-			value = v.Interface()
-		} else {
-			value = nil
+	val := reflect.ValueOf(v)
+
+	// Dereference pointers to check the underlying value
+	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return true
 		}
+		// Get the element the pointer points to
+		val = val.Elem()
 	}
 
-	if value == nil || value == "" {
-		return true
-	} else if v, ok := value.(string); ok && strings.TrimSpace(v) == "" {
-		return true
-	} else if v, ok := value.([]any); ok && len(v) == 0 {
-		return true
-	} else if v, ok := value.(map[string]interface{}); ok && len(v) == 0 {
-		return true
-	}
+	switch val.Kind() {
+	case reflect.String:
+		return val.Len() == 0
 
-	return false
+	case reflect.Bool:
+		return !val.Bool()
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return val.Int() == 0
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return val.Uint() == 0
+
+	case reflect.Float32, reflect.Float64:
+		return val.Float() == 0
+
+	case reflect.Complex64, reflect.Complex128:
+		return val.Complex() == 0
+
+	case reflect.Interface:
+		if val.IsNil() {
+			return true
+		}
+		return IsEmpty(val.Interface())
+
+	case reflect.Array, reflect.Slice:
+		return val.Len() == 0
+
+	case reflect.Map:
+		return val.Len() == 0
+
+	case reflect.Chan:
+		return val.IsNil()
+
+	case reflect.Struct:
+		// Check if it's time.Time specifically
+		if t, ok := val.Interface().(time.Time); ok {
+			return t.IsZero()
+		}
+		// For other structs, compare with zero value
+		return val.IsZero()
+
+	case reflect.Func:
+		return val.IsNil()
+
+	default:
+		// Use IsZero for any other types (available in Go 1.13+)
+		return val.IsZero()
+	}
 }
 
 func IsNotEmpty(value interface{}) bool {

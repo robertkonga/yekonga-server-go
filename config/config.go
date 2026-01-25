@@ -80,10 +80,11 @@ type YekongaConfig struct {
 	Cors                    bool     `json:"cors"`                    // Enable or disable CORS
 	ResetOTP                bool     `json:"resetOTP"`                // Enable or disable OTP reset
 	Environment             string   `json:"environment"`             // Application environment (e.g., development, production)
+	HasTenant               bool     `json:"hasTenant"`               // Enable multi-tenancy
 	SecureAuthentication    bool     `json:"secureAuthentication"`    // Enable or disable secure authentication
 	IsAuthorizationServer   bool     `json:"isAuthorizationServer"`   // Designate as an authorization server
 	MustAuthorized          bool     `json:"mustAuthorized"`          // Require authorization for all requests
-	HasTenant               bool     `json:"hasTenant"`               // Enable multi-tenancy
+	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
 	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
 	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp
 	EndToEndEncryption      bool     `json:"endToEndEncryption"`      // Enable end-to-end encryption

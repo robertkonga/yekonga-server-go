@@ -389,7 +389,7 @@ func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModel,
 	defer y.mut.RUnlock()
 
 	if y.triggerAllFunctions[action] == nil {
-		return nil, fmt.Errorf("%v -> %v action not exists", action)
+		return nil, fmt.Errorf("%v -> action not exists", action)
 	}
 
 	if _, exists := y.triggerAllFunctions[action]; exists {

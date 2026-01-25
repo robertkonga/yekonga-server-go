@@ -70,8 +70,8 @@ func (y *YekongaData) initialize() {
 	y.initializerSocketRoutes()
 
 	for _, public := range y.Config.Public {
-		if !(strings.HasPrefix(public, "/") || strings.HasPrefix(public, "./")) {
-			public = "./" + public
+		if strings.HasPrefix(public, "/") || strings.HasPrefix(public, "./") {
+			public = "./" + public[1:]
 		}
 
 		if !helper.FileExists(public) {

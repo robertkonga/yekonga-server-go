@@ -540,6 +540,13 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	return result
 }
 
+func (m *DataModelQuery) Exist(where interface{}) bool {
+	m.WhereAll(where)
+	result := m.FindOne(where)
+
+	return helper.IsNotEmpty(result)
+}
+
 func (m *DataModelQuery) First(where interface{}) *datatype.DataMap {
 
 	m.WhereAll(where)

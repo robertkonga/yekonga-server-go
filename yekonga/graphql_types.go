@@ -627,6 +627,22 @@ var LoginTypeEnum = graphql.NewEnum(graphql.EnumConfig{
 	},
 })
 
+// "NGO", "COMPANY", "PRIVATE"
+var OrganizationTypeEnum = graphql.NewEnum(graphql.EnumConfig{
+	Name: "OrganizationTypeEnum",
+	Values: graphql.EnumValueConfigMap{
+		"NGO": &graphql.EnumValueConfig{
+			Value: "ngo",
+		},
+		"COMPANY": &graphql.EnumValueConfig{
+			Value: "company",
+		},
+		"PRIVATE": &graphql.EnumValueConfig{
+			Value: "private",
+		},
+	},
+})
+
 var LoginInput = graphql.NewInputObject(graphql.InputObjectConfig{
 	Name: "LoginInput",
 	Fields: graphql.InputObjectConfigFieldMap{
@@ -742,6 +758,60 @@ var ChangePasswordInput = graphql.NewInputObject(graphql.InputObjectConfig{
 			Type: graphql.String,
 		},
 		"passwordConfirmation": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+	},
+})
+
+var RegistrationInput = graphql.NewInputObject(graphql.InputObjectConfig{
+	Name: "RegistrationInput",
+	Fields: graphql.InputObjectConfigFieldMap{
+		"userId": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"firstName": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"lastName": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"organization": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"description": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"logoUrl": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"type": &graphql.InputObjectFieldConfig{
+			Type: OrganizationTypeEnum,
+		},
+		"address": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"email": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"phone": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"website": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"domain": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"subdomain": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"defaultLanguage": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
+		"isApproved": &graphql.InputObjectFieldConfig{
+			Type: graphql.Boolean,
+		},
+		"status": &graphql.InputObjectFieldConfig{
 			Type: graphql.String,
 		},
 	},

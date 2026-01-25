@@ -29,6 +29,9 @@ func (g *GraphqlAutoBuild) GetAuthQuery() *graphql.Object {
 			return user, nil
 		},
 	}
+	fields["profile"] = _profile(g)
+	fields["refreshToken"] = _refreshToken(g)
+	fields["tenantAvailability"] = _tenantAvailability(g)
 
 	var queryType = graphql.NewObject(
 		graphql.ObjectConfig{
@@ -44,15 +47,13 @@ func (g *GraphqlAutoBuild) GetAuthMutation() *graphql.Object {
 
 	fields["otp"] = _otp(g)
 	fields["login"] = _login(g)
-	fields["refreshToken"] = _refreshToken(g)
+	fields["register"] = _registration(g)
 	fields["socialLogin"] = _socialLogin(g)
 	fields["contactOTP"] = _contactOTP(g)
 	fields["contactVerify"] = _contactVerify(g)
-	fields["registration"] = _registration(g)
 	fields["resetPassword"] = _resetPassword(g)
 	fields["confirmToken"] = _confirmToken(g)
 	fields["changePassword"] = _changePassword(g)
-	fields["profile"] = _profile(g)
 	fields["switchAccount"] = _switchAccount(g)
 
 	var mutationType = graphql.NewObject(
@@ -68,6 +69,8 @@ func (g *GraphqlAutoBuild) GetAuthMutation() *graphql.Object {
 func _otp(g *GraphqlAutoBuild) *graphql.Field {
 	// var foreignKey string
 	// var targetKey string
+	var tenantModelName = "Tenant"
+	var tenantUserModelName = "TenantUser"
 
 	return &graphql.Field{
 		Type: ActionResponseType,
@@ -86,15 +89,45 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			}
 			var user datatype.DataMap
 			var data map[string]interface{} = g.getInputData(p.Args)
+			var tenantId = req.Client.TenantId
 			var username = helper.GetValueOfString(data, "username")
 			var usernameType = helper.GetValueOfString(data, "usernameType")
+			var userId = ""
 			if helper.IsPhone(username) {
 				username = helper.PhoneFormat(username)
 			}
-			if helper.IsNotEmpty(username) {
-				user = g.yekonga.GetUser(username, true)
+
+			if helper.IsNotEmpty(tenantId) {
+				if helper.IsNotEmpty(username) {
+					user = g.yekonga.GetUser(username, false)
+					if helper.IsNotEmpty(user) {
+						userId = helper.GetValueOfString(user, "_id")
+					}
+				}
+
+				if helper.IsNotEmpty(userId) {
+					tenant := req.App.ModelQuery(tenantModelName).Exist(datatype.DataMap{
+						"id":     tenantId,
+						"userId": userId,
+					})
+
+					if !tenant {
+						tenantUser := req.App.ModelQuery(tenantUserModelName).Exist(datatype.DataMap{
+							"tenantId": tenantId,
+							"userId":   userId,
+						})
+
+						if tenantUser {
+							return nil, errors.New("User does not exist")
+						}
+					}
+				}
+			} else {
+				if helper.IsNotEmpty(username) {
+					user = g.yekonga.GetUser(username, true)
+				}
+				userId = helper.GetValueOfString(user, "_id")
 			}
-			userId := helper.GetValueOfString(user, "_id")
 
 			g.yekonga.RecordLoginAttempt("otp", p.Context, AttemptData{
 				UserID:   userId,
@@ -190,7 +223,6 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var input map[string]interface{} = g.getInputData(p.Args)
-			// var type = g.getParamValue(p.Args, "type")
 			var user datatype.DataMap
 			var username = helper.GetValueOfString(input, "username")
 			var usernameType = helper.GetValueOfString(input, "usernameType")
@@ -292,7 +324,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 				LoginType:    loginType,
 			})
 
-			return nil, nil
+			return nil, errors.New("Wrong credential")
 		},
 	}
 }
@@ -426,23 +458,121 @@ func _contactVerify(g *GraphqlAutoBuild) *graphql.Field {
 func _registration(g *GraphqlAutoBuild) *graphql.Field {
 	var foreignKey string
 	var targetKey string
-	var name string = "User"
+	var userModelName string = "User"
+	var tenantModelName string = "Tenant"
 
 	return &graphql.Field{
-		Type: UserProfileType,
+		Type: ActionResponseType,
 		Args: graphql.FieldConfigArgument{
 			"input": &graphql.ArgumentConfig{
-				Type: LoginInput,
+				Type: RegistrationInput,
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var input map[string]interface{} = g.getInputData(p.Args)
-			var model = g.yekonga.ModelQuery(name)
+			var ctx, _ = p.Context.Value(RequestContextKey).(*RequestContext)
+			var auth = ctx.Auth
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
-			user := model.FindOne(input)
+			if helper.IsNotEmpty(auth) {
+				var model = g.yekonga.ModelQuery(tenantModelName)
+				g.setModelParams(model, &p, foreignKey, targetKey)
+				input["userId"] = auth.ID
+				input["name"] = input["organization"]
 
-			return user, nil
+				if helper.IsEmpty(input["defaultLanguage"]) {
+					input["defaultLanguage"] = "en"
+				}
+				if helper.IsEmpty(input["defaultLanguage"]) {
+					input["status"] = "active"
+				}
+
+				tenant := model.Create(input)
+
+				if helper.IsNotEmpty(tenant) {
+					g.yekonga.ModelQuery(userModelName).Update(datatype.DataMap{
+						"firstName": input["firstName"],
+						"lastName":  input["lastName"],
+					}, datatype.DataMap{
+						"id": auth.ID,
+					})
+				}
+
+				return datatype.DataMap{
+					"status":  true,
+					"message": "SUCCESS",
+					"data": datatype.DataMap{
+						"id":          helper.GetValueOf(tenant, "_id"),
+						"name":        helper.GetValueOf(tenant, "name"),
+						"description": helper.GetValueOf(tenant, "description"),
+						"logoUrl":     helper.GetValueOf(tenant, "logoUrl"),
+						"email":       helper.GetValueOf(tenant, "email"),
+						"phone":       helper.GetValueOf(tenant, "phone"),
+						"whatsapp":    helper.GetValueOf(tenant, "whatsapp"),
+						"type":        helper.GetValueOf(tenant, "type"),
+						"domain":      helper.GetValueOf(tenant, "domain"),
+						"subdomain":   helper.GetValueOf(tenant, "subdomain"),
+						"status":      helper.GetValueOf(tenant, "status"),
+					},
+				}, nil
+			}
+
+			return nil, errors.New("Not authorized")
+
+		},
+	}
+}
+
+func _tenantAvailability(g *GraphqlAutoBuild) *graphql.Field {
+	var tenantModelName string = "Tenant"
+
+	return &graphql.Field{
+		Type: graphql.Boolean,
+		Args: graphql.FieldConfigArgument{
+			"id": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
+			"domain": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
+			"subdomain": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
+		},
+		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var id = helper.GetValueOfString(p.Args, "id")
+			var domain = helper.GetValueOfString(p.Args, "domain")
+			var subdomain = helper.GetValueOfString(p.Args, "subdomain")
+			var model = g.yekonga.ModelQuery(tenantModelName)
+			var validQuery = false
+			var tenant *datatype.DataMap
+
+			if helper.IsNotEmpty(id) {
+				model.Where("id", id)
+				validQuery = true
+			}
+
+			if helper.IsNotEmpty(domain) {
+				model.Where("domain", domain)
+				validQuery = true
+			}
+
+			if helper.IsNotEmpty(subdomain) {
+				model.Where("subdomain", subdomain)
+				validQuery = true
+			}
+
+			if validQuery {
+				tenant = model.FindOne(nil)
+			}
+
+			console.Error(id, domain, subdomain)
+			console.Log(tenant)
+
+			if helper.IsNotEmpty(tenant) {
+				return true, nil
+			}
+
+			return false, nil
 		},
 	}
 }
@@ -524,9 +654,6 @@ func _changePassword(g *GraphqlAutoBuild) *graphql.Field {
 
 // profile ( input: ProfileInput! ): Profile,
 func _profile(g *GraphqlAutoBuild) *graphql.Field {
-	var foreignKey string
-	var targetKey string
-	var name string = "User"
 
 	return &graphql.Field{
 		Type: UserProfileType,
@@ -536,13 +663,19 @@ func _profile(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
-			var model = g.yekonga.ModelQuery(name)
+			var ctx, _ = p.Context.Value(RequestContextKey).(*RequestContext)
+			var auth = ctx.Auth
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
-			user := model.Create(input)
+			if helper.IsNotEmpty(auth) {
+				user := ctx.App.GetLoginData(ctx, &LoginData{
+					UserID:    auth.ID,
+					ProfileID: auth.ProfileID,
+				})
 
-			return user, nil
+				return user, nil
+			}
+
+			return nil, errors.New("Not authorized")
 		},
 	}
 }

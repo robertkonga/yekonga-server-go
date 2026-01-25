@@ -1,0 +1,5 @@
+package yekonga
+
+func runDefaultCloudFunctions() {
+
+}

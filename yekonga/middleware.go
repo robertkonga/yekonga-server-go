@@ -63,6 +63,14 @@ func ClientMiddleware(req *Request, res *Response) error {
 
 		if helper.IsNotEmpty(tenant) {
 			client.TenantId = helper.GetValueOfString(tenant, "_id")
+		} else {
+			tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+				"subdomain": host,
+			})
+
+			if helper.IsNotEmpty(tenant) {
+				client.TenantId = helper.GetValueOfString(tenant, "_id")
+			}
 		}
 	}
 
