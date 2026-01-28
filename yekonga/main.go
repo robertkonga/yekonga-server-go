@@ -39,6 +39,7 @@ type Route struct {
 
 // Handler represents a function that handles an HTTP request
 type Handler func(req *Request, res *Response)
+type SystemHandler func(req *Request, res *Response) (interface{}, error)
 
 // Middleware represents a function that can modify requests/responses
 type Middleware func(req *Request, res *Response) error
@@ -55,6 +56,7 @@ var Server *YekongaData
 type YekongaData struct {
 	routes                 map[string][]Route // method -> routes
 	functions              map[string]CloudFunction
+	systemFunctions        map[string]SystemHandler
 	primaryFunctions       map[PrimaryCloudKey]BackendCloudFunction
 	authTriggerFunctions   map[TriggerAction]TriggerFunction
 	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerFunction
@@ -97,6 +99,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		initMiddlewares:        make([]Middleware, 0, 5),
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		functions:              make(map[string]CloudFunction),
+		systemFunctions:        make(map[string]SystemHandler),
 		primaryFunctions:       make(map[PrimaryCloudKey]BackendCloudFunction),
 		graphqlActionFunctions: make(map[string]map[string]map[string]ActionCloudFunction),
 		triggerFunctions:       make(map[string]map[TriggerAction]map[string]TriggerFunction),

@@ -407,7 +407,7 @@ func (g *GraphqlAutoBuild) getQueryDownloadField(collection string, foreignKey s
 					}
 
 					data["filename"] = path.Base(filename)
-					data["url"] = helper.GetBaseUrl("download/" + path.Base(filename))
+					data["url"] = helper.GetBaseUrl("download/"+path.Base(filename), ctx.Client.OriginDomain())
 					data["type"] = downloadType
 				}
 			} else {
@@ -1684,6 +1684,10 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	var accessRole string
 	var route string
 
+	if model.RequestContext == nil {
+		model.RequestContext = ctx
+	}
+
 	if model.QueryContext.Params == nil {
 		model.QueryContext.Params = make(map[string]interface{})
 	}
@@ -1869,9 +1873,17 @@ func (g *GraphqlAutoBuild) formateOutputData(model *DataModelQuery, data interfa
 
 			if helper.Contains(model.Model.FileFields, k) {
 				if vi, ok := v.(string); ok && helper.IsNotEmpty(v) {
-					output[k] = helper.GetBaseUrl(vi)
+					if helper.IsNotEmpty(model.RequestContext) {
+						output[k] = helper.GetBaseUrl(vi, model.RequestContext.Client.OriginDomain())
+					} else {
+						output[k] = helper.GetBaseUrl(vi, "")
+					}
 				} else {
-					output[k] = helper.GetBaseUrl("placeholder.jpg")
+					if helper.IsNotEmpty(model.RequestContext) {
+						output[k] = helper.GetBaseUrl("placeholder.jpg", model.RequestContext.Client.OriginDomain())
+					} else {
+						output[k] = helper.GetBaseUrl("placeholder.jpg", "")
+					}
 				}
 			}
 

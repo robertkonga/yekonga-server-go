@@ -9,6 +9,11 @@ import (
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
+const (
+	CustomCSS    string = "__SET_CUSTOM_CSS__"
+	CustomConfig string = "__SET_CUSTOM_CONFIG__"
+)
+
 type TriggerAction string
 
 const (
@@ -401,4 +406,56 @@ func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModel,
 	}
 
 	return nil, errors.New("not exists")
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetCustomCSS(fn SystemHandler) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.systemFunctions[CustomCSS]; exists {
+		return fmt.Errorf("cloud function %s already exists", CustomCSS)
+	}
+
+	y.systemFunctions[CustomCSS] = fn
+	logger.Error("Registered system cloud function SetCustomCSS")
+	return nil
+}
+
+func (y *YekongaData) CustomCSS(req *Request, res *Response) (interface{}, error) {
+	y.mut.RLock()
+	fun, exists := y.systemFunctions[CustomCSS]
+	y.mut.RUnlock()
+
+	if exists {
+		return fun(req, res)
+	}
+
+	return nil, errors.New("Custom CSS not set")
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetCustomConfig(fn SystemHandler) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.systemFunctions[CustomConfig]; exists {
+		return fmt.Errorf("cloud function %s already exists", CustomConfig)
+	}
+
+	y.systemFunctions[CustomConfig] = fn
+	logger.Error("Registered system cloud function SetCustomConfig")
+	return nil
+}
+
+func (y *YekongaData) CustomConfig(req *Request, res *Response) (interface{}, error) {
+	y.mut.RLock()
+	fun, exists := y.systemFunctions[CustomConfig]
+	y.mut.RUnlock()
+
+	if exists {
+		return fun(req, res)
+	}
+
+	return nil, errors.New("Custom CONFIG not set")
 }

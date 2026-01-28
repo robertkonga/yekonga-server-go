@@ -233,15 +233,8 @@ func (y *YekongaData) initializerOtherRoutes() {
 		res.Byte([]byte(scripts))
 	})
 
-	y.Get("/custom-style.css", func(req *Request, res *Response) {
-		content := "/* @charset \"UTF-8\"; */" +
-			"" +
-			""
-
-		res.Header("Cache-Control", "public, max-age=0")
-		res.Header("content-type", "text/css; charset=utf-8")
-		res.Byte([]byte(content))
-	})
+	y.Get("/theme.css", runCustomCSS(y))
+	y.Get("/custom-style.css", runCustomCSS(y))
 
 	if y.Config.ApiPlaygroundEnable || y.Config.AuthPlaygroundEnable {
 		y.Get("/playground", func(req *Request, res *Response) {
@@ -317,4 +310,24 @@ func (y *YekongaData) initializerSocketRoutes() {
 
 		y.socketServer.ServeWS(req, res)
 	})
+}
+
+func runCustomCSS(y *YekongaData) Handler {
+	return func(req *Request, res *Response) {
+		content := "/* @charset \"UTF-8\"; */" +
+			"" +
+			""
+
+		custom, err := y.CustomCSS(req, res)
+		if err == nil && helper.IsNotEmpty(custom) {
+
+			if str, ok := custom.(string); ok {
+				content += str
+			}
+		}
+
+		res.Header("Cache-Control", "public, max-age=0")
+		res.Header("content-type", "text/css; charset=utf-8")
+		res.Byte([]byte(content))
+	}
 }

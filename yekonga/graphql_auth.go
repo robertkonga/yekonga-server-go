@@ -1,9 +1,13 @@
 package yekonga
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
+
+	"google.golang.org/api/idtoken"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
@@ -388,8 +392,51 @@ func _socialLogin(g *GraphqlAutoBuild) *graphql.Field {
 			var input map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 
+			googleClientID := g.yekonga.Config.GoogleClientId
+			credential := helper.GetValueOfString(input, "credential")
+
+			payload, err := idtoken.Validate(context.Background(), credential, googleClientID)
+			if err != nil {
+				return nil, err
+			}
+
+			// 'sub' is the unique Google ID (never changes)
+			googleUserID := payload.Subject
+			email := payload.Claims["email"].(string)
+			name := payload.Claims["name"].(string)
+			firstName := payload.Claims["given_name"].(string)
+			secondName := ""
+			lastName := payload.Claims["family_name"].(string)
+			profileUrl := payload.Claims["picture"].(string)
+			username := email
+			usernameType := "email"
+
+			if helper.IsNotEmpty(firstName) {
+				list := strings.SplitN(firstName, " ", 2)
+
+				if helper.IsEmpty(firstName) {
+					firstName = list[0]
+				}
+				if helper.IsEmpty(secondName) && len(list) > 1 {
+					secondName = list[1]
+				}
+				if helper.IsEmpty(lastName) {
+					lastName = strings.TrimSpace(strings.TrimPrefix(name, firstName))
+				}
+			}
+
+			var data map[string]interface{} = make(map[string]interface{})
+			data["googleUserID"] = googleUserID
+			data["email"] = email
+			data["name"] = name
+			data["firstName"] = firstName
+			data["lastName"] = lastName
+			data["profileUrl"] = profileUrl
+			data["username"] = username
+			data["usernameType"] = usernameType
+
 			g.setModelParams(model, &p, foreignKey, targetKey)
-			user := model.FindOne(input)
+			user := model.Create(data)
 
 			return user, nil
 		},

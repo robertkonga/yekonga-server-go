@@ -1283,9 +1283,14 @@ func HomeDirectory(name string) string {
 	return appDir
 }
 
-func GetBaseUrl(str string) string {
+func GetBaseUrl(str string, domain string) string {
 	ip, _ := GetLocalIP()
 	port := config.Config.Ports.Server
+	prefix := config.Config.BaseUrl
+
+	if IsEmpty(domain) {
+		domain = fmt.Sprintf("%s:%d", ip, port)
+	}
 
 	if config.Config.Ports.Secure {
 		port = config.Config.Ports.SSLServer
@@ -1295,7 +1300,7 @@ func GetBaseUrl(str string) string {
 		return str
 	}
 
-	return "http://" + ip + ":" + strconv.Itoa(port) + "/" + str
+	return "https://" + domain + strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(str, "/")
 }
 
 // GetDirectoryPath returns the absolute path of the specified file or executable
@@ -2065,7 +2070,11 @@ func GetEmailContent(layout, template string, data map[string]interface{}) strin
 func getEmailLayout(layout, content string, data map[string]interface{}) string {
 	dirname := GetDirectoryPath()
 	temp := ""
-	website := GetBaseUrl("") // Assuming getBaseUrl is defined elsewhere
+	domain := ""
+	if v, ok := data["domain"].(string); ok {
+		domain = v
+	}
+	website := GetBaseUrl("", domain) // Assuming getBaseUrl is defined elsewhere
 	logo := website + "/img/mail/@notificationId/logo.png"
 	appName := config.Config.AppName
 	year := ToTimestampString(nil, "2006") // Go uses "2006" for YYYY
