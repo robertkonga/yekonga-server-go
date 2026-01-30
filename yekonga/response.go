@@ -98,6 +98,10 @@ func (res *Response) Byte(data []byte) {
 	(*res.httpResponseWriter).Write(data)
 }
 
+func (res *Response) Send(data string) {
+	(*res.httpResponseWriter).Write([]byte(data))
+}
+
 func (res *Response) Html(data string) {
 	(*res.httpResponseWriter).Header().Set("Content-Type", "text/html")
 	(*res.httpResponseWriter).Write([]byte(data))

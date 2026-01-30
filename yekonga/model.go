@@ -45,6 +45,7 @@ type DataModelField struct {
 	Kind         DataModelFieldType
 	Required     bool
 	Protected    bool
+	IsArray      bool
 	DefaultValue interface{}
 	ForeignKey   DataModelFieldForeignKey
 	Options      []DataModelFieldOptions
@@ -287,14 +288,22 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 	var kind DataModelFieldType = DataModelString
 	var required bool
 	var protected bool
+	var isArray bool = false
 	var defaultValue interface{}
 	var foreignKey DataModelFieldForeignKey
 	var options = make([]DataModelFieldOptions, 0, 4)
 
 	if v, ok := field["type"]; ok {
 		if vi, oki := v.(string); oki {
-			vi = strings.ToLower(vi)
+			vi = strings.ToLower(strings.TrimSpace(vi))
 			// logger.Error("vi", name, "->", vi)
+			if strings.Contains(vi, "[") && strings.Contains(vi, "]") {
+				defaultValue = []interface{}{}
+				isArray = true
+				vi = strings.ReplaceAll(vi, "[", "")
+				vi = strings.ReplaceAll(vi, "]", "")
+				vi = strings.TrimSpace(vi)
+			}
 
 			switch vi {
 			case "id":
@@ -304,10 +313,10 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 			case "bool", "boolean":
 				defaultValue = false
 				kind = DataModelBool
-			case "float":
+			case "float", "double", "decimal":
 				defaultValue = 0
 				kind = DataModelFloat
-			case "int", "number":
+			case "int", "number", "integer", "digit":
 				defaultValue = 0
 				kind = DataModelNumber
 			case "text", "string":
@@ -317,6 +326,7 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 			case "object":
 				kind = DataModelObject
 			case "array":
+				isArray = true
 				defaultValue = []interface{}{}
 				kind = DataModelArray
 			case "url":
@@ -346,7 +356,15 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 	}
 
 	if v, ok := field["defaultValue"]; ok {
-		defaultValue = v
+		if isArray {
+			if helper.IsArray(v) {
+				defaultValue = helper.ToList[interface{}](v)
+			} else {
+				defaultValue = []interface{}{}
+			}
+		} else {
+			defaultValue = v
+		}
 	}
 
 	if v, ok := field["options"]; ok {
@@ -373,8 +391,16 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 		}
 	}
 
-	if v, ok := field["foreignKey"]; ok {
-		if vi, oki := v.(string); oki && helper.IsNotEmpty(vi) {
+	rv, rok := field["foreignKey"]
+	if !rok {
+		rv, rok = field["relation"]
+	}
+	if !rok {
+		rv, rok = field["source"]
+	}
+
+	if rok {
+		if vi, oki := rv.(string); oki && helper.IsNotEmpty(vi) {
 			ks := strings.Split(vi, ".")
 			size := len(ks)
 
@@ -383,10 +409,10 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 
 			switch size {
 			case 2:
-				parentCollection = ks[0]
+				parentCollection = helper.Singularize(ks[0])
 				parentKey = ks[1]
 			case 1:
-				parentCollection = ks[0]
+				parentCollection = helper.Singularize(ks[0])
 			}
 
 			if parentKey == "id" {
@@ -415,6 +441,7 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 		DefaultValue: defaultValue,
 		ForeignKey:   foreignKey,
 		Options:      options,
+		IsArray:      isArray,
 	}
 }
 

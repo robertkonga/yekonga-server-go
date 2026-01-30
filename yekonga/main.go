@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -65,6 +66,7 @@ type YekongaData struct {
 	middlewares            []Middleware
 	initMiddlewares        []Middleware
 	preloadMiddlewares     []Middleware
+	catchMiddlewares       []Middleware
 	models                 map[string]*DataModel
 	resolverChartGroupData map[string]ResolverChartGroupData
 	databaseStructure      *DatabaseStructureType
@@ -98,6 +100,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		middlewares:            make([]Middleware, 0, 5),
 		initMiddlewares:        make([]Middleware, 0, 5),
 		preloadMiddlewares:     make([]Middleware, 0, 5),
+		catchMiddlewares:       make([]Middleware, 0, 5),
 		functions:              make(map[string]CloudFunction),
 		systemFunctions:        make(map[string]SystemHandler),
 		primaryFunctions:       make(map[PrimaryCloudKey]BackendCloudFunction),
@@ -155,16 +158,38 @@ func parseRoute(pattern string) ([]string, string) {
 	params := []string{}
 	normalized := []string{}
 
+	paramExtractor := regexp.MustCompile(`^([a-zA-Z0-9]+)(.*)$`)
+
 	for _, part := range parts {
 		if strings.HasPrefix(part, ":") {
-			params = append(params, part[1:])
-			normalized = append(normalized, "([^/]+)")
+			paramNameSuffix := part[1:] // Remove the leading ":"
+			matches := paramExtractor.FindStringSubmatch(paramNameSuffix)
+			if len(matches) > 2 {
+				paramName := matches[1]       // e.g., "id" or "patten"
+				trailingLiteral := matches[2] // e.g., "-view" or ".svg" or ""
+
+				params = append(params, paramName)
+				// The regex for the actual matching should be "([^/]+)" followed by the escaped trailing literal.
+				normalized = append(normalized, "([^/]+)"+regexp.QuoteMeta(trailingLiteral))
+			} else {
+				// Fallback for cases where paramExtractor doesn't fully match,
+				// which implies the parameter name itself (after ':') might not start with [a-zA-Z0-9]+.
+				// In such cases, we'll treat the entire suffix as the parameter name and use a generic wildcard.
+				params = append(params, paramNameSuffix)
+				normalized = append(normalized, "([^/]+)")
+			}
 		} else {
-			normalized = append(normalized, part)
+			// Escape literal parts to handle special regex characters in static path segments
+			normalized = append(normalized, regexp.QuoteMeta(part))
 		}
 	}
 
 	return params, "^" + strings.Join(normalized, "/") + "$"
+}
+
+func isValidParam(param string) bool {
+	match, _ := regexp.MatchString("^[a-zA-Z0-9]+$", param)
+	return match
 }
 
 // matchRoute checks if a path matches a route pattern and extracts parameters
@@ -177,10 +202,35 @@ func matchRoute(pattern string, paramNames []string, path string) (bool, map[str
 	}
 
 	params := make(map[string]string)
+	paramIdx := 0
+
 	for i, part := range patternParts {
 		if strings.HasPrefix(part, ":") {
-			paramName := part[1:]
-			params[paramName] = pathParts[i]
+			if paramIdx >= len(paramNames) {
+				return false, nil
+			}
+
+			paramName := paramNames[paramIdx]
+			prefix := ":" + paramName
+
+			if !strings.HasPrefix(part, prefix) {
+				return false, nil
+			}
+
+			suffix := part[len(prefix):]
+
+			if !strings.HasSuffix(pathParts[i], suffix) {
+				return false, nil
+			}
+
+			paramVal := strings.TrimSuffix(pathParts[i], suffix)
+
+			if !isValidParam(paramVal) {
+				return false, nil
+			}
+
+			params[paramName] = paramVal
+			paramIdx++
 		} else if part != pathParts[i] {
 			return false, nil
 		}
@@ -233,6 +283,7 @@ func (y *YekongaData) findRoute(method, path string) (*Route, map[string]string)
 			return &route, params
 		}
 	}
+
 	return nil, nil
 }
 
@@ -247,6 +298,26 @@ func (y *YekongaData) Middleware(middleware Middleware, middlewareType Middlewar
 	default:
 		y.logger.Printf("Unknown middlewares type: %s, select between global, init, or preload", middlewareType)
 	}
+}
+
+func (y *YekongaData) PreloadMiddlewares(middleware Middleware) {
+	y.preloadMiddlewares = append(y.preloadMiddlewares, middleware)
+}
+
+func (y *YekongaData) GlobalMiddleware(middleware Middleware) {
+	y.middlewares = append(y.middlewares, middleware)
+}
+
+func (y *YekongaData) InitMiddleware(middleware Middleware) {
+	y.initMiddlewares = append(y.initMiddlewares, middleware)
+}
+
+func (y *YekongaData) CatchMiddleware(middleware Middleware) {
+	y.catchMiddlewares = append(y.catchMiddlewares, middleware)
+}
+
+func (y *YekongaData) Catch(middleware Middleware) {
+	y.catchMiddlewares = append(y.catchMiddlewares, middleware)
 }
 
 func (y *YekongaData) Get(path string, handler Handler) {
@@ -465,29 +536,6 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&rawBody)
 
 	route, params := y.findRoute(r.Method, r.URL.Path)
-	if route == nil {
-		var htmlPage []byte
-		var err error
-		var textPage []byte
-
-		if r.URL.Path == "" || r.URL.Path == "/" || r.URL.Path == "/index.html" {
-			textPage = []byte("Welcome to Yekonga Server")
-			htmlPage, err = StaticFS.ReadFile("static/index.html")
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			textPage = []byte("404 Page Not Found")
-			htmlPage, err = StaticFS.ReadFile("static/404.html")
-		}
-
-		if err != nil {
-			// If the file is missing or there's an error, send a default message
-			w.Write(textPage)
-			return
-		}
-
-		w.Write(htmlPage) // Send the custom 404 page content
-		return
-	}
 
 	req := Request{
 		HttpRequest: r,
@@ -562,6 +610,38 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+	}
+
+	if route == nil {
+		var htmlPage []byte
+		var err error
+		var textPage []byte
+
+		// Apply middlewares
+		for _, middleware := range y.catchMiddlewares {
+			if middleware != nil {
+				err = middleware(&req, &res)
+				return
+			}
+		}
+
+		if r.URL.Path == "" || r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			textPage = []byte("Welcome to Yekonga Server")
+			htmlPage, err = StaticFS.ReadFile("static/index.html")
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			textPage = []byte("404 Page Not Found")
+			htmlPage, err = StaticFS.ReadFile("static/404.html")
+		}
+
+		if err != nil {
+			// If the file is missing or there's an error, send a default message
+			w.Write(textPage)
+			return
+		}
+
+		w.Write(htmlPage) // Send the custom 404 page content
+		return
 	}
 
 	// Execute route handler

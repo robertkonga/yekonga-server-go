@@ -18,6 +18,7 @@ const (
 	GlobalMiddleware  MiddlewareType = "global"
 	InitMiddleware    MiddlewareType = "init"
 	PreloadMiddleware MiddlewareType = "preload"
+	CatchMiddleware   MiddlewareType = "catch"
 )
 
 // Middleware to set client detail
