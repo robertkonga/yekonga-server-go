@@ -654,7 +654,7 @@ func redirectToHTTPS(w http.ResponseWriter, r *http.Request) {
 }
 
 func (y *YekongaData) Stop() {
-	if y.socketServer != nil {
+	if helper.IsNotEmpty(y.socketServer) {
 		y.socketServer.Close()
 	}
 }

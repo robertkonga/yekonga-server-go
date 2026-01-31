@@ -300,6 +300,23 @@ func (r *Request) TokenPayload() *TokenPayload {
 	return nil
 }
 
+func (r *Request) TenantId() *string {
+	data, exists := r.Context[string(CurrentTenantId)]
+	if !exists {
+		return nil
+	}
+
+	if m, ok := data.(string); ok {
+		return &m
+	}
+
+	return nil
+}
+
+func (r *Request) SetTenantId(tenantId string) {
+	r.SetContext(string(CurrentTenantId), tenantId)
+}
+
 func (r *Request) Token() string {
 	// Implementation for JWT token parsing
 	return r.GetHeader("token")

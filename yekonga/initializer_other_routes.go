@@ -93,6 +93,7 @@ func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 func (y *YekongaData) initializerOtherRoutes() {
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
+
 		list := y.ModelQuery("TranslatorLanguage").Find(nil)
 		count := len(*list)
 
@@ -102,7 +103,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 				"locale": e["locale"],
 				"name":   e["name"],
 				"flag":   e["flag"],
-				"id":     e["id"],
+				"id":     e["locale"],
 			}
 
 			languages = append(languages, d)

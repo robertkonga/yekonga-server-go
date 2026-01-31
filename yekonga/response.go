@@ -38,6 +38,7 @@ func (res *Response) Abort(code int, message string) {
 	res.Status(code)
 
 	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
+
 	switch code {
 	case 400:
 		if helper.IsEmpty(message) {
@@ -70,6 +71,8 @@ func (res *Response) Abort(code int, message string) {
 
 		contentUrl = "static/500.html"
 	}
+
+	console.Error("Abort:", code, message)
 
 	if isJson {
 		res.Json(map[string]interface{}{

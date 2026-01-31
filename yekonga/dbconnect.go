@@ -108,8 +108,14 @@ func (dc *DatabaseConnections) close() {
 
 func (dc *DatabaseConnections) mongodbConnect() {
 	// // Set MongoDB URI
+	srv := ""
+	if dc.config.Database.Srv {
+		srv = "+srv"
+	}
+
 	connectionUrl := fmt.Sprintf(
-		"mongodb://%v:%v",
+		"mongodb%s://%v:%v",
+		srv,
 		dc.config.Database.Host,
 		dc.config.Database.Port,
 	)

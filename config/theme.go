@@ -22,6 +22,7 @@ func LoadTheme[T any](data string) (*T, error) {
 
 // LoadTheme reads a JSON file and unmarshals it into a Theme struct
 func LoadThemeFile(filePath string) (*Theme, error) {
+	// filePath = getPath(filePath)
 	// Open the JSON file
 	file, err := os.Open(filePath)
 	if err != nil {

@@ -284,7 +284,7 @@ func (y *YekongaData) logoutHandler(req *Request, res *Response) {
 		Request:  req,
 		Response: res,
 	}
-	y.clearAuthCookies(requestContext)
+	y.clearAuthCookies(requestContext, req.Client().OriginDomain())
 
 	res.Status(http.StatusOK)
 	res.Json(datatype.DataMap{

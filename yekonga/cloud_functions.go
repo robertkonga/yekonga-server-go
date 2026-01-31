@@ -58,6 +58,7 @@ const (
 	UserInfoPayloadKey ContextKey = "userInfoPayload"
 	ClientPayloadKey   ContextKey = "clientPayload"
 	TokenPayloadKey    ContextKey = "tokenPayload"
+	CurrentTenantId    ContextKey = "currentTenantId"
 	RequestKey         ContextKey = "requestObject"
 	YekongaKey         ContextKey = "yekongaObject"
 	RequestContextKey  ContextKey = "requestContext"

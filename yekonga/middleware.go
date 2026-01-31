@@ -75,6 +75,7 @@ func ClientMiddleware(req *Request, res *Response) error {
 		}
 	}
 
+	req.SetTenantId(client.TenantId)
 	req.SetContext(string(ClientPayloadKey), client)
 
 	return nil
@@ -84,9 +85,10 @@ func ClientMiddleware(req *Request, res *Response) error {
 func TokenMiddleware(req *Request, res *Response) error {
 	app := req.App
 	config := req.App.Config
-	client := req.Client()
-	domain := client.OriginDomain()
+	clientPayload := req.Client()
+	domain := clientPayload.OriginDomain()
 
+	var isValid bool
 	var accessToken string
 	var refreshToken string
 	var tokenPayload datatype.DataMap
@@ -110,7 +112,20 @@ func TokenMiddleware(req *Request, res *Response) error {
 	}
 
 	if helper.IsNotEmpty(accessToken) {
-		_, tokenPayload = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
+		isValid, tokenPayload = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
+
+		if !isValid || helper.IsEmpty(tokenPayload) {
+			requestContext := &RequestContext{
+				App:      req.App,
+				Auth:     req.Auth(),
+				Client:   req.Client(),
+				Request:  req,
+				Response: res,
+			}
+			req.App.clearAuthCookies(requestContext, domain)
+
+			return errors.New("Access token invalid")
+		}
 
 		var payload TokenPayload
 		json.Unmarshal([]byte(helper.ToJson(tokenPayload)), &payload)
@@ -120,11 +135,21 @@ func TokenMiddleware(req *Request, res *Response) error {
 		}
 
 		if domain != payload.Domain {
+			requestContext := &RequestContext{
+				App:      req.App,
+				Auth:     req.Auth(),
+				Client:   req.Client(),
+				Request:  req,
+				Response: res,
+			}
+			req.App.clearAuthCookies(requestContext, payload.Domain)
+
 			return errors.New("Domain mismatch expired")
 		}
 
 		req.SetContext(string(AccessTokenKey), accessToken)
 		req.SetContext(string(TokenPayloadKey), payload)
+		req.SetTenantId(payload.TenantId)
 	}
 
 	if helper.IsNotEmpty(refreshToken) {

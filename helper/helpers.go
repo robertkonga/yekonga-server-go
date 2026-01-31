@@ -604,6 +604,8 @@ func LoadFile(filename string) string {
 
 // LoadJSONFile reads a JSON file and converts it to a map
 func LoadJSONFile(filename string) (map[string]interface{}, error) {
+	filename = GetPath(filename)
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -1331,6 +1333,21 @@ func GetPublicPath() (string, error) {
 }
 
 func GetPath(relativePath string) string {
+	if filepath.IsAbs(relativePath) {
+		if FileExists(relativePath) {
+			return relativePath
+		}
+	}
+
+	if FileExists(relativePath) {
+		absPath, err := filepath.Abs(relativePath)
+		if err != nil {
+			return relativePath
+		}
+		return absPath
+	}
+
+	// 1. Get the path of the executable
 	ex, err := os.Executable()
 	if err != nil {
 		log.Fatalf("Error getting executable path: %v", err)
@@ -2157,4 +2174,14 @@ func ExtractDomain(input string) string {
 	}
 
 	return u.Host
+}
+
+func IsProduction() bool {
+	return os.Getenv("APP_ENV") == "production" ||
+		os.Getenv("GIN_MODE") == "release" ||
+		os.Getenv("ENV") == "prod"
+}
+
+func IsDevelopment() bool {
+	return !IsProduction()
 }
