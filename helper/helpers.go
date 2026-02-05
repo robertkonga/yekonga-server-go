@@ -53,6 +53,33 @@ func IsMap(data interface{}) bool {
 	return false
 }
 
+func ToDataMap(data interface{}) datatype.DataMap {
+    switch v := data.(type) {
+	case map[string]interface{}:
+		return datatype.DataMap(v)
+	case datatype.Record:
+		return datatype.DataMap(map[string]interface{}(v))
+	case datatype.DataMap:
+		return v
+	case datatype.Context:
+		return datatype.DataMap(map[string]interface{}(v))
+	case datatype.ContextObject:
+		newMap := make(map[string]interface{}, len(v))
+		for key, val := range v {
+			newMap[key] = val
+		}
+		return datatype.DataMap(newMap)
+	case datatype.JsonObject:
+		return datatype.DataMap(map[string]interface{}(v))
+	case bson.M:
+		return datatype.DataMap(map[string]interface{}(v))
+
+    default:
+        // You could also initialize an empty map here: make(DataMap)
+        return nil 
+    }
+}
+
 func ToInt(value interface{}) int {
 	number := 0
 	if v, ok := value.(string); ok {
@@ -811,7 +838,7 @@ func FileExists(filename string) bool {
 	_, err := os.Stat(filename)
 
 	if err != nil {
-		console.Error("FileExists", err)
+		// console.Error("FileExists", err)
 	}
 
 	return !os.IsNotExist(err)
@@ -1458,6 +1485,16 @@ func GetValueOf(data interface{}, key string) interface{} {
 // }
 
 func GetMapValue(data interface{}, key string) interface{} {
+	if str, ok := data.(string); ok {
+		var d map[string]interface{}
+		if err := json.Unmarshal([]byte(str), &d); err == nil {
+			data = d
+		} else {
+			console.Info(d, err.Error())
+			console.Info(data)
+		}
+	}
+
 	keys := strings.Split(key, ".")
 	first := keys[0]
 	var localData interface{}

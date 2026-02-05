@@ -1736,7 +1736,7 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	}
 
 	if ctx != nil {
-		model.setRequest(ctx)
+		model.SetRequestContext(ctx)
 	}
 
 	localWhere := helper.ToMap[interface{}](p.Args["where"])

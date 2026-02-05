@@ -87,45 +87,34 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			console.Error("Debug", 1)
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var result = ActionResponse{
 				Message: "Fail",
 			}
-			console.Error("Debug", 2)
 			var user datatype.DataMap
 			var data map[string]interface{} = g.getInputData(p.Args)
-			console.Error("Debug", 3)
 			var tenantId = req.Client.TenantId
 
-			console.Error("Debug", 4)
 			var username = helper.GetValueOfString(data, "username")
-			console.Error("Debug", 5)
 			var usernameType = helper.GetValueOfString(data, "usernameType")
-			console.Error("Debug", 6)
 			var userId = ""
 			if helper.IsPhone(username) {
 				username = helper.PhoneFormat(username)
 			}
-			console.Error("Debug", 7)
-			console.Error("Debug", tenantId)
 
 			if helper.IsNotEmpty(tenantId) {
-				console.Error("Debug", 8)
 				if helper.IsNotEmpty(username) {
 					user = g.yekonga.GetUser(username, false)
 					if helper.IsNotEmpty(user) {
 						userId = helper.GetValueOfString(user, "_id")
 					}
 				}
-				console.Error("Debug", 9)
 
 				if helper.IsNotEmpty(userId) {
 					tenant := req.App.ModelQuery(tenantModelName).Exist(datatype.DataMap{
 						"id":     tenantId,
 						"userId": userId,
 					})
-					console.Error("Debug", 10)
 
 					if !tenant {
 						tenantUser := req.App.ModelQuery(tenantUserModelName).Exist(datatype.DataMap{
@@ -137,46 +126,36 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 							return nil, errors.New("User does not exist")
 						}
 					}
-					console.Error("Debug", 11)
 				}
 			} else {
-				console.Error("Debug", 12.0)
 				if helper.IsNotEmpty(username) {
-					console.Error("Debug", 12.1)
 					user = g.yekonga.GetUser(username, true)
 				}
-				console.Error("Debug", 12.2)
 				userId = helper.GetValueOfString(user, "_id")
 			}
 
-			console.Error("Debug", 13)
 			g.yekonga.RecordLoginAttempt("otp", p.Context, AttemptData{
 				UserID:   userId,
 				Username: username,
 			})
 
-			console.Error("Debug", 14)
 			triggerResult, _ := g.yekonga.authTriggerCallback(BeforeOtpTriggerAction, req, &QueryContext{
 				Data:  data,
 				Input: data,
 			})
-			console.Error("Debug", 15)
 
 			if v, ok := triggerResult.(bool); ok && !v {
 				return nil, errors.New("Rejected by BeforeOtpTriggerAction")
 			}
-			console.Error("Debug", 16)
 
 			if user != nil {
 				result.Status = true
 				result.Message = "Success"
-				console.Error("Debug", 17)
 
 				otpCode := helper.GetValueOfString(user, "otpCode")
 				phone := helper.GetValueOfString(user, "phone")
 				email := helper.GetValueOfString(user, "email")
 				whatsapp := helper.GetValueOfString(user, "whatsapp")
-				console.Error("Debug", 18)
 
 				if helper.IsPhone(username) {
 					if usernameType == "whatsapp" {
@@ -187,9 +166,8 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 				} else if helper.IsEmail(username) {
 					email = username
 				}
-				console.Error("Debug", 19)
 
-				if helper.IsEmpty(user["otpCode"]) {
+				if helper.IsEmpty(otpCode) {
 					otpCode = helper.GetRandomInt(4)
 					otpCreatedAt := helper.GetTimestamp(nil)
 
@@ -198,7 +176,6 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 						"otpCreatedAt": otpCreatedAt,
 					}, nil)
 				}
-				console.Error("Debug", 20)
 
 				message := otpCode + " is your verification code. For security, do not share this code."
 
@@ -213,15 +190,12 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 					HTML:     message,
 					Whatsapp: message,
 				})
-				console.Error("Debug", 21)
-
 			}
 
 			g.yekonga.authTriggerCallback(AfterOtpTriggerAction, req, &QueryContext{
 				Data:  result,
 				Input: data,
 			})
-			console.Error("Debug", 22)
 
 			return result.ToMap(), nil
 		},
@@ -251,11 +225,8 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			console.Error("Debug", 1)
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			console.Error("Debug", 1)
 			var input map[string]interface{} = g.getInputData(p.Args)
-			console.Error("Debug", 1)
 			var user datatype.DataMap
 			var username = helper.GetValueOfString(input, "username")
 			var usernameType = helper.GetValueOfString(input, "usernameType")

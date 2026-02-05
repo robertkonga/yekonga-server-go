@@ -70,11 +70,18 @@ func (a *AuthPayload) ToJson() string {
 }
 
 type TokenPayload struct {
-	Domain      string    `json:"domain"`
-	TenantId    string    `json:"tenantId"`
-	ProfileId   string    `json:"profileId"`
-	UserId      string    `json:"userId"`
-	AdminId     string    `json:"adminId"`
+	Domain    string `json:"domain"`
+	TenantId  string `json:"tenantId"`
+	ProfileId string `json:"profileId"`
+	UserId    string `json:"userId"`
+	AdminId   string `json:"adminId"`
+
+	UsernameType string `json:"usernameType"`
+	Username     string `json:"username"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
+	Whatsapp     string `json:"whatsapp"`
+
 	Roles       []string  `json:"roles"`
 	Permissions []string  `json:"permissions"`
 	ExpiresAt   time.Time `json:"expiresAt"`
@@ -82,14 +89,19 @@ type TokenPayload struct {
 
 func (a *TokenPayload) ToMap() map[string]interface{} {
 	result := map[string]interface{}{
-		"domain":      a.Domain,
-		"userId":      a.UserId,
-		"tenantId":    a.TenantId,
-		"profileId":   a.ProfileId,
-		"adminId":     a.AdminId,
-		"roles":       a.Roles,
-		"permissions": a.Permissions,
-		"expiresAt":   a.ExpiresAt,
+		"domain":       a.Domain,
+		"userId":       a.UserId,
+		"tenantId":     a.TenantId,
+		"profileId":    a.ProfileId,
+		"adminId":      a.AdminId,
+		"username":     a.Username,
+		"usernameType": a.UsernameType,
+		"phone":        a.Phone,
+		"email":        a.Email,
+		"whatsapp":     a.Whatsapp,
+		"roles":        a.Roles,
+		"permissions":  a.Permissions,
+		"expiresAt":    a.ExpiresAt,
 	}
 
 	return result

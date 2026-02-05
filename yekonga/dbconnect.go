@@ -8,6 +8,7 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	localDB "github.com/robertkonga/yekonga-server-go/plugins/database/db"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
@@ -113,12 +114,21 @@ func (dc *DatabaseConnections) mongodbConnect() {
 		srv = "+srv"
 	}
 
-	connectionUrl := fmt.Sprintf(
-		"mongodb%s://%v:%v",
-		srv,
-		dc.config.Database.Host,
-		dc.config.Database.Port,
-	)
+	connectionUrl := ""
+	if helper.IsEmpty(dc.config.Database.Port) || string(dc.config.Database.Port) == "80" {
+		connectionUrl = fmt.Sprintf(
+			"mongodb%s://%v",
+			srv,
+			dc.config.Database.Host,
+		)
+	} else {
+		connectionUrl = fmt.Sprintf(
+			"mongodb%s://%v:%v",
+			srv,
+			dc.config.Database.Host,
+			dc.config.Database.Port,
+		)
+	}
 
 	// logger.Info("connectionUrl", connectionUrl)
 	clientOptions := options.Client().ApplyURI(connectionUrl)
@@ -137,9 +147,9 @@ func (dc *DatabaseConnections) mongodbConnect() {
 		}
 
 		credential := options.Credential{
-			AuthMechanism: "PLAIN",
-			Username:      username,
-			Password:      password,
+			// AuthMechanism: "PLAIN",
+			Username: username,
+			Password: password,
 		}
 		clientOptions.SetAuth(credential)
 	}
@@ -147,7 +157,7 @@ func (dc *DatabaseConnections) mongodbConnect() {
 	client, err := mongo.Connect(clientOptions)
 
 	if err != nil {
-		logger.Error("Could not connect to MongoDB", err)
+		logger.Error("Could not connect to MongoDB", err, client)
 	} else {
 		logger.Success("Connected to MongoDB!")
 	}

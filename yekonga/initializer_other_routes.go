@@ -1,7 +1,12 @@
 package yekonga
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"path"
+	"path/filepath"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
@@ -91,6 +96,15 @@ func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 }
 
 func (y *YekongaData) initializerOtherRoutes() {
+
+	y.All("/upload", func(req *Request, res *Response) {
+		uploadFileHandler(*res.httpResponseWriter, req.HttpRequest)
+	})
+
+	y.All("/upload-files", func(req *Request, res *Response) {
+		uploadMultipleFileHandler(*res.httpResponseWriter, req.HttpRequest)
+	})
+
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
 
@@ -331,4 +345,90 @@ func runCustomCSS(y *YekongaData) Handler {
 		res.Header("content-type", "text/css; charset=utf-8")
 		res.Byte([]byte(content))
 	}
+}
+
+func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. Parse the multipart form (max 32MB in memory)
+	err := r.ParseMultipartForm(32 << 20)
+	if err != nil {
+		http.Error(w, "Form too large", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Retrieve the file from form data
+	file, handler, err := r.FormFile("file")
+
+	if err != nil {
+		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	fmt.Printf("Uploaded File: %+v\n", handler.Filename)
+	fmt.Printf("File Size: %+v\n", handler.Size)
+
+	// 3. Create the destination directory if it doesn't exist
+	uploadDir := helper.GetPath("public/uploads")
+	os.MkdirAll(uploadDir, os.ModePerm)
+
+	// 4. Create a local file to save the uploaded data
+	dst, err := os.Create(filepath.Join(uploadDir, handler.Filename))
+	if err != nil {
+		http.Error(w, "Error saving the file", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	// 5. Copy the uploaded file to the destination
+	if _, err := io.Copy(dst, file); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(w, "Successfully Uploaded File\n")
+}
+
+func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
+	// 1. Parse the multipart form (max 32MB in memory)
+	err := r.ParseMultipartForm(32 << 20)
+	if err != nil {
+		http.Error(w, "Form too large", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Get the files from the specific key
+	files := r.MultipartForm.File["files"]
+
+	uploadDir := helper.GetPath("public/uploads")
+	os.MkdirAll(uploadDir, os.ModePerm)
+
+	for _, fileHeader := range files {
+		// Open the uploaded file
+		file, err := fileHeader.Open()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		// 3. Create destination path
+		dstPath := filepath.Join(uploadDir, fileHeader.Filename)
+		dst, err := os.Create(dstPath)
+		if err != nil {
+			http.Error(w, "Unable to save file", http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+
+		// 4. Copy the data
+		if _, err := io.Copy(dst, file); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		fmt.Printf("Saved: %s\n", fileHeader.Filename)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "All files uploaded successfully")
 }

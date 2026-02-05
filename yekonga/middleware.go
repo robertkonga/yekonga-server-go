@@ -73,6 +73,10 @@ func ClientMiddleware(req *Request, res *Response) error {
 				client.TenantId = helper.GetValueOfString(tenant, "_id")
 			}
 		}
+
+		if helper.IsEmpty(client.TenantId) && req.App.Config.TenantOnly {
+			return errors.New("tenant not found for the request")
+		}
 	}
 
 	req.SetTenantId(client.TenantId)
@@ -91,7 +95,8 @@ func TokenMiddleware(req *Request, res *Response) error {
 	var isValid bool
 	var accessToken string
 	var refreshToken string
-	var tokenPayload datatype.DataMap
+	var tokenPayloadMap datatype.DataMap
+	var tokenPayload TokenPayload
 
 	accessCookie, err := req.HttpRequest.Cookie(string(AccessTokenKey))
 	if err == nil {
@@ -112,9 +117,9 @@ func TokenMiddleware(req *Request, res *Response) error {
 	}
 
 	if helper.IsNotEmpty(accessToken) {
-		isValid, tokenPayload = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
+		isValid, tokenPayloadMap = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
 
-		if !isValid || helper.IsEmpty(tokenPayload) {
+		if !isValid || helper.IsEmpty(tokenPayloadMap) {
 			requestContext := &RequestContext{
 				App:      req.App,
 				Auth:     req.Auth(),
@@ -127,14 +132,13 @@ func TokenMiddleware(req *Request, res *Response) error {
 			return errors.New("Access token invalid")
 		}
 
-		var payload TokenPayload
-		json.Unmarshal([]byte(helper.ToJson(tokenPayload)), &payload)
+		json.Unmarshal([]byte(helper.ToJson(tokenPayloadMap)), &tokenPayload)
 
-		if payload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
+		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
 			return errors.New("Token expired")
 		}
 
-		if domain != payload.Domain {
+		if domain != tokenPayload.Domain {
 			requestContext := &RequestContext{
 				App:      req.App,
 				Auth:     req.Auth(),
@@ -142,21 +146,27 @@ func TokenMiddleware(req *Request, res *Response) error {
 				Request:  req,
 				Response: res,
 			}
-			req.App.clearAuthCookies(requestContext, payload.Domain)
+			req.App.clearAuthCookies(requestContext, tokenPayload.Domain)
 
 			return errors.New("Domain mismatch expired")
 		}
 
+		if req.App.Config.TenantOnly {
+			if helper.IsNotEmpty(tokenPayload) && helper.IsEmpty(tokenPayload.TenantId) {
+				return errors.New("tenant not found for the request")
+			}
+		}
+
 		req.SetContext(string(AccessTokenKey), accessToken)
-		req.SetContext(string(TokenPayloadKey), payload)
-		req.SetTenantId(payload.TenantId)
+		req.SetContext(string(TokenPayloadKey), tokenPayload)
+		req.SetTenantId(tokenPayload.TenantId)
 	}
 
 	if helper.IsNotEmpty(refreshToken) {
 		req.SetContext(string(RefreshTokenKey), refreshToken)
 	}
 
-	if config.MustAuthorized {
+	if config.AuthorizedOnly {
 		paths := []string{
 			app.AppendBaseUrl("/me"),
 			app.AppendBaseUrl(config.RestApi),

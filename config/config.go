@@ -81,9 +81,11 @@ type YekongaConfig struct {
 	ResetOTP                bool     `json:"resetOTP"`                // Enable or disable OTP reset
 	Environment             string   `json:"environment"`             // Application environment (e.g., development, production)
 	HasTenant               bool     `json:"hasTenant"`               // Enable multi-tenancy
+	TenantOnly              bool     `json:"tenantOnly"`              // Restrict access to tenants only
 	SecureAuthentication    bool     `json:"secureAuthentication"`    // Enable or disable secure authentication
 	IsAuthorizationServer   bool     `json:"isAuthorizationServer"`   // Designate as an authorization server
-	MustAuthorized          bool     `json:"mustAuthorized"`          // Require authorization for all requests
+	AuthorizeTenantUserOnly bool     `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
+	AuthorizedOnly          bool     `json:"mustAuthorized"`          // Require authorization for all requests
 	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
 	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
 	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp

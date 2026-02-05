@@ -9,7 +9,6 @@ import (
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
@@ -40,20 +39,16 @@ type LoginData struct {
 }
 
 func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMap {
-	console.Error("GetUser.Debug", 1)
-
 	const userModelName = "User"
 	const profileModelName = "Profile"
 	var userId string
 	var username string
 	var usernameType string = "phone"
 	var user *datatype.DataMap
-	console.Error("GetUser.Debug", 2)
 
 	if v, ok := value.(string); ok {
 		username = v
 	} else if helper.IsNotEmpty(value) {
-		console.Error("GetUser.Debug", 3)
 		v := helper.ToMap[interface{}](value)
 
 		if v, ok := v["username"]; ok {
@@ -68,14 +63,10 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			}
 		}
 	}
-	console.Error("GetUser.Debug", 4)
 
 	if helper.IsNotEmpty(userId) {
-		console.Error("GetUser.Debug", 5)
 		user = y.ModelQuery(userModelName).Where("id", userId).FindOne(nil)
-		console.Error("GetUser.Debug", 6)
 	} else if helper.IsNotEmpty(username) {
-		console.Error("GetUser.Debug", 7)
 		if helper.IsEmail(username) {
 			usernameType = "email"
 		} else if helper.IsPhone(username) {
@@ -83,12 +74,9 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			username = helper.PhoneFormat(username)
 		}
 
-		console.Error("GetUser.Debug", 8)
 		user = y.ModelQuery(userModelName).Where("username", username).FindOne(nil)
-		console.Error("GetUser.Debug", 9)
 
 		if helper.IsEmpty(user) && canCreate {
-			console.Error("GetUser.Debug", 10)
 			res := y.ModelQuery(userModelName).Create(datatype.DataMap{
 				"usernameType": usernameType,
 				"username":     username,
@@ -99,37 +87,28 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 				"updatedAt":    helper.GetTimestamp(nil),
 				"createdAt":    helper.GetTimestamp(nil),
 			})
-			console.Error("GetUser.Debug", res)
-			console.Error("GetUser.Debug", 11)
 
 			if v, ok := res.(*datatype.DataMap); ok {
 				user = v
 			}
 		}
 	}
-	console.Error("GetUser.Debug", 12)
 
 	if helper.IsNotEmpty(user) {
-		console.Error("GetUser.Debug", 13)
 		userId := helper.GetValueOfString(user, "id")
 		profile := y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
-		console.Error("GetUser.Debug", 14)
 
 		if profile == nil {
-			console.Error("GetUser.Debug", 15)
 			y.ModelQuery(profileModelName).Create(datatype.DataMap{
 				"userId":    userId,
 				"name":      "Private Profile",
 				"updatedAt": helper.GetTimestamp(nil),
 				"createdAt": helper.GetTimestamp(nil),
 			})
-			console.Error("GetUser.Debug", 16)
 		}
 	}
 
-	console.Error("GetUser.Debug", 17)
 	if helper.IsEmpty(user) {
-		console.Error("GetUser.Debug", 18)
 		return datatype.DataMap{}
 	}
 
@@ -290,6 +269,37 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 
 	user := y.GetUser(datatype.DataMap{"userId": userId}, false)
 	profileIds := GetProfileIds(y, userId)
+	publicKeys := []string{
+		"id",
+		"dateOfBirth",
+		"email",
+		"firstName",
+		"gender",
+		"isActive",
+		"isBanned",
+		"isEmailVerified",
+		"isPhoneVerified",
+		"isWhatsappVerified",
+		"lastName",
+		"phone",
+		"profileUrl",
+		"role",
+		"secondName",
+		"status",
+		"tenantId",
+		"token",
+		"userType",
+		"username",
+		"usernameType",
+		"whatsapp",
+		"owner",
+		"profileRole",
+		"profileName",
+		"profileId",
+		"isAdmin",
+		"isManager",
+		"additionalFields",
+	}
 
 	filteredData := datatype.DataMap{}
 
@@ -308,12 +318,17 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	if helper.IsNotEmpty(user) {
 		model := y.Model(userModelName)
 		payload := TokenPayload{
-			TenantId:    *req.Request.TenantId(),
-			Domain:      domain,
-			UserId:      userId,
-			Roles:       make([]string, 0), // ["admin", "finance"],
-			Permissions: make([]string, 0), // ["payroll.read", "asset.write"],
-			ExpiresAt:   time.Now().Add(time.Minute * 15),
+			TenantId:     *req.Request.TenantId(),
+			Domain:       domain,
+			UserId:       userId,
+			Username:     helper.GetValueOfString(user, "username"),
+			UsernameType: helper.GetValueOfString(user, "usernameType"),
+			Phone:        helper.GetValueOfString(user, "phone"),
+			Email:        helper.GetValueOfString(user, "email"),
+			Whatsapp:     helper.GetValueOfString(user, "whatsapp"),
+			Roles:        make([]string, 0), // ["admin", "finance"],
+			Permissions:  make([]string, 0), // ["payroll.read", "asset.write"],
+			ExpiresAt:    time.Now().Add(time.Minute * 15),
 		}
 
 		userRole := helper.GetValueOf(user, "role")
@@ -371,17 +386,23 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 						}
 					}
 
-					user["AdditionalFields"] = extraFields
+					user["additionalFields"] = extraFields
 				}
 			}
 		}
 
-		for _, key := range model.ValidFields {
+		for _, key := range publicKeys {
 			if helper.Contains(model.Protected, key) {
 				continue
 			}
 
 			filteredData[key] = user[key]
+		}
+
+		if url, ok := filteredData["profileUrl"]; ok && helper.IsNotEmpty(url) {
+			filteredData["profileUrl"] = helper.GetBaseUrl(helper.ToString(url), domain)
+		} else {
+			filteredData["profileUrl"] = helper.GetBaseUrl("/image/profile.png", domain)
 		}
 
 		return &filteredData
