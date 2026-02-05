@@ -503,15 +503,15 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAllAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	triggerBefore = m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	result, err := m.collection().delete()
@@ -521,13 +521,13 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	}
 
 	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
-		result = v
+	if helper.IsMap(triggerAfter) {
+		result = helper.ToDataMap(triggerAfter)
 	}
 
 	triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
-		result = v
+	if helper.IsMap(triggerAfter) {
+		result = helper.ToDataMap(triggerAfter)
 	}
 
 	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
@@ -565,26 +565,28 @@ func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
 	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	result := m.collection().findOne()
 
 	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
+	if helper.IsMap(triggerAfter) {
+		v := helper.ToDataMap(triggerAfter)
 		result = &v
 	}
 
 	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
+	if helper.IsMap(triggerAfter) {
+		v := helper.ToDataMap(triggerAfter)
 		result = &v
 	}
 
@@ -598,26 +600,28 @@ func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
 	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	result := m.collection().find()
 
 	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
-	if v, ok := triggerAfter.([]datatype.DataMap); ok {
+	if helper.IsMapList(triggerAfter) {
+		v := helper.ToDataMapList(triggerAfter)
 		result = &v
 	}
 
 	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
-	if v, ok := triggerAfter.([]datatype.DataMap); ok {
+	if helper.IsMapList(triggerAfter) {
+		v := helper.ToDataMapList(triggerAfter)
 		result = &v
 	}
 
@@ -631,26 +635,28 @@ func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
 	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
-	} else if v, ok := triggerBefore.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(triggerBefore) {
+		m.WhereAll(helper.ToDataMap(triggerBefore))
 	}
 
 	result := m.collection().pagination()
 
 	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
+	if helper.IsMap(triggerAfter) {
+		v := helper.ToDataMap(triggerAfter)
 		result = &v
 	}
 
 	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
-	if v, ok := triggerAfter.(datatype.DataMap); ok {
+	if helper.IsMap(triggerAfter) {
+		v := helper.ToDataMap(triggerAfter)
 		result = &v
 	}
 
@@ -664,15 +670,15 @@ func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return m.collection().summary()
@@ -685,15 +691,15 @@ func (m *DataModelQuery) Count(where interface{}) int64 {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return int64(m.collection().count())
@@ -706,15 +712,15 @@ func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return float64(m.collection().sum(target))
@@ -727,15 +733,15 @@ func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return m.collection().max(target)
@@ -748,15 +754,15 @@ func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return m.collection().min(target)
@@ -769,15 +775,15 @@ func (m *DataModelQuery) Average(target string, where interface{}) float64 {
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return 0
-	} else if v, ok := result.(datatype.DataMap); ok {
-		m.WhereAll(v)
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	return m.collection().average(target)

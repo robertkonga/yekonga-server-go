@@ -53,8 +53,29 @@ func IsMap(data interface{}) bool {
 	return false
 }
 
+func IsMapList(data interface{}) bool {
+	// Type assertion to check if data is a map[string]interface{}
+	if _, ok := data.([]map[string]interface{}); ok {
+		return true
+	} else if _, ok := data.([]datatype.Record); ok {
+		return true
+	} else if _, ok := data.([]datatype.DataMap); ok {
+		return true
+	} else if _, ok := data.([]datatype.Context); ok {
+		return true
+	} else if _, ok := data.([]datatype.ContextObject); ok {
+		return true
+	} else if _, ok := data.([]datatype.JsonObject); ok {
+		return true
+	} else if _, ok := data.([]bson.M); ok {
+		return true
+	}
+
+	return false
+}
+
 func ToDataMap(data interface{}) datatype.DataMap {
-    switch v := data.(type) {
+	switch v := data.(type) {
 	case map[string]interface{}:
 		return datatype.DataMap(v)
 	case datatype.Record:
@@ -74,10 +95,33 @@ func ToDataMap(data interface{}) datatype.DataMap {
 	case bson.M:
 		return datatype.DataMap(map[string]interface{}(v))
 
-    default:
-        // You could also initialize an empty map here: make(DataMap)
-        return nil 
-    }
+	default:
+		// You could also initialize an empty map here: make(DataMap)
+		return nil
+	}
+}
+
+func ToDataMapList(data interface{}) []datatype.DataMap {
+	val := reflect.ValueOf(data)
+	if val.Kind() != reflect.Slice {
+		return nil
+	}
+
+	result := make([]datatype.DataMap, val.Len())
+	for i := 0; i < val.Len(); i++ {
+		item := val.Index(i).Interface()
+
+		// Use a simple type switch for the individual items
+		switch m := item.(type) {
+		case datatype.DataMap:
+			result[i] = m
+		case map[string]interface{}:
+			result[i] = datatype.DataMap(m)
+		case datatype.Record: // and so on...
+			result[i] = datatype.DataMap(map[string]interface{}(m))
+		}
+	}
+	return result
 }
 
 func ToInt(value interface{}) int {
