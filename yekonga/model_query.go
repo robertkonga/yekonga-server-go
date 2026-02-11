@@ -338,6 +338,7 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
 
 	if err != nil {
+		console.Log(err.Error())
 		return err
 	}
 
@@ -865,19 +866,20 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 	if v, ok := result.(bool); ok && !v {
 		return nil
-	}
-
-	if where == nil {
-		where = map[string]interface{}{}
+	} else if helper.IsMap(result) {
+		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	var whereFilter map[string]FilterValue
-	if err := json.Unmarshal(helper.ToByte(where), &whereFilter); err != nil {
+	if err := json.Unmarshal(helper.ToByte(helper.ToJson(m.where)), &whereFilter); err != nil {
+		console.Log(err.Error(), m.where)
 		return nil
 	}
 
@@ -958,7 +960,11 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 			}
 
 			if vi, exist := input[k]; exist {
-				v = vi
+				if helper.Contains(m.Model.IDKeys, k) {
+					v = helper.ObjectID(vi)
+				} else {
+					v = vi
+				}
 			} else if field, exist := m.Model.Fields[k]; exist {
 				v = field.DefaultValue
 			}
@@ -987,7 +993,7 @@ func (m *DataModelQuery) formatInputDataField(key string, value interface{}) int
 	var v interface{}
 
 	if helper.IsNotEmpty(value) {
-		if helper.Contains(m.Model.RelativeKeys, key) || key == "id" || key == "_id" {
+		if helper.Contains(m.Model.IDKeys, key) || key == "id" || key == "_id" {
 			v = helper.ObjectID(value)
 		} else if helper.Contains(m.Model.DateFields, key) {
 			v = helper.GetTimestamp(value)

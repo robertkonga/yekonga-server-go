@@ -6,6 +6,7 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 const TenantIDKey = "tenantId"
@@ -84,6 +85,7 @@ type DataModel struct {
 	FloatFields    []string
 	ParentKeys     []string
 	RelativeKeys   []string
+	IDKeys         []string
 	Fields         map[string]DataModelField
 	ParentFields   map[string]DataModelFieldForeignKey
 	ChildrenFields map[string]DataModelFieldForeignKey
@@ -111,8 +113,12 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructureTy
 				parentForeign.Model = models[parentForeign.ModelName]
 			}
 
-			if _, ok := m.ParentFields[parentName]; ok {
+			if _, ok := m.ParentFields[parentName]; !ok {
 				m.ParentFields[parentName] = parentForeign
+			}
+
+			if m.Name == "Location" {
+				console.Success(parentName, parentForeign.ForeignKey, parentForeign.ModelName, parentForeign.PrimaryKey)
 			}
 
 			// --------------------------------
@@ -207,6 +213,8 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 	m.FileFields = make([]string, 0, count)
 	m.ValidFields = make([]string, 0, count)
 	m.ParentKeys = make([]string, 0, count)
+	m.RelativeKeys = make([]string, 0, count)
+	m.IDKeys = make([]string, 0, count)
 	m.Required = make([]string, 0, count)
 	m.Protected = make([]string, 0, count)
 	m.ParentFields = make(map[string]DataModelFieldForeignKey)
@@ -264,6 +272,10 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 		}
 		if len(field.Options) > 0 {
 			m.OptionFields = append(m.OptionFields, k)
+		}
+
+		if field.ID {
+			m.IDKeys = append(m.IDKeys, k)
 		}
 
 		if helper.IsNotEmpty(field.ForeignKey.ModelName) {
@@ -442,6 +454,7 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 		ForeignKey:   foreignKey,
 		Options:      options,
 		IsArray:      isArray,
+		ID:           kind == DataModelID,
 	}
 }
 

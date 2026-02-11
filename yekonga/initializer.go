@@ -316,6 +316,14 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 
 	if helper.IsEmpty(refreshToken) {
 		refreshToken = req.GetContext(string(RefreshTokenKey))
+
+		if helper.IsEmpty(refreshToken) {
+			refreshToken = req.HttpRequest.Header.Get("X-Refresh-Token")
+
+			if helper.IsEmpty(refreshToken) {
+				refreshToken = req.Query("refresh_token")
+			}
+		}
 	}
 
 	if helper.IsNotEmpty(refreshToken) {
@@ -357,11 +365,11 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 						status = http.StatusOK
 
 						if helper.IsEmpty(cookieEnabled) {
-							result[string(AccessTokenKey)] = newAccessToken
-							result[string(RefreshTokenKey)] = newRefreshToken
+							result[helper.ToVariable(string(AccessTokenKey))] = newAccessToken
+							result[helper.ToVariable(string(RefreshTokenKey))] = newRefreshToken
 						} else {
-							result[string(AccessTokenKey)] = "Cookie is set"
-							result[string(RefreshTokenKey)] = "Cookie is set"
+							result[helper.ToVariable(string(AccessTokenKey))] = "Cookie is set"
+							result[helper.ToVariable(string(RefreshTokenKey))] = "Cookie is set"
 						}
 
 						y.setAuthCookies(&RequestContext{

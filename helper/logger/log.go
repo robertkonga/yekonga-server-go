@@ -89,7 +89,11 @@ func printColor(color string, args []any) {
 			}
 		} else {
 			if hasFormat {
-				otherArgs = append(otherArgs, arg)
+				if err, ok := arg.(error); ok {
+					otherArgs = append(otherArgs, err.Error())
+				} else {
+					otherArgs = append(otherArgs, arg)
+				}
 			} else {
 				fmt.Print(getString(arg) + " ")
 			}

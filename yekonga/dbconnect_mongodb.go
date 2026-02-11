@@ -714,27 +714,30 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 						default:
 							innerFilter[ki] = vii
 						}
+
+						filters[k] = innerFilter
 					} else {
 						if viii, ok := con.query.Model.ParentFields[k]; ok {
-							if innerFilter[viii.PrimaryKey] == nil {
-								innerFilter[viii.PrimaryKey] = datatype.DataMap{}
-							}
+							// if innerFilter[viii.PrimaryKey] == nil {
+							// 	// innerFilter[viii.PrimaryKey] = datatype.DataMap{}
+							// }
 
 							list := con.query.Model.App.ModelQuery(viii.ModelName).WhereAll(vi).Find(nil)
-							ids := helper.GetList(list, viii.ForeignKey)
+							ids := helper.GetList(list, viii.PrimaryKey)
+
 							objectIDs := []bson.ObjectID{}
 							for _, v := range ids {
 								objectIDs = append(objectIDs, helper.ObjectID(v))
 							}
 
-							innerFilter[viii.PrimaryKey] = datatype.DataMap{
+							innerFilter[viii.ForeignKey] = datatype.DataMap{
 								"$in": objectIDs,
 							}
 							// fmt.Println("ids.p", ids)
 						} else if viii, ok := con.query.Model.ChildrenFields[k]; ok {
-							if filters[viii.PrimaryKey] == nil {
-								filters[viii.PrimaryKey] = datatype.DataMap{}
-							}
+							// if filters[viii.PrimaryKey] == nil {
+							// 	filters[viii.PrimaryKey] = datatype.DataMap{}
+							// }
 
 							list := con.query.Model.App.ModelQuery(viii.ModelName).WhereAll(vi).Find(nil)
 							ids := helper.GetList(list, viii.ForeignKey)
@@ -748,9 +751,11 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 							}
 							// console.Log("ids.c", ids)
 						}
-					}
 
-					filters[k] = innerFilter
+						for k, v := range innerFilter {
+							filters[k] = v
+						}
+					}
 				}
 			} else {
 				innerFilter := datatype.DataMap{}
@@ -767,6 +772,10 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 				filters[k] = innerFilter
 			}
 		}
+	}
+
+	if con.query.Model.Name == "Project" || con.query.Model.Name == "Client" {
+		console.Log("filters", filters)
 	}
 
 	return filters

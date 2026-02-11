@@ -27,7 +27,7 @@ func (g *GraphqlAutoBuild) GetAuthQuery() *graphql.Object {
 			var input map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(input)
 
 			return user, nil
@@ -122,7 +122,7 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 							"userId":   userId,
 						})
 
-						if tenantUser {
+						if !tenantUser {
 							return nil, errors.New("User does not exist")
 						}
 					}
@@ -435,7 +435,7 @@ func _socialLogin(g *GraphqlAutoBuild) *graphql.Field {
 			data["username"] = username
 			data["usernameType"] = usernameType
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.Create(data)
 
 			return user, nil
@@ -464,7 +464,7 @@ func _contactOTP(g *GraphqlAutoBuild) *graphql.Field {
 			// var type = g.getParamValue(p.Args, "type")
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(input)
 
 			return user, nil
@@ -493,7 +493,7 @@ func _contactVerify(g *GraphqlAutoBuild) *graphql.Field {
 			// var type = g.getParamValue(p.Args, "type")
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(input)
 
 			return user, nil
@@ -522,7 +522,7 @@ func _registration(g *GraphqlAutoBuild) *graphql.Field {
 
 			if helper.IsNotEmpty(auth) {
 				var model = g.yekonga.ModelQuery(tenantModelName)
-				g.setModelParams(model, &p, foreignKey, targetKey)
+				g.setModelParams(model, &p, foreignKey, targetKey, false)
 				input["userId"] = auth.ID
 				input["name"] = input["organization"]
 
@@ -641,7 +641,7 @@ func _resetPassword(g *GraphqlAutoBuild) *graphql.Field {
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(data)
 
 			return user, nil
@@ -666,7 +666,7 @@ func _confirmToken(g *GraphqlAutoBuild) *graphql.Field {
 			var input map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(input)
 
 			return user, nil
@@ -691,7 +691,7 @@ func _changePassword(g *GraphqlAutoBuild) *graphql.Field {
 			var input map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			user := model.FindOne(input)
 
 			return user, nil
@@ -755,7 +755,7 @@ func _switchAccount(g *GraphqlAutoBuild) *graphql.Field {
 			console.Success("_switchAccount.token", token)
 			var model = g.yekonga.ModelQuery(name)
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			model.Where("profileId", profileId)
 			model.Where("userId", userId)
 

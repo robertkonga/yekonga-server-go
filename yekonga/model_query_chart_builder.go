@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 // ChartType represents the type of chart
@@ -105,14 +106,14 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 			}
 		} else {
 			if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
-				return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + ")")
+				return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
 			} else if helper.IsEmpty(groupBy) {
 				return nil, errors.New(`Field "dimensionBreakdown" is required when "periodicity" is NONE`)
 			}
 		}
 	} else {
 		if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
-			return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + ")")
+			return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
 		}
 	}
 
@@ -134,7 +135,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 
 	// Process filters
 	dateKeys := []FilterOperator{FilterGreaterThan, FilterLessThan, FilterGreaterThanOrEqualTo, FilterLessThanOrEqualTo}
-	// console.Error(dateKeys, filter)
+	console.Error(dateKeys, xAxis, minAxis, maxAxis, filter)
 
 	for key, filterValue := range filter {
 		if key == xAxis && len(filterValue.In) >= 2 {
@@ -171,6 +172,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 		}
 	}
 
+	// console.Error(dateKeys, minAxis, maxAxis, cb.dataModel.where)
 	// Set date ranges based on periodicity
 	var startDate, endDate time.Time
 

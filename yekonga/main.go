@@ -67,6 +67,7 @@ type YekongaData struct {
 	initMiddlewares        []Middleware
 	preloadMiddlewares     []Middleware
 	catchMiddlewares       []Middleware
+	whenReady              []func()
 	models                 map[string]*DataModel
 	resolverChartGroupData map[string]ResolverChartGroupData
 	databaseStructure      *DatabaseStructureType
@@ -101,6 +102,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		initMiddlewares:        make([]Middleware, 0, 5),
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		catchMiddlewares:       make([]Middleware, 0, 5),
+		whenReady:              make([]func(), 0, 0),
 		functions:              make(map[string]CloudFunction),
 		systemFunctions:        make(map[string]SystemHandler),
 		primaryFunctions:       make(map[PrimaryCloudKey]BackendCloudFunction),
@@ -678,6 +680,7 @@ func (y *YekongaData) Start(address interface{}) {
 	defer y.socketServer.Close()
 
 	logRunningServer(serverPort, y.Config.Ports.Secure)
+	y.runWhenReady()
 
 	if y.Config.Ports.Secure {
 		go func() {

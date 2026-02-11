@@ -98,31 +98,36 @@ func (g *GraphqlAutoBuild) initialize() {
 			var foreignKey string = vi.ForeignKey
 			var targetKey string = vi.PrimaryKey
 
-			g.QueryTypes[k].AddFieldConfig(ki, g.getRelativeQueryField(ki, vi.Model.Name, true, foreignKey, targetKey))
-			g.MutationTypes[helper.ToCamelCase("where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
-				Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
-			})
+			if helper.IsNotEmpty(vi.Model) {
+				fieldConfig := g.getRelativeQueryField(ki, vi.Model.Name, true, foreignKey, targetKey)
+				g.QueryTypes[k].AddFieldConfig(ki, fieldConfig)
+				g.MutationTypes[helper.ToCamelCase("where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
+					Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
+				})
 
-			g.MutationTypes[helper.ToCamelCase("dimension_where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
-				Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
-			})
+				g.MutationTypes[helper.ToCamelCase("dimension_where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
+					Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
+				})
+			}
 		}
 
 		for ki, vi := range v.ChildrenFields {
 			var foreignKey string = vi.ForeignKey
 			var targetKey string = vi.PrimaryKey
 
-			g.QueryTypes[k].AddFieldConfig(ki, g.getRelativeQueryField(ki, vi.Model.Name, false, foreignKey, targetKey))
-			g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_paginate"), g.getQueryPaginationField(vi.Model.Name, foreignKey, targetKey))
-			g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_summary"), g.getQuerySummaryField(vi.Model.Name, foreignKey, targetKey))
+			if helper.IsNotEmpty(vi.Model) {
+				g.QueryTypes[k].AddFieldConfig(ki, g.getRelativeQueryField(ki, vi.Model.Name, false, foreignKey, targetKey))
+				g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_paginate"), g.getQueryPaginationField(vi.Model.Name, foreignKey, targetKey))
+				g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_summary"), g.getQuerySummaryField(vi.Model.Name, foreignKey, targetKey))
 
-			g.MutationTypes[helper.ToCamelCase("where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
-				Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
-			})
+				g.MutationTypes[helper.ToCamelCase("where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
+					Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
+				})
 
-			g.MutationTypes[helper.ToCamelCase("dimension_where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
-				Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
-			})
+				g.MutationTypes[helper.ToCamelCase("dimension_where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
+					Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
+				})
+			}
 		}
 	}
 
@@ -226,7 +231,7 @@ func (g *GraphqlAutoBuild) getQuerySingleField(collection string, foreignKey str
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
-			status := g.setModelParams(model, &p, foreignKey, targetKey)
+			status := g.setModelParams(model, &p, foreignKey, targetKey, true)
 
 			if status == false {
 				return nil, nil
@@ -283,7 +288,7 @@ func (g *GraphqlAutoBuild) getQueryMultipleField(collection string, foreignKey s
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			data := model.Find(nil)
 
@@ -334,7 +339,7 @@ func (g *GraphqlAutoBuild) getQueryPaginationField(collection string, foreignKey
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			data := model.Paginate(nil)
 
@@ -493,7 +498,7 @@ func (g *GraphqlAutoBuild) getQueryCountField(collection string, foreignKey stri
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			return model.Count(nil), nil
 		},
@@ -541,7 +546,7 @@ func (g *GraphqlAutoBuild) getQuerySumField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
 			return model.Sum(targetField, nil), nil
@@ -584,7 +589,7 @@ func (g *GraphqlAutoBuild) getQueryMaxField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
 			return model.Max(targetField, nil), nil
@@ -627,7 +632,7 @@ func (g *GraphqlAutoBuild) getQueryMinField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
 			return model.Min(targetField, nil), nil
@@ -670,7 +675,7 @@ func (g *GraphqlAutoBuild) getQueryAverageField(collection string, foreignKey st
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
 			return model.Average(targetField, nil), nil
@@ -748,13 +753,31 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 
 	if model, ok := Server.models[name]; ok {
 		if len(model.ParentFields) > 0 || len(model.ChildrenFields) > 0 {
-			dimensionWhereKind := g.MutationTypes[helper.ToCamelCase("dimension_where_"+name+"_input")]
-			argsParams["dimensionWhere"] = &graphql.ArgumentConfig{
-				Type: dimensionWhereKind,
+			valid := false
+
+			for _, v := range model.ParentFields {
+				if helper.IsNotEmpty(v.Model) {
+					valid = true
+					break
+				}
 			}
 
-			argsParams["dimensionBreakdownWhere"] = &graphql.ArgumentConfig{
-				Type: dimensionWhereKind,
+			for _, v := range model.ChildrenFields {
+				if helper.IsNotEmpty(v.Model) {
+					valid = true
+					break
+				}
+			}
+
+			if valid {
+				dimensionWhereKind := g.MutationTypes[helper.ToCamelCase("dimension_where_"+name+"_input")]
+				argsParams["dimensionWhere"] = &graphql.ArgumentConfig{
+					Type: dimensionWhereKind,
+				}
+
+				argsParams["dimensionBreakdownWhere"] = &graphql.ArgumentConfig{
+					Type: dimensionWhereKind,
+				}
 			}
 		}
 	}
@@ -773,7 +796,7 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			}
 
 			model := g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			localWhere := helper.ToMap[interface{}](p.Args["where"])
 
@@ -816,7 +839,7 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 			result["message"] = "Fail"
 			result["data"] = nil
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			created := model.Create(data)
 
 			id := helper.GetValueOf(created, "_id")
@@ -869,7 +892,7 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 				data = helper.ToList[interface{}](p.Args["input"])
 			}
 
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			imported := model.Import(data, uniqueKeys)
 
 			console.Success("imported", imported)
@@ -906,7 +929,7 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			result["success"] = false
 			result["status"] = false
@@ -952,7 +975,7 @@ func (g *GraphqlAutoBuild) getMutationDeleteField(collection string, foreignKey 
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var result = make(datatype.DataMap)
 			var model = g.yekonga.ModelQuery(name)
-			g.setModelParams(model, &p, foreignKey, targetKey)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			result["success"] = false
 			result["status"] = false
@@ -1354,13 +1377,32 @@ func (g *GraphqlAutoBuild) addWhereInputType(collection string, model *DataModel
 	g.MutationTypes[name] = object
 
 	if len(model.ParentFields) > 0 || len(model.ChildrenFields) > 0 {
-		dimensionName := helper.ToCamelCase("dimension_where_" + model.VariableSingle + "_input")
-		dimensionFields := make(graphql.InputObjectConfigFieldMap)
-		dimensionObject := graphql.NewInputObject(graphql.InputObjectConfig{
-			Name:   dimensionName,
-			Fields: dimensionFields,
-		})
-		g.MutationTypes[dimensionName] = dimensionObject
+		valid := false
+
+		for _, v := range model.ParentFields {
+			if helper.IsNotEmpty(v.Model) {
+				valid = true
+				break
+			}
+		}
+
+		for _, v := range model.ChildrenFields {
+			if helper.IsNotEmpty(v.Model) {
+				valid = true
+				break
+			}
+		}
+
+		if valid {
+			dimensionName := helper.ToCamelCase("dimension_where_" + model.VariableSingle + "_input")
+			dimensionFields := make(graphql.InputObjectConfigFieldMap)
+			dimensionObject := graphql.NewInputObject(graphql.InputObjectConfig{
+				Name:   dimensionName,
+				Fields: dimensionFields,
+			})
+			g.MutationTypes[dimensionName] = dimensionObject
+		}
+
 	}
 }
 
@@ -1678,7 +1720,7 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 	return f
 }
 
-func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string) bool {
+func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string, isParent bool) bool {
 	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 	parent := p.Source
 	var accessRole string
@@ -1709,10 +1751,15 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 
 		if ppp, ok := pp.Source.(datatype.DataMap); ok {
 			model.QueryContext.Parent = &ppp
-			localParent := helper.ToMap[interface{}](ppp)
+			localParent := helper.ToDataMap(ppp)
 
 			if helper.Contains(model.Model.ParentKeys, foreignKey) {
 				model.Where(foreignKey, localParent[targetKey])
+				if isParent {
+					model.Where(targetKey, localParent[foreignKey])
+				} else {
+					model.Where(foreignKey, localParent[targetKey])
+				}
 			} else {
 				if helper.IsEmpty(localParent[foreignKey]) {
 					return false
@@ -1745,12 +1792,23 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	}
 
 	if helper.IsMap(parent) {
-		localParent := helper.ToMap[interface{}](parent)
+		// if model.Model.Name == "Location" {
+		// 	console.Warn("setModelParams.targetKey", targetKey)
+		// 	console.Warn("setModelParams.foreignKey", foreignKey)
+		// 	console.Error("setModelParams.ParentKeys", model.Model.ParentKeys)
+		// 	console.Error("setModelParams.parent", parent)
+		// }
+
+		localParent := helper.ToDataMap(parent)
 
 		model.QueryContext.Parent = &p
 		if helper.IsMap(localParent) && helper.IsNotEmpty(foreignKey) {
 			if helper.Contains(model.Model.ParentKeys, foreignKey) {
-				model.Where(foreignKey, localParent[targetKey])
+				if isParent {
+					model.Where(targetKey, localParent[foreignKey])
+				} else {
+					model.Where(foreignKey, localParent[targetKey])
+				}
 			} else {
 				if helper.IsEmpty(localParent[foreignKey]) {
 					return false

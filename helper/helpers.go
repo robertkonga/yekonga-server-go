@@ -995,12 +995,18 @@ func StringToDatetime(value interface{}) *time.Time {
 		if err == nil {
 			return &t
 		}
-
+		// 		console.Log("ISO_8601", strValue, t, err)
 		t, err = time.Parse(RFC_1123Z, strValue)
 		if err == nil {
 			return &t
 		}
 
+		// Try custom date parsing as a last resort
+		t, err = DateParse(strValue, time.Now())
+		// console.Log("DateParse", strValue, t, err)
+		if err == nil {
+			return &t
+		}
 	} else if strValue, ok := value.(time.Time); ok {
 		return &strValue
 	} else if strValue, ok := value.(bson.DateTime); ok {

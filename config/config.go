@@ -85,7 +85,7 @@ type YekongaConfig struct {
 	SecureAuthentication    bool     `json:"secureAuthentication"`    // Enable or disable secure authentication
 	IsAuthorizationServer   bool     `json:"isAuthorizationServer"`   // Designate as an authorization server
 	AuthorizeTenantUserOnly bool     `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
-	AuthorizedOnly          bool     `json:"mustAuthorized"`          // Require authorization for all requests
+	AuthorizedOnly          bool     `json:"authorizedOnly"`          // Require authorization for all requests
 	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
 	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
 	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp

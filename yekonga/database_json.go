@@ -204,10 +204,26 @@ var DefaultAuthorizationDatabaseStructure DatabaseStructureType = DatabaseStruct
 		"unstable":             {"type": "String", "default": nil, "required": false},
 		"locked":               {"type": "String", "default": nil, "required": false},
 	},
+	"Locations": {
+		"id":        {"type": "ID", "default": nil, "required": false},
+		"parentId":  {"type": "ID", "default": nil, "required": false, "foreignKey": "Location.id"},
+		"name":      {"type": "String", "default": nil, "required": false},
+		"shortCode": {"type": "String", "default": nil, "required": false},
+		"phoneCode": {"type": "String", "default": nil, "required": false},
+		"currency":  {"type": "String", "default": nil, "required": false},
+		"flag":      {"type": "String", "default": nil, "required": false},
+		"type": {
+			"type":     "String",
+			"default":  "region",
+			"required": false,
+			"options":  []string{"country", "region", "district", "ward"},
+		},
+		"latitude":  {"type": "Float", "default": nil, "required": false},
+		"longitude": {"type": "Float", "default": nil, "required": false},
+	},
 }
 
 var DefaultDatabaseStructure DatabaseStructureType = DatabaseStructureType{
-
 	"Notifications": {
 		"id":                {"type": "ID", "default": nil, "required": false},
 		"tenantId":          {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},

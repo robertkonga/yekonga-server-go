@@ -39,6 +39,10 @@ func (res *Response) Abort(code int, message string) {
 
 	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
 
+	if !isJson {
+		isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
+	}
+
 	switch code {
 	case 400:
 		if helper.IsEmpty(message) {

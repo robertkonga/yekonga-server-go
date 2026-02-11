@@ -460,3 +460,14 @@ func (y *YekongaData) CustomConfig(req *Request, res *Response) (interface{}, er
 
 	return nil, errors.New("Custom CONFIG not set")
 }
+
+func (y *YekongaData) WhenReady(fun func()) {
+	y.whenReady = append(y.whenReady, fun)
+}
+
+func (y *YekongaData) runWhenReady() {
+	count := len(y.whenReady)
+	for i := 0; i < count; i++ {
+		go y.whenReady[i]()
+	}
+}

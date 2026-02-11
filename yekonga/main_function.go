@@ -9,6 +9,7 @@ import (
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
@@ -174,6 +175,7 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 	user := y.ModelQuery(userModelName).FindOne(body)
 
 	if helper.IsEmpty(user) {
+		console.Log("User Login Attempt Failed: User does not exists", body)
 		return nil, errors.New("User does not exists")
 	}
 
@@ -491,7 +493,7 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, re
 		Path:     "/",
 		Domain:   domain,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   y.Config.SecureOnly,
 		SameSite: http.SameSiteDefaultMode,
 		MaxAge:   15 * 60, // 15 minutes
 	})
@@ -502,7 +504,7 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, re
 		Path:     y.AppendBaseUrl("/refresh"),
 		Domain:   domain,
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   y.Config.SecureOnly,
 		SameSite: http.SameSiteDefaultMode,
 		MaxAge:   30 * 24 * 60 * 60, // 30 days
 	}
