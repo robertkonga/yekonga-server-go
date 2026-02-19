@@ -208,10 +208,6 @@ func GetPath(relativePath string) string {
 	// 3. Join the executable's directory with the relative path
 	absolutePath := filepath.Join(exPath, relativePath)
 
-	if err != nil {
-		log.Fatalf("Error getting absolute path: %v", err)
-	}
-
 	return absolutePath
 }
 
