@@ -231,6 +231,9 @@ var GeneralGraphOptionsEnum = graphql.NewEnum(graphql.EnumConfig{
 		"PIE": &graphql.EnumValueConfig{
 			Value: "PIE",
 		},
+		"DOUGHNUT": &graphql.EnumValueConfig{
+			Value: "PIE",
+		},
 		"LINE": &graphql.EnumValueConfig{
 			Value: "LINE",
 		},

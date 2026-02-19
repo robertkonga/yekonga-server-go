@@ -129,6 +129,8 @@ func (g *GraphqlAutoBuild) initialize() {
 				})
 			}
 		}
+
+		g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(k)+"_summary"), g.getQuerySummaryField(v.Name, "id", "id"))
 	}
 
 	s, err := graphql.NewSchema(graphql.SchemaConfig{
@@ -460,6 +462,8 @@ func (g *GraphqlAutoBuild) getQuerySummaryField(collection string, foreignKey st
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			p.Args["relationForeignKey"] = foreignKey
 			p.Args["relationTargetKey"] = targetKey
+			var model = g.yekonga.ModelQuery(name)
+			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			return p, nil
 		},
@@ -490,7 +494,12 @@ func (g *GraphqlAutoBuild) getQueryCountField(collection string, foreignKey stri
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -498,6 +507,17 @@ func (g *GraphqlAutoBuild) getQueryCountField(collection string, foreignKey stri
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
+
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			return model.Count(nil), nil
@@ -538,7 +558,12 @@ func (g *GraphqlAutoBuild) getQuerySumField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -546,6 +571,17 @@ func (g *GraphqlAutoBuild) getQuerySumField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
+
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
@@ -581,7 +617,12 @@ func (g *GraphqlAutoBuild) getQueryMaxField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -589,6 +630,16 @@ func (g *GraphqlAutoBuild) getQueryMaxField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
@@ -624,7 +675,12 @@ func (g *GraphqlAutoBuild) getQueryMinField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -632,6 +688,16 @@ func (g *GraphqlAutoBuild) getQueryMinField(collection string, foreignKey string
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
@@ -667,7 +733,12 @@ func (g *GraphqlAutoBuild) getQueryAverageField(collection string, foreignKey st
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -675,6 +746,16 @@ func (g *GraphqlAutoBuild) getQueryAverageField(collection string, foreignKey st
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			targetField := g.getTargetField(p.Args)
 
@@ -787,8 +868,12 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 		Description: fmt.Sprintf("Get %v", name),
 		Args:        argsParams,
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-
+			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
+				if helper.IsMap(pp.Source) {
+					parent = helper.ToDataMap(pp.Source)
+				}
+
 				if pp.Args != nil {
 					foreignKey = helper.GetValueOfString(pp.Args, "relationForeignKey")
 					targetKey = helper.GetValueOfString(pp.Args, "relationTargetKey")
@@ -796,6 +881,16 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 			}
 
 			model := g.yekonga.ModelQuery(name)
+			if helper.IsNotEmpty(parent) {
+				if id, ok := parent["id"]; ok {
+					if helper.IsMap(id) {
+						idMap := helper.ToDataMap(id)
+						for k, v := range idMap {
+							model.Where(helper.ToVariable(k), v)
+						}
+					}
+				}
+			}
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 
 			localWhere := helper.ToMap[interface{}](p.Args["where"])
@@ -1091,6 +1186,7 @@ func (g *GraphqlAutoBuild) addQueryType(collection string, model *DataModel) {
 	for k, v := range model.Fields {
 		fields[k] = g.getQueryField(k, &v)
 	}
+
 	modelFields := graphql.NewObject(graphql.ObjectConfig{
 		Name:   name,
 		Fields: fields,
@@ -1099,6 +1195,7 @@ func (g *GraphqlAutoBuild) addQueryType(collection string, model *DataModel) {
 
 	/// Summary
 	var summaryName = helper.ToCamelCase(name + "_summary")
+	// var innerSummaryName = helper.ToCamelCase(name + "_inner_summary")
 	var summaryFields = make(graphql.Fields)
 	summaryFields["count"] = g.getQueryCountField(collection, "", "")
 	summaryFields["sum"] = g.getQuerySumField(collection, "", "")
@@ -1319,7 +1416,7 @@ func (g *GraphqlAutoBuild) addModelEnumType(collection string, model *DataModel)
 			Value: v.Name,
 		}
 
-		if len(v.Options) > 0 || v.Kind == DataModelDate || helper.Contains(model.ParentKeys, v.Name) {
+		if v.Name == "id" || len(v.Options) > 0 || v.Kind == DataModelDate || helper.Contains(model.ParentKeys, v.Name) {
 			structuredFields[k] = &graphql.EnumValueConfig{
 				Value: v.Name,
 			}

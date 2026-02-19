@@ -2,7 +2,6 @@ package yekonga
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
@@ -877,10 +876,69 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		m.WhereAll(helper.ToDataMap(result))
 	}
 
-	var whereFilter map[string]FilterValue
-	if err := json.Unmarshal(helper.ToByte(helper.ToJson(m.where)), &whereFilter); err != nil {
-		console.Log(err.Error(), m.where)
-		return nil
+	whereFilter := make(map[string]FilterValue)
+	filterOps := append(append([]string{}, graphqlOperations...), graphqlArrayOperations...)
+
+	for k, v := range m.where {
+		isFilter := false
+		var vMap map[string]interface{}
+
+		if helper.IsMap(v) {
+			vMap = helper.ToMap[interface{}](v)
+			for _, op := range filterOps {
+				if _, ok := vMap[op]; ok {
+					isFilter = true
+					break
+				}
+			}
+		}
+
+		if isFilter {
+			fv := FilterValue{}
+
+			if val, ok := vMap["in"]; ok {
+				fv.In = helper.ToList[interface{}](val)
+			}
+			if val, ok := vMap["greaterThan"]; ok {
+				fv.GreaterThan = val
+			}
+			if val, ok := vMap["lessThan"]; ok {
+				fv.LessThan = val
+			}
+			if val, ok := vMap["greaterThanOrEqualTo"]; ok {
+				fv.GreaterThanOrEqualTo = val
+			}
+			if val, ok := vMap["lessThanOrEqualTo"]; ok {
+				fv.LessThanOrEqualTo = val
+			}
+			if val, ok := vMap["equalTo"]; ok {
+				fv.EqualTo = val
+			}
+			if val, ok := vMap["notEqualTo"]; ok {
+				fv.NotEqualTo = val
+			}
+			if val, ok := vMap["notLessThan"]; ok {
+				fv.NotLessThan = val
+			}
+			if val, ok := vMap["notLessThanOrEqualTo"]; ok {
+				fv.NotLessThanOrEqualTo = val
+			}
+			if val, ok := vMap["notGreaterThan"]; ok {
+				fv.NotGreaterThan = val
+			}
+			if val, ok := vMap["notGreaterThanOrEqualTo"]; ok {
+				fv.NotGreaterThanOrEqualTo = val
+			}
+			if val, ok := vMap["matchesRegex"]; ok {
+				fv.MatchesRegex = val
+			}
+			if val, ok := vMap["options"]; ok {
+				fv.Options = val
+			}
+			whereFilter[k] = fv
+		} else {
+			whereFilter[k] = FilterValue{EqualTo: v}
+		}
 	}
 
 	// console.Log("where", where)

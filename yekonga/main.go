@@ -517,6 +517,13 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Keep-Alive", "timeout=5, max=98")
 	w.Header().Add("Connection", "Keep-Alive")
 
+	// to account for form headers and boundaries.
+	maxUploadSize := int64(310 << 20) // ~310 MB
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+
+	// 1. Parse the multipart form (max 32MB in memory)
+	r.ParseMultipartForm(32 << 20)
+
 	cookieValue := y.Config.ConnectionID
 	cookie, err := r.Cookie(COOKIE_ENABLED_KEY)
 	if helper.IsEmpty(cookieValue) {
@@ -536,6 +543,16 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewDecoder(r.Body).Decode(&rawBody)
+
+	// file, handler, err := r.FormFile("file")
+	// if err == nil {
+	// 	console.Log("Received file:", handler.Filename)
+	// 	defer file.Close()
+	// }
+	// files := r.MultipartForm.File["files"]
+	// for _, fileHeader := range files {
+	// 	console.Log("Received file:", fileHeader.Filename)
+	// }
 
 	route, params := y.findRoute(r.Method, r.URL.Path)
 

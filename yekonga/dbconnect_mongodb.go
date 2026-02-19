@@ -109,6 +109,9 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 		// console.Log("mongodbConnection.find", "Pipeline: %v", pipeline)
 
 		cursor, err = con.collection().Aggregate(context.TODO(), pipeline, opts)
+		if err != nil {
+			logger.Error("mongodbConnection.find 0", err.Error())
+		}
 	} else {
 
 		// Find with limit and skip
@@ -247,6 +250,37 @@ func (con *mongodbConnection) count() int64 {
 	return cursor
 }
 
+func (con *mongodbConnection) sum(key string) float64 {
+	// Find with limit and skip
+	opts := options.Aggregate()
+
+	// Aggregation pipeline to sum the "amount" field
+	pipeline := mongo.Pipeline{
+		{{Key: "$match", Value: con.where()}},
+		{{Key: "$group", Value: bson.M{"_id": nil, "aggregateValue": bson.M{"$sum": "$" + key}}}},
+	}
+
+	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+	if err != nil {
+		logger.Error("mongodbConnection.sum 1", err.Error())
+	}
+	defer cursor.Close(context.TODO())
+
+	// Retrieve the result
+	var result struct {
+		AggregateValue float64 `bson:"aggregateValue"`
+	}
+	if cursor.Next(context.TODO()) {
+		if err := cursor.Decode(&result); err != nil {
+			logger.Error("mongodbConnection.sum 2", err.Error())
+		}
+	} else {
+		fmt.Println("No data found")
+	}
+
+	return result.AggregateValue
+}
+
 func (con *mongodbConnection) max(key string) interface{} {
 	opts := options.Aggregate()
 
@@ -333,37 +367,6 @@ func (con *mongodbConnection) min(key string) interface{} {
 		default:
 			logger.Error(fmt.Errorf("unexpected type: %s", reflect.TypeOf(result.AggregateValue)))
 			return nil
-		}
-	} else {
-		fmt.Println("No data found")
-	}
-
-	return result.AggregateValue
-}
-
-func (con *mongodbConnection) sum(key string) float64 {
-	// Find with limit and skip
-	opts := options.Aggregate()
-
-	// Aggregation pipeline to sum the "amount" field
-	pipeline := mongo.Pipeline{
-		{{Key: "$match", Value: con.where()}},
-		{{Key: "$group", Value: bson.M{"_id": nil, "AggregateValue": bson.M{"$sum": "$" + key}}}},
-	}
-
-	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
-	if err != nil {
-		logger.Error("mongodbConnection.sum 1", err.Error())
-	}
-	defer cursor.Close(context.TODO())
-
-	// Retrieve the result
-	var result struct {
-		AggregateValue float64 `bson:"aggregateValue"`
-	}
-	if cursor.Next(context.TODO()) {
-		if err := cursor.Decode(&result); err != nil {
-			logger.Error("mongodbConnection.sum 2", err.Error())
 		}
 	} else {
 		fmt.Println("No data found")
@@ -772,10 +775,6 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 				filters[k] = innerFilter
 			}
 		}
-	}
-
-	if con.query.Model.Name == "Project" || con.query.Model.Name == "Client" {
-		console.Log("filters", filters)
 	}
 
 	return filters

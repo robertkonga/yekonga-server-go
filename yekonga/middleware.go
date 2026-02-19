@@ -40,11 +40,17 @@ func ClientMiddleware(req *Request, res *Response) error {
 	if helper.IsEmpty(origin) {
 		referer := r.Header.Get("referer")
 		origin = helper.ExtractDomain(referer)
+
+		if helper.IsEmpty(origin) {
+			origin = proto + "://" + host
+		}
 	}
 
-	if helper.IsEmpty(origin) {
-		origin = proto + "://" + host
-	}
+	// console.Log(r.Method, r.URL.Path)
+	// console.Warn("r.Host:", r.Host)
+	// console.Error("r.Referer():", r.Referer())
+	// console.Log("host", host)
+	// console.Log(r.URL)
 
 	client := ClientPayload{
 		Host:      host,
@@ -56,6 +62,8 @@ func ClientMiddleware(req *Request, res *Response) error {
 		UserAgent: r.UserAgent(),
 		IpAddress: ipAddress,
 	}
+
+	// console.Log("Client Info:", client)
 
 	if req.App.Config.HasTenant && req.App.Config.IsAuthorizationServer {
 		tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
@@ -77,9 +85,10 @@ func ClientMiddleware(req *Request, res *Response) error {
 		if helper.IsEmpty(client.TenantId) && req.App.Config.TenantOnly {
 			return errors.New("tenant not found for the request")
 		}
+
+		req.SetTenantId(client.TenantId)
 	}
 
-	req.SetTenantId(client.TenantId)
 	req.SetContext(string(ClientPayloadKey), client)
 
 	return nil
@@ -159,7 +168,10 @@ func TokenMiddleware(req *Request, res *Response) error {
 
 		req.SetContext(string(AccessTokenKey), accessToken)
 		req.SetContext(string(TokenPayloadKey), tokenPayload)
-		req.SetTenantId(tokenPayload.TenantId)
+
+		if helper.IsNotEmpty(tokenPayload.TenantId) {
+			req.SetTenantId(tokenPayload.TenantId)
+		}
 	}
 
 	if helper.IsNotEmpty(refreshToken) {

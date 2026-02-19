@@ -45,6 +45,8 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 	var userId string
 	var username string
 	var usernameType string = "phone"
+	var firstName string
+	var lastName string
 	var user *datatype.DataMap
 
 	if v, ok := value.(string); ok {
@@ -61,6 +63,18 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 		if v, ok := v["userId"]; ok {
 			if v, ok := v.(string); ok {
 				userId = v
+			}
+		}
+
+		if v, ok := v["firstName"]; ok {
+			if v, ok := v.(string); ok {
+				firstName = v
+			}
+		}
+
+		if v, ok := v["lastName"]; ok {
+			if v, ok := v.(string); ok {
+				lastName = v
 			}
 		}
 	}
@@ -81,6 +95,8 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			res := y.ModelQuery(userModelName).Create(datatype.DataMap{
 				"usernameType": usernameType,
 				"username":     username,
+				"firstName":    firstName,
+				"lastName":     lastName,
 				"role":         "user",
 				"status":       "active",
 				"isActive":     true,
@@ -211,7 +227,7 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 		if checkPassword {
 			if !isGlobalPassword && input.LoginType != "" && input.LoginType == "otp" {
 				otpBody := make(map[string]interface{})
-				if config.Config.ResetOTP || helper.IsEmpty(config.Config.ResetOTP) {
+				if config.Config.ResetOTP {
 					otpBody["otpCode"] = nil
 					otpBody["otpCreatedAt"] = nil
 				}

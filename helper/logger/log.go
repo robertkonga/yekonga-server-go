@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 // ANSI escape codes for colors
@@ -127,7 +130,31 @@ func toJson(data interface{}) string {
 	return string(jsonData)
 }
 
-func loadFile(filename string) string {
+func WriteToFile(filename string, data string) {
+	logDir := GetPath("logs")
+	fmt.Println("Log file path:", logDir)
+	if err := os.MkdirAll(logDir, 0644); err != nil {
+		fmt.Println("Error creating logs directory:", err)
+		return
+	}
+
+	currentDate := time.Now().Format("2006-01-02")
+	logFilename := filepath.Join(logDir, fmt.Sprintf("%s_%s", currentDate, filename))
+	// fmt.Println("Log file path:", logFilename)
+
+	file, err := os.OpenFile(logFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	if _, err := file.WriteString(data + "\n"); err != nil {
+		fmt.Println("Error writing to file:", err)
+	}
+}
+
+func LoadFile(filename string) string {
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Println(err)
@@ -153,3 +180,48 @@ func loadFile(filename string) string {
 // 	}
 // 	p.buf.writeByte('\n')
 // }
+
+func GetPath(relativePath string) string {
+	if filepath.IsAbs(relativePath) {
+		if FileExists(relativePath) {
+			return relativePath
+		}
+	}
+
+	if FileExists(relativePath) {
+		absPath, err := filepath.Abs(relativePath)
+		if err != nil {
+			return relativePath
+		}
+		return absPath
+	}
+
+	// 1. Get the path of the executable
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatalf("Error getting executable path: %v", err)
+	}
+
+	// 2. Get the directory of the executable
+	exPath := filepath.Dir(ex)
+
+	// 3. Join the executable's directory with the relative path
+	absolutePath := filepath.Join(exPath, relativePath)
+
+	if err != nil {
+		log.Fatalf("Error getting absolute path: %v", err)
+	}
+
+	return absolutePath
+}
+
+// FileExists checks if a file exists
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+
+	if err != nil {
+		// console.Error("FileExists", err)
+	}
+
+	return !os.IsNotExist(err)
+}

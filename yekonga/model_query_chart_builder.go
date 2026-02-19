@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 // ChartType represents the type of chart
@@ -98,6 +97,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 	groupBy := cb.getColumn(cb.getStringParam(context.Params, "dimensionBreakdown", cb.getStringParam(context.Params, "groupBy", "")))
 	chartType := cb.getStringParam(context.Params, "type", "LINEAR")
 	periodicity := cb.getStringParam(context.Params, "periodicity", "NONE")
+	targetKey := cb.getStringParam(context.Params, "targetKey", "")
 
 	if chartType != "PIE" {
 		if periodicity != "NONE" {
@@ -105,16 +105,20 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 				return nil, errors.New(`Field "dimension" must be date / time`)
 			}
 		} else {
-			if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
-				return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
-			} else if helper.IsEmpty(groupBy) {
+			if xAxis != "id" && !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
+				return nil, errors.New(`Field "dimension" must be one of these (id, ` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
+			} else if helper.IsEmpty(groupBy) && chartType == "LINE" {
 				return nil, errors.New(`Field "dimensionBreakdown" is required when "periodicity" is NONE`)
 			}
 		}
 	} else {
-		if !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
-			return nil, errors.New(`Field "dimension" must be one of these (` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
+		if xAxis != "id" && !helper.Contains(cb.dataModel.Model.OptionFields, xAxis) && !helper.Contains(cb.dataModel.Model.ParentKeys, xAxis) {
+			return nil, errors.New(`Field "dimension" must be one of these (id, ` + strings.Join(cb.dataModel.Model.OptionFields, ", ") + strings.Join(cb.dataModel.Model.ParentKeys, ", ") + ")")
 		}
+	}
+
+	if totalType != "COUNT" && helper.IsEmpty(targetKey) {
+		return nil, errors.New(`"targetKey" parameter is required when "total" is not COUNT`)
 	}
 
 	var yAxis string
@@ -135,13 +139,13 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 
 	// Process filters
 	dateKeys := []FilterOperator{FilterGreaterThan, FilterLessThan, FilterGreaterThanOrEqualTo, FilterLessThanOrEqualTo}
-	console.Error(dateKeys, xAxis, minAxis, maxAxis, filter)
+	// console.Error(dateKeys, xAxis, minAxis, maxAxis, filter)
 
 	for key, filterValue := range filter {
 		if key == xAxis && len(filterValue.In) >= 2 {
 			minAxis = helper.GetTimestamp(filterValue.In[0])
 			maxAxis = helper.GetTimestamp(filterValue.In[1])
-		} else {
+		} else if key == xAxis {
 			for _, dateKey := range dateKeys {
 				var val interface{}
 				switch dateKey {
@@ -174,6 +178,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 
 	// console.Error(dateKeys, minAxis, maxAxis, cb.dataModel.where)
 	// Set date ranges based on periodicity
+	// console.Log("Initial minAxis and maxAxis:", minAxis, maxAxis)
 	var startDate, endDate time.Time
 
 	if minAxis != nil {
@@ -185,49 +190,49 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 
 	if periodicity == string(PeriodicityHourly) && xAxis != "" {
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(0, 0, -1)
+			startDate = helper.GetTimestamp(nil).AddDate(0, 0, -1)
 		}
 
 		if endDate.Sub(startDate) <= 0 {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	} else if periodicity == string(PeriodicityDaily) && xAxis != "" {
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(0, 0, -31)
+			startDate = helper.GetTimestamp(nil).AddDate(0, 0, -31)
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	} else if periodicity == string(PeriodicityWeekly) && xAxis != "" {
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(0, 0, -84) // 12 weeks
+			startDate = helper.GetTimestamp(nil).AddDate(0, 0, -84) // 12 weeks
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	} else if periodicity == string(PeriodicityMonthly) && xAxis != "" {
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(0, -12, 0)
+			startDate = helper.GetTimestamp(nil).AddDate(0, -12, 0)
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	} else if periodicity == string(PeriodicityYearly) && xAxis != "" {
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(-4, 0, 0)
+			startDate = helper.GetTimestamp(nil).AddDate(-4, 0, 0)
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	} else if periodicity == string(PeriodicityNone) && xAxis != "" {
 		if startDate.IsZero() {
-			startDate = time.Now().AddDate(-1, 0, 0)
+			startDate = helper.GetTimestamp(nil).AddDate(-1, 0, 0)
 		}
 		if endDate.IsZero() {
-			endDate = time.Now()
+			endDate = helper.GetTimestamp(nil)
 		}
 	}
 
@@ -235,8 +240,9 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 	// console.Log("periodicity", string(PeriodicityMonthly))
 
 	// Configure grouping based on periodicity and parameters
-	cb.configureGrouping(periodicity, xAxis, groupBy, yAxis, TotalType(totalType))
+	cb.configureGrouping(periodicity, xAxis, groupBy, targetKey, yAxis, TotalType(totalType))
 
+	// console.Log("cb.dataModel", cb.dataModel.where)
 	localList := cb.dataModel.Find(nil)
 	dataList := helper.ToMapList[interface{}](*localList)
 	// console.Log("dataList", dataList)
@@ -257,7 +263,7 @@ func (cb *ChartBuilder) BuildGraph(filter map[string]FilterValue, isAdmin bool) 
 }
 
 // configureGrouping configures the data model grouping
-func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis, groupBy, yAxis string, totalType TotalType) {
+func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis string, groupBy string, targetKey string, yAxis string, totalType TotalType) {
 	datePeriods := []string{string(PeriodicityHourly), string(PeriodicityDaily), string(PeriodicityDayHours), string(PeriodicityWeekly), string(PeriodicityWeekDays), string(PeriodicityMonthly), string(PeriodicityMonthDays), string(PeriodicityQuarterly), "SEMIANNUALLY", string(PeriodicityYearly), string(PeriodicityYearMonth)}
 
 	var periodFormat string
@@ -326,13 +332,13 @@ func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis, groupBy, yA
 	// Configure aggregation
 	switch totalType {
 	case TotalTypeSum:
-		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$sum": fmt.Sprintf("$%s", yAxis)})
+		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$sum": fmt.Sprintf("$%s", targetKey)})
 	case TotalTypeMax:
-		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$max": fmt.Sprintf("$%s", yAxis)})
+		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$max": fmt.Sprintf("$%s", targetKey)})
 	case TotalTypeMin:
-		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$min": fmt.Sprintf("$%s", yAxis)})
+		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$min": fmt.Sprintf("$%s", targetKey)})
 	case TotalTypeAvg, TotalTypeAverage:
-		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$avg": fmt.Sprintf("$%s", yAxis)})
+		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$avg": fmt.Sprintf("$%s", targetKey)})
 	default:
 		cb.dataModel.GroupByRaw("total", map[string]interface{}{"$sum": 1})
 	}
@@ -432,6 +438,7 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 
 	// Get periods
 	periods := cb.getPeriods(params, startDate, endDate, isAdmin, xAxis, yAxis, totalType, periodicity, groupBy)
+	// console.Log("periods", startDate, periods)
 
 	periodKeys := make([]string, 0, len(periods))
 	for k := range periods {
@@ -451,6 +458,7 @@ func (cb *ChartBuilder) getLinearChartFormat(collection []map[string]interface{}
 			for _, row := range collection {
 				// console.Log(key, keyPeriod, row)
 
+				// console.Log("matched row", row)
 				if cb.matchesGroupAndPeriod(row, key, keyPeriod) {
 					if total, ok := row["total"].(float64); ok {
 						groupValues[key] = total
@@ -598,7 +606,7 @@ func (cb *ChartBuilder) getPeriods(params map[string]interface{}, startDate, end
 		period = "day"
 		format = "2006-01-02"
 		formatKey = "2006-01-02"
-		endDate = endDate.AddDate(0, 0, 1)
+		endDate = endDate.AddDate(0, 0, 0)
 	case PeriodicityWeekly:
 		period = "week"
 		format = "WW-Week-2006"
@@ -675,11 +683,17 @@ func (cb *ChartBuilder) matchesGroupAndPeriod(row map[string]interface{}, groupK
 
 		dimension, dimensionOk := id["dimension"]
 		if dimensionOk && groupOk {
-			if groupKey == "_none_" {
+			if groupKey == "_none_" || groupKey == "all" {
 				return dimension == periodKey && group == nil
 			}
 
 			return dimension == periodKey && group == groupKey
+		}
+
+		if dimensionOk {
+			if groupKey == "_none_" || groupKey == "all" {
+				return dimension == periodKey && group == nil
+			}
 		}
 	}
 
@@ -725,9 +739,11 @@ func (cb *ChartBuilder) matchesPeriod(row map[string]interface{}, periodKey stri
 }
 
 func (cb *ChartBuilder) getRandomColor(index int) string {
+	// config := cb.dataModel.Model.App.Config.Theme;
+
 	colors := []string{
 		// Your original 10
-		"#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF",
+		"#9966FF", "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0",
 		"#FF9F40", "#FF6384", "#C9CBCF", "#4BC0C0", "#FF6384",
 
 		// 30 New colors in the same tone

@@ -169,8 +169,14 @@ func CompareValues(a, b interface{}) int {
 	return 0
 }
 
+func ToJsonFormatted(data interface{}) string {
+	jsonData, _ := json.MarshalIndent(data, "", "    ")
+
+	return string(jsonData)
+}
+
 func ToJson(data interface{}) string {
-	jsonData, _ := json.MarshalIndent(data, "", " ")
+	jsonData, _ := json.Marshal(data)
 
 	return string(jsonData)
 }
@@ -1002,7 +1008,7 @@ func StringToDatetime(value interface{}) *time.Time {
 		}
 
 		// Try custom date parsing as a last resort
-		t, err = DateParse(strValue, time.Now())
+		t, err = DateParse(strValue, GetTimestamp(nil))
 		// console.Log("DateParse", strValue, t, err)
 		if err == nil {
 			return &t
