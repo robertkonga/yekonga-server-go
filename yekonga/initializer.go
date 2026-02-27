@@ -404,8 +404,10 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 		file = helper.GetPath(file)
 	}
 
-	var databaseAuthorizationStructure = DefaultAuthorizationDatabaseStructure
-	var databaseStructure = DefaultDatabaseStructure
+	var databaseAuthStructure = DefaultAuthDatabaseStructure
+	var databaseBillingStructure = DefaultBillingDatabaseStructure
+	var databaseStructure = DefaultExtraDatabaseStructure
+
 	var extraDatabaseStructure map[string]map[string]map[string]interface{}
 	data, err := helper.LoadJSONFile(file)
 
@@ -416,7 +418,20 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 	json.Unmarshal(helper.ToByte(data), &extraDatabaseStructure)
 
 	if config.IsAuthorizationServer {
-		for k, v := range databaseAuthorizationStructure {
+		for k, v := range databaseAuthStructure {
+			k = helper.ToCamelCase(helper.Pluralize(k))
+			if _, ok := databaseStructure[k]; ok {
+				for kn, vn := range extraDatabaseStructure[k] {
+					databaseStructure[k][kn] = vn
+				}
+			} else {
+				databaseStructure[k] = v
+			}
+		}
+	}
+
+	if config.HasTenantBilling {
+		for k, v := range databaseBillingStructure {
 			k = helper.ToCamelCase(helper.Pluralize(k))
 			if _, ok := databaseStructure[k]; ok {
 				for kn, vn := range extraDatabaseStructure[k] {

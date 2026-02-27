@@ -138,6 +138,10 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 
 	defer cursor.Close(context.TODO())
 
+	// if con.query.Model.Name == "FieldOfficer" {
+	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
+	// }
+
 	if err := cursor.Err(); err != nil {
 		logger.Error("mongodbConnection.find 2", err.Error())
 	} else {
@@ -704,7 +708,8 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 							}
 						case "matchesRegex":
 							if _v, ok := vii.(string); ok {
-								innerFilter["$regex"] = regexp.MustCompile(_v).String()
+								innerFilter["$regex"] = regexp.MustCompile(helper.CreateFuzzyRegex(_v)).String()
+								innerFilter["$options"] = "i"
 							}
 						case "options":
 							innerFilter["$eq"] = vii
@@ -760,7 +765,7 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 						}
 					}
 				}
-			} else {
+			} else if !helper.Contains([]string{"AND", "OR", "NOR"}, k) {
 				innerFilter := datatype.DataMap{}
 				if inf, ok := filters[k].(datatype.DataMap); ok {
 					innerFilter = inf

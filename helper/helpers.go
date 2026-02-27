@@ -424,6 +424,21 @@ func IsNotEmpty(value interface{}) bool {
 	return !IsEmpty(value)
 }
 
+// CreateFuzzyRegex converts "R F Konga" into "(?i)R.*F.*Konga"
+func CreateFuzzyRegex(input string) string {
+	// 1. Split by whitespace
+	parts := strings.Fields(input)
+
+	// 2. Escape special characters in each part to prevent injection
+	for i, part := range parts {
+		parts[i] = regexp.QuoteMeta(part)
+	}
+
+	// 3. Join with .* and add the case-insensitive flag (?i)
+	pattern := "(?i)" + strings.Join(parts, ".*")
+	return pattern
+}
+
 // Utility function to check if slice contains an element
 func Contains(slice []string, item string) bool {
 	for _, v := range slice {
@@ -932,6 +947,10 @@ func GetTimestamp(value interface{}) time.Time {
 	}
 
 	return time.Now().UTC()
+}
+
+func GetTimestampString(value interface{}) string {
+	return GetTimestamp(value).Format(time.RFC3339)
 }
 
 func ToTimestampString(value interface{}, layout string) time.Time {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 type RequestContext struct {
@@ -69,12 +70,143 @@ func (a *AuthPayload) ToJson() string {
 	return string(result)
 }
 
+type AuditTrailChanges struct {
+	Action     string
+	DocumentId string
+	Collection string
+	Model      string
+	NewValues  map[string]interface{}
+	OldValues  map[string]interface{}
+}
+
+func NewDataAuditTrail(request *RequestContext) *DataAuditTrails {
+	return &DataAuditTrails{
+		App:       request.App,
+		TenantId:  *request.Request.TenantId(),
+		UserId:    request.TokenPayload.UserId,
+		ProfileId: request.TokenPayload.UserId,
+		AdminId:   request.TokenPayload.AdminId,
+		Changes:   make(map[string]AuditTrailChanges),
+	}
+}
+
+type DataAuditTrails struct {
+	App       *YekongaData
+	TenantId  string
+	UserId    string
+	ProfileId string
+	AdminId   string
+
+	UsernameType string
+	Username     string
+
+	ClientOrigin    string
+	ClientHost      string
+	ClientPort      string
+	ClientProto     string
+	ClientPath      string
+	ClientMethod    string
+	ClientBrowser   string
+	ClientUserAgent string
+	ClientIpAddress string
+
+	Changes   map[string]AuditTrailChanges
+	Timestamp time.Time
+}
+
+func (a *DataAuditTrails) ToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"tenantId":        a.TenantId,
+		"userId":          a.UserId,
+		"profileId":       a.ProfileId,
+		"adminId":         a.AdminId,
+		"usernameType":    a.UsernameType,
+		"username":        a.Username,
+		"clientOrigin":    a.ClientOrigin,
+		"clientHost":      a.ClientHost,
+		"clientPort":      a.ClientPort,
+		"clientProto":     a.ClientProto,
+		"clientPath":      a.ClientPath,
+		"clientMethod":    a.ClientMethod,
+		"clientBrowser":   a.ClientBrowser,
+		"clientUserAgent": a.ClientUserAgent,
+		"clientIpAddress": a.ClientIpAddress,
+		"changes":         a.Changes,
+		"timestamp":       a.Timestamp,
+	}
+
+	return result
+}
+
+func (a *DataAuditTrails) Append(model *DataModel, action string, documentId string, newValues map[string]interface{}) {
+	// Implement logging logic here, e.g., save to database or write to a file
+
+	for model, value := range a.Changes {
+		a.App.ModelQuery("AuditTrail").Create(datatype.DataMap{
+			"tenantId":        a.TenantId,
+			"userId":          a.UserId,
+			"profileId":       a.ProfileId,
+			"adminId":         a.AdminId,
+			"usernameType":    a.UsernameType,
+			"username":        a.Username,
+			"model":           model,
+			"action":          value.Action,
+			"documentId":      value.DocumentId,
+			"oldValues":       value.OldValues,
+			"newValues":       value.NewValues,
+			"clientOrigin":    a.ClientOrigin,
+			"clientHost":      a.ClientHost,
+			"clientPort":      a.ClientPort,
+			"clientProto":     a.ClientProto,
+			"clientPath":      a.ClientPath,
+			"clientMethod":    a.ClientMethod,
+			"clientBrowser":   a.ClientBrowser,
+			"clientUserAgent": a.ClientUserAgent,
+			"clientIpAddress": a.ClientIpAddress,
+		})
+	}
+
+}
+
+func (a *DataAuditTrails) Log() {
+	// Implement logging logic here, e.g., save to database or write to a file
+	console.Log("DataAuditTrails", "Audit Trail: %v", a.ToMap())
+
+	for model, value := range a.Changes {
+		a.App.ModelQuery("AuditTrail").Create(datatype.DataMap{
+			"tenantId":        a.TenantId,
+			"userId":          a.UserId,
+			"profileId":       a.ProfileId,
+			"adminId":         a.AdminId,
+			"usernameType":    a.UsernameType,
+			"username":        a.Username,
+			"model":           model,
+			"collection":      value.Collection,
+			"action":          value.Action,
+			"documentId":      value.DocumentId,
+			"oldValues":       value.OldValues,
+			"newValues":       value.NewValues,
+			"clientOrigin":    a.ClientOrigin,
+			"clientHost":      a.ClientHost,
+			"clientPort":      a.ClientPort,
+			"clientProto":     a.ClientProto,
+			"clientPath":      a.ClientPath,
+			"clientMethod":    a.ClientMethod,
+			"clientBrowser":   a.ClientBrowser,
+			"clientUserAgent": a.ClientUserAgent,
+			"clientIpAddress": a.ClientIpAddress,
+			"timestamp":       a.Timestamp,
+		})
+	}
+}
+
 type TokenPayload struct {
-	Domain    string `json:"domain"`
-	TenantId  string `json:"tenantId"`
-	ProfileId string `json:"profileId"`
-	UserId    string `json:"userId"`
-	AdminId   string `json:"adminId"`
+	Domain     string `json:"domain"`
+	TenantId   string `json:"tenantId"`
+	ProfileId  string `json:"profileId"`
+	UserId     string `json:"userId"`
+	AdminId    string `json:"adminId"`
+	ModuleName string `json:"moduleName"`
 
 	UsernameType string `json:"usernameType"`
 	Username     string `json:"username"`

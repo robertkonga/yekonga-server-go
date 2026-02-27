@@ -1025,6 +1025,10 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 				}
 			} else if field, exist := m.Model.Fields[k]; exist {
 				v = field.DefaultValue
+
+				if helper.Contains(m.Model.DateFields, string(field.Name)) && v == "now" {
+					v = helper.GetTimestamp(nil)
+				}
 			}
 
 			formatInput[k] = m.formatInputDataField(k, v)

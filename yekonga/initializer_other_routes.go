@@ -196,8 +196,8 @@ func (y *YekongaData) initializerOtherRoutes() {
 			"window['systemConfig'] = " + helper.ToJson(wetConfig.config) + ";\n" +
 			"window['ProfileConfig'] = " + helper.ToJson(wetConfig.profileConfig) + ";\n"
 
-		res.Header("Cache-Control", "public, max-age=0")
-		res.Header("content-type", "application/javascript; charset=UTF-8")
+		res.SetHeader("Cache-Control", "public, max-age=0")
+		res.SetHeader("content-type", "application/javascript; charset=UTF-8")
 		res.Byte([]byte(content))
 	})
 
@@ -245,8 +245,8 @@ func (y *YekongaData) initializerOtherRoutes() {
 		content, _ = StaticFS.ReadFile("static/sdk/yekonga.js")
 		scripts += string(content) + "\n"
 
-		res.Header("Cache-Control", "public, max-age=0")
-		res.Header("content-type", "application/javascript")
+		res.SetHeader("Cache-Control", "public, max-age=0")
+		res.SetHeader("content-type", "application/javascript")
 		res.Byte([]byte(scripts))
 	})
 
@@ -272,28 +272,28 @@ func (y *YekongaData) initializerOtherRoutes() {
 		y.Get("/playground/font.css", func(req *Request, res *Response) {
 			content, _ := StaticFS.ReadFile("static/playground/font.css")
 
-			res.Header("content-type", "text/css; charset=utf-8")
+			res.SetHeader("content-type", "text/css; charset=utf-8")
 			res.Byte(content)
 		})
 
 		y.Get("/playground/index.css", func(req *Request, res *Response) {
 			content, _ := StaticFS.ReadFile("static/playground/index.css")
 
-			res.Header("content-type", "text/css; charset=utf-8")
+			res.SetHeader("content-type", "text/css; charset=utf-8")
 			res.Byte(content)
 		})
 
 		y.Get("/playground/favicon.png", func(req *Request, res *Response) {
 			content, _ := StaticFS.ReadFile("static/playground/fovicon.png")
 
-			res.Header("content-type", "image/png")
+			res.SetHeader("content-type", "image/png")
 			res.Byte(content)
 		})
 
 		y.Get("/playground/middleware.js", func(req *Request, res *Response) {
 			content, _ := StaticFS.ReadFile("static/playground/middleware.js")
 
-			res.Header("content-type", "text/javascript")
+			res.SetHeader("content-type", "text/javascript")
 			res.Byte(content)
 		})
 	}
@@ -301,7 +301,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 	y.Get("/placeholder.jpg", func(req *Request, res *Response) {
 		content, _ := StaticFS.ReadFile("static/placeholder.jpg")
 
-		res.Header("content-type", "image/jpeg")
+		res.SetHeader("content-type", "image/jpeg")
 		res.Byte(content)
 	})
 }
@@ -315,8 +315,8 @@ func (y *YekongaData) initializerSocketRoutes() {
 		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
 		scripts += string(content) + "\n"
 
-		res.Header("Cache-Control", "public, max-age=0")
-		res.Header("content-type", "application/javascript")
+		res.SetHeader("Cache-Control", "public, max-age=0")
+		res.SetHeader("content-type", "application/javascript")
 		res.Byte([]byte(scripts))
 	})
 
@@ -343,8 +343,8 @@ func runCustomCSS(y *YekongaData) Handler {
 			}
 		}
 
-		res.Header("Cache-Control", "public, max-age=0")
-		res.Header("content-type", "text/css; charset=utf-8")
+		res.SetHeader("Cache-Control", "public, max-age=0")
+		res.SetHeader("content-type", "text/css; charset=utf-8")
 		res.Byte([]byte(content))
 	}
 }

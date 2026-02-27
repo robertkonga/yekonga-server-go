@@ -944,7 +944,7 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 				result["message"] = "Success"
 				result["data"] = helper.ToMap[interface{}](created)
 			}
-			console.Success("create", result)
+			// console.Success("create", result)
 
 			return result, nil
 		},
@@ -1041,7 +1041,7 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 				result["data"] = helper.ToMap[interface{}](updated)
 			}
 
-			console.Success("updated", result)
+			// console.Success("updated", result)
 
 			return result, nil
 		},
@@ -1079,7 +1079,7 @@ func (g *GraphqlAutoBuild) getMutationDeleteField(collection string, foreignKey 
 			deleted := helper.ToMap[interface{}](model.Delete(nil))
 			deletedCount := helper.ToFloat(helper.GetValueOf(deleted, "DeletedCount"))
 
-			console.Log("deletedCount", deletedCount)
+			// console.Log("deletedCount", deletedCount)
 
 			if deletedCount > 0 {
 				result["success"] = true

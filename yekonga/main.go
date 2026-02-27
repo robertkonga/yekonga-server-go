@@ -43,7 +43,7 @@ type Handler func(req *Request, res *Response)
 type SystemHandler func(req *Request, res *Response) (interface{}, error)
 
 // Middleware represents a function that can modify requests/responses
-type Middleware func(req *Request, res *Response) error
+type Middleware func(req *Request, res *Response) (int, error)
 
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type BackendCloudFunction func(interface{}) (*setting.SendResponse, error)
@@ -154,39 +154,117 @@ func (y *YekongaData) HomeDirectory() string {
 	return helper.HomeDirectory(helper.ToSlug(y.Config.AppName))
 }
 
-// parseRoute parses a route pattern and extracts parameter names
+// parseRoute parses a route pattern and extracts parameter names.
+// e.g. /user-:name-:action/:id.svg returns (["name", "action", "id"], "^/user-([^/-]+)-([^/.]+)/([^/]+)$")
 func parseRoute(pattern string) ([]string, string) {
+	var params []string
+	var patternBuf strings.Builder
+
+	patternBuf.WriteString("^")
+
 	parts := strings.Split(pattern, "/")
-	params := []string{}
-	normalized := []string{}
-
-	paramExtractor := regexp.MustCompile(`^([a-zA-Z0-9]+)(.*)$`)
-
-	for _, part := range parts {
-		if strings.HasPrefix(part, ":") {
-			paramNameSuffix := part[1:] // Remove the leading ":"
-			matches := paramExtractor.FindStringSubmatch(paramNameSuffix)
-			if len(matches) > 2 {
-				paramName := matches[1]       // e.g., "id" or "patten"
-				trailingLiteral := matches[2] // e.g., "-view" or ".svg" or ""
-
-				params = append(params, paramName)
-				// The regex for the actual matching should be "([^/]+)" followed by the escaped trailing literal.
-				normalized = append(normalized, "([^/]+)"+regexp.QuoteMeta(trailingLiteral))
-			} else {
-				// Fallback for cases where paramExtractor doesn't fully match,
-				// which implies the parameter name itself (after ':') might not start with [a-zA-Z0-9]+.
-				// In such cases, we'll treat the entire suffix as the parameter name and use a generic wildcard.
-				params = append(params, paramNameSuffix)
-				normalized = append(normalized, "([^/]+)")
+	for i, part := range parts {
+		if !strings.Contains(part, ":") {
+			if i > 0 {
+				patternBuf.WriteString("/")
 			}
+			patternBuf.WriteString(regexp.QuoteMeta(part))
+			continue
+		}
+
+		segment, err := parseSegment(part)
+		if err != nil {
+			if i > 0 {
+				patternBuf.WriteString("/")
+			}
+			// patternBuf.WriteString("([^/]+)")
+			patternBuf.WriteString("([a-zA-Z0-9_]+)")
+			params = append(params, part)
+			continue
+		}
+
+		params = append(params, segment.params...)
+
+		if segment.fullyOptional && i > 0 {
+			// Wrap the leading slash + segment together as optional
+			patternBuf.WriteString("(?:/" + segment.pattern + ")?")
 		} else {
-			// Escape literal parts to handle special regex characters in static path segments
-			normalized = append(normalized, regexp.QuoteMeta(part))
+			if i > 0 {
+				patternBuf.WriteString("/")
+			}
+			patternBuf.WriteString(segment.pattern)
 		}
 	}
 
-	return params, "^" + strings.Join(normalized, "/") + "$"
+	patternBuf.WriteString("$")
+
+	return params, patternBuf.String()
+}
+
+type parsedSegment struct {
+	params        []string
+	pattern       string
+	fullyOptional bool // true when the whole segment is "/:param?" and the slash should be optional too
+}
+
+// parseSegment handles a single path segment that contains one or more params.
+// e.g. "user-:name-:action" → params: ["name","action"], pattern: "user-([^/-]+)-([^/]+)"
+func parseSegment(part string) (parsedSegment, error) {
+	paramRe := regexp.MustCompile(`:([a-zA-Z0-9_]+)(\?)?`)
+
+	var params []string
+	var patternBuf strings.Builder
+
+	remaining := part
+	for {
+		loc := paramRe.FindStringIndex(remaining)
+		if loc == nil {
+			patternBuf.WriteString(regexp.QuoteMeta(remaining))
+			break
+		}
+
+		leadingLiteral := remaining[:loc[0]]
+		match := paramRe.FindStringSubmatch(remaining[loc[0]:])
+		if len(match) < 2 {
+			return parsedSegment{}, fmt.Errorf("invalid param in segment: %q", part)
+		}
+
+		paramName := match[1]
+		optional := match[2] == "?"
+		params = append(params, paramName)
+		remaining = remaining[loc[1]:]
+
+		nextParamLoc := paramRe.FindStringIndex(remaining)
+		boundary := remaining
+		if nextParamLoc != nil {
+			boundary = remaining[:nextParamLoc[0]]
+		}
+
+		var captureGroup string
+		if boundary == "" {
+			// captureGroup = "([^/]+)"
+			captureGroup = "([a-zA-Z0-9_]+)"
+		} else {
+			// captureGroup = "([^/" + regexp.QuoteMeta(boundary) + "]+)"
+			captureGroup = "([a-zA-Z0-9_]+)"
+		}
+
+		if optional {
+			patternBuf.WriteString("(?:" + regexp.QuoteMeta(leadingLiteral) + captureGroup + ")?")
+		} else {
+			patternBuf.WriteString(regexp.QuoteMeta(leadingLiteral) + captureGroup)
+		}
+	}
+
+	pattern := patternBuf.String()
+
+	// The segment is fully optional if it's just a single "?" param with no leading/trailing literals.
+	// e.g. ":name?" but not "user-:name?" or ":name?.svg"
+	fullyOptional := len(params) == 1 &&
+		paramRe.MatchString(part) &&
+		strings.TrimSuffix(strings.TrimPrefix(part, ":"+params[0]), "?") == ""
+
+	return parsedSegment{params: params, pattern: pattern, fullyOptional: fullyOptional}, nil
 }
 
 func isValidParam(param string) bool {
@@ -194,48 +272,30 @@ func isValidParam(param string) bool {
 	return match
 }
 
-// matchRoute checks if a path matches a route pattern and extracts parameters
+// matchRoute checks if a path matches a compiled route regex and extracts parameters.
 func matchRoute(pattern string, paramNames []string, path string) (bool, map[string]string) {
-	patternParts := strings.Split(pattern, "/")
-	pathParts := strings.Split(path, "/")
+	re := regexp.MustCompile(pattern)
 
-	if len(patternParts) != len(pathParts) {
+	matches := re.FindStringSubmatch(path)
+
+	// if strings.Contains(path, "/nome") {
+	// 	console.Error("path", path)
+	// 	console.Error("pattern", pattern)
+	// 	console.Error("matches", matches)
+	// }
+
+	if matches == nil {
 		return false, nil
 	}
 
-	params := make(map[string]string)
-	paramIdx := 0
+	// matches[0] is the full match, captures start at [1]
+	if len(matches)-1 != len(paramNames) {
+		return false, nil
+	}
 
-	for i, part := range patternParts {
-		if strings.HasPrefix(part, ":") {
-			if paramIdx >= len(paramNames) {
-				return false, nil
-			}
-
-			paramName := paramNames[paramIdx]
-			prefix := ":" + paramName
-
-			if !strings.HasPrefix(part, prefix) {
-				return false, nil
-			}
-
-			suffix := part[len(prefix):]
-
-			if !strings.HasSuffix(pathParts[i], suffix) {
-				return false, nil
-			}
-
-			paramVal := strings.TrimSuffix(pathParts[i], suffix)
-
-			if !isValidParam(paramVal) {
-				return false, nil
-			}
-
-			params[paramName] = paramVal
-			paramIdx++
-		} else if part != pathParts[i] {
-			return false, nil
-		}
+	params := make(map[string]string, len(paramNames))
+	for i, name := range paramNames {
+		params[name] = matches[i+1]
 	}
 
 	return true, params
@@ -250,11 +310,17 @@ func (y *YekongaData) addRoute(method, pattern string, handler Handler) {
 		y.routes[method] = []Route{}
 	}
 
-	paramNames, _ := parseRoute(pattern)
 	pattern = y.AppendBaseUrl(pattern)
+	paramNames, normalized := parseRoute(pattern)
+
+	// if strings.Contains(pattern, "/nome") {
+	// 	console.Info("pattern", pattern)
+	// 	console.Info("normalized", normalized)
+	// 	console.Info("paramNames", paramNames)
+	// }
 
 	y.routes[method] = append(y.routes[method], Route{
-		pattern:    pattern,
+		pattern:    normalized,
 		paramNames: paramNames,
 		handler:    handler,
 	})
@@ -481,6 +547,7 @@ func (y *YekongaData) RegisterCronjobOn(name string, frequency JobFrequency, tim
 func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// logger.Info("ServeHTTP", "All routes pass")
 	var err error
+	var status int
 	var rawBody interface{}
 
 	// Check for static file requests first
@@ -506,16 +573,6 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			origin = r.Host
 		}
 	}
-
-	if y.Config.Cors {
-		w.Header().Add("access-control-allow-origin", origin)
-	}
-
-	w.Header().Add("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
-	w.Header().Add("access-control-allow-credentials", "true")
-	w.Header().Add("access-control-allow-methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE")
-	w.Header().Add("Keep-Alive", "timeout=5, max=98")
-	w.Header().Add("Connection", "Keep-Alive")
 
 	// to account for form headers and boundaries.
 	maxUploadSize := int64(310 << 20) // ~310 MB
@@ -544,16 +601,6 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	json.NewDecoder(r.Body).Decode(&rawBody)
 
-	// file, handler, err := r.FormFile("file")
-	// if err == nil {
-	// 	console.Log("Received file:", handler.Filename)
-	// 	defer file.Close()
-	// }
-	// files := r.MultipartForm.File["files"]
-	// for _, fileHeader := range files {
-	// 	console.Log("Received file:", fileHeader.Filename)
-	// }
-
 	route, params := y.findRoute(r.Method, r.URL.Path)
 
 	req := Request{
@@ -565,56 +612,76 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := Response{
-		httpResponseWriter: &w,
+		httpResponseWriter: w,
 		staticConfig:       y.staticConfig,
 		request:            &req,
+		headers:            make(MIMEHeader, 0),
 	}
 
+	if y.Config.Cors {
+		w.Header().Set("access-control-allow-origin", origin)
+	}
+
+	w.Header().Set("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
+	w.Header().Set("access-control-allow-credentials", "true")
+	w.Header().Set("access-control-allow-methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE")
+	w.Header().Set("keep-alive", "timeout=5, max=98")
+	w.Header().Set("connection", "keep-alive")
+
+	defer res.Close()
+
 	// Apply middlewares
-	err = ApplicationKeyMiddleware(&req, &res)
+	status, err = ApplicationKeyMiddleware(&req, &res)
 	if err != nil {
-		res.Abort(http.StatusForbidden, err.Error())
+		res.Abort(status, err.Error())
 		return
 	}
 
 	// Apply middlewares
 	for _, middleware := range y.preloadMiddlewares {
 		if middleware != nil {
-			err = middleware(&req, &res)
+			status, err = middleware(&req, &res)
 			if err != nil {
-				res.Abort(http.StatusBadRequest, err.Error())
+				res.Abort(status, err.Error())
 				return
 			}
 		}
 	}
 
-	// Apply middlewares
-	err = ClientMiddleware(&req, &res)
+	// Apply client middleware
+	status, err = ClientMiddleware(&req, &res)
 	if err != nil {
-		res.Abort(http.StatusBadRequest, err.Error())
+		res.Abort(status, err.Error())
 		return
 	}
 
-	// Apply middlewares
-	err = TokenMiddleware(&req, &res)
+	// Apply token middleware
+	status, err = TokenMiddleware(&req, &res)
 	if err != nil {
-		res.Abort(http.StatusBadRequest, err.Error())
+		res.Abort(status, err.Error())
 		return
 	}
 
-	// Apply middlewares
-	err = UserInfoMiddleware(&req, &res)
+	// Apply billing middleware
+	status, err = BillingMiddleware(&req, &res)
 	if err != nil {
-		res.Abort(http.StatusBadRequest, err.Error())
+		res.Abort(status, err.Error())
+		return
+	}
+
+	// Apply userinfo middlewares
+	status, err = UserInfoMiddleware(&req, &res)
+	if err != nil {
+		res.Abort(status, err.Error())
 		return
 	}
 
 	// Apply middlewares
 	for _, middleware := range y.initMiddlewares {
 		if middleware != nil {
-			err = middleware(&req, &res)
+			status, err = middleware(&req, &res)
 			if err != nil {
-				res.Abort(http.StatusBadRequest, err.Error())
+				res.Abort(status, err.Error())
 				return
 			}
 		}
@@ -623,9 +690,9 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Apply middlewares
 	for _, middleware := range y.middlewares {
 		if middleware != nil {
-			err = middleware(&req, &res)
+			status, err = middleware(&req, &res)
 			if err != nil {
-				res.Abort(http.StatusBadRequest, err.Error())
+				res.Abort(status, err.Error())
 				return
 			}
 		}
@@ -639,7 +706,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Apply middlewares
 		for _, middleware := range y.catchMiddlewares {
 			if middleware != nil {
-				err = middleware(&req, &res)
+				_, err = middleware(&req, &res)
 				return
 			}
 		}
@@ -702,7 +769,6 @@ func (y *YekongaData) Start(address interface{}) {
 	if y.Config.Ports.Secure {
 		go func() {
 			httpMux := http.NewServeMux()
-
 			httpMux.HandleFunc("/", redirectToHTTPS)
 
 			err := http.ListenAndServe(":"+fmt.Sprint(y.Config.Ports.Server), httpMux)

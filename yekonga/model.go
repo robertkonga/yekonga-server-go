@@ -6,7 +6,6 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 const TenantIDKey = "tenantId"
@@ -115,10 +114,6 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructureTy
 
 			if _, ok := m.ParentFields[parentName]; !ok {
 				m.ParentFields[parentName] = parentForeign
-			}
-
-			if m.Name == "Location" {
-				console.Success(parentName, parentForeign.ForeignKey, parentForeign.ModelName, parentForeign.PrimaryKey)
 			}
 
 			// --------------------------------

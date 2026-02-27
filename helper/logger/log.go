@@ -131,7 +131,7 @@ func toJson(data interface{}) string {
 }
 
 func WriteToFile(filename string, data string) {
-	logDir := GetPath("logs")
+	logDir := GetPath("./logs")
 	fmt.Println("Log file path:", logDir)
 	if err := os.MkdirAll(logDir, 0644); err != nil {
 		fmt.Println("Error creating logs directory:", err)
@@ -171,21 +171,17 @@ func LoadFile(filename string) string {
 	return string(bytes)
 }
 
-// func (p *pp) doPrintln(a []any) {
-// 	for argNum, arg := range a {
-// 		if argNum > 0 {
-// 			p.buf.writeByte(' ')
-// 		}
-// 		p.printArg(arg, 'v')
-// 	}
-// 	p.buf.writeByte('\n')
-// }
-
 func GetPath(relativePath string) string {
-	if filepath.IsAbs(relativePath) {
-		if FileExists(relativePath) {
-			return relativePath
-		}
+	// 1. Get the path of the executable
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatalf("Error getting executable path: %v", err)
+	}
+	exPath := filepath.Dir(ex)
+	absolutePath := filepath.Join(exPath, relativePath)
+
+	if FileExists(absolutePath) {
+		return absolutePath
 	}
 
 	if FileExists(relativePath) {
@@ -195,18 +191,6 @@ func GetPath(relativePath string) string {
 		}
 		return absPath
 	}
-
-	// 1. Get the path of the executable
-	ex, err := os.Executable()
-	if err != nil {
-		log.Fatalf("Error getting executable path: %v", err)
-	}
-
-	// 2. Get the directory of the executable
-	exPath := filepath.Dir(ex)
-
-	// 3. Join the executable's directory with the relative path
-	absolutePath := filepath.Join(exPath, relativePath)
 
 	return absolutePath
 }

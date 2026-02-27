@@ -3,6 +3,7 @@ package yekonga
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -21,8 +22,12 @@ const (
 	CatchMiddleware   MiddlewareType = "catch"
 )
 
+func BillingMiddleware(req *Request, res *Response) (int, error) {
+	return http.StatusOK, nil
+}
+
 // Middleware to set client detail
-func ClientMiddleware(req *Request, res *Response) error {
+func ClientMiddleware(req *Request, res *Response) (int, error) {
 	r := req.HttpRequest
 	tenantModelName := "Tenant"
 	protoList := strings.Split(strings.ToLower(r.Proto), "/")
@@ -45,12 +50,6 @@ func ClientMiddleware(req *Request, res *Response) error {
 			origin = proto + "://" + host
 		}
 	}
-
-	// console.Log(r.Method, r.URL.Path)
-	// console.Warn("r.Host:", r.Host)
-	// console.Error("r.Referer():", r.Referer())
-	// console.Log("host", host)
-	// console.Log(r.URL)
 
 	client := ClientPayload{
 		Host:      host,
@@ -83,7 +82,7 @@ func ClientMiddleware(req *Request, res *Response) error {
 		}
 
 		if helper.IsEmpty(client.TenantId) && req.App.Config.TenantOnly {
-			return errors.New("tenant not found for the request")
+			return http.StatusBadRequest, errors.New("tenant not found for the request")
 		}
 
 		req.SetTenantId(client.TenantId)
@@ -91,11 +90,11 @@ func ClientMiddleware(req *Request, res *Response) error {
 
 	req.SetContext(string(ClientPayloadKey), client)
 
-	return nil
+	return http.StatusOK, nil
 }
 
 // Middleware to add token as a string
-func TokenMiddleware(req *Request, res *Response) error {
+func TokenMiddleware(req *Request, res *Response) (int, error) {
 	app := req.App
 	config := req.App.Config
 	clientPayload := req.Client()
@@ -138,13 +137,13 @@ func TokenMiddleware(req *Request, res *Response) error {
 			}
 			req.App.clearAuthCookies(requestContext, domain)
 
-			return errors.New("Access token invalid")
+			return http.StatusUnauthorized, errors.New("Access token invalid")
 		}
 
 		json.Unmarshal([]byte(helper.ToJson(tokenPayloadMap)), &tokenPayload)
 
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
-			return errors.New("Token expired")
+			return http.StatusUnauthorized, errors.New("Token expired")
 		}
 
 		if domain != tokenPayload.Domain {
@@ -157,12 +156,12 @@ func TokenMiddleware(req *Request, res *Response) error {
 			}
 			req.App.clearAuthCookies(requestContext, tokenPayload.Domain)
 
-			return errors.New("Domain mismatch expired")
+			return http.StatusUnauthorized, errors.New("Domain mismatch expired")
 		}
 
 		if req.App.Config.TenantOnly {
 			if helper.IsNotEmpty(tokenPayload) && helper.IsEmpty(tokenPayload.TenantId) {
-				return errors.New("tenant not found for the request")
+				return http.StatusBadRequest, errors.New("tenant not found for the request")
 			}
 		}
 
@@ -187,15 +186,15 @@ func TokenMiddleware(req *Request, res *Response) error {
 		currentPath := req.HttpRequest.URL.Path
 
 		if helper.Contains(paths, currentPath) && helper.IsEmpty(accessToken) {
-			return errors.New("Must be authorized/login")
+			return http.StatusUnauthorized, errors.New("Must be authorized/login")
 		}
 	}
 
-	return nil
+	return http.StatusOK, nil
 }
 
 // Middleware to add user info as a map
-func UserInfoMiddleware(req *Request, res *Response) error {
+func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 	var userInfo *datatype.DataMap
 	const userModelName = "User"
 	tokenPayload := req.GetContext(string(TokenPayloadKey))
@@ -230,10 +229,10 @@ func UserInfoMiddleware(req *Request, res *Response) error {
 		req.SetContext(string(UserInfoPayloadKey), *userInfo)
 	}
 
-	return nil
+	return http.StatusOK, nil
 }
 
-func ApplicationKeyMiddleware(req *Request, res *Response) error {
+func ApplicationKeyMiddleware(req *Request, res *Response) (int, error) {
 	var appKey string = req.GetHeader("application-key")
 	var path string = req.HttpRequest.URL.Path
 	var extension string = filepath.Ext(path)
@@ -266,13 +265,13 @@ func ApplicationKeyMiddleware(req *Request, res *Response) error {
 		if req.App.Config.EnableAppKey {
 			if helper.IsNotEmpty(appKey) {
 				if appKey != req.App.Config.AppKey {
-					return errors.New("application key invalid")
+					return http.StatusUnauthorized, errors.New("application key invalid")
 				}
 			} else {
-				return errors.New("application key not provided")
+				return http.StatusUnauthorized, errors.New("application key not provided")
 			}
 		}
 	}
 
-	return nil
+	return http.StatusOK, nil
 }

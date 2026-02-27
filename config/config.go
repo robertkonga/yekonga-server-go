@@ -87,6 +87,7 @@ type YekongaConfig struct {
 	AuthorizeTenantUserOnly bool     `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
 	AuthorizedOnly          bool     `json:"authorizedOnly"`          // Require authorization for all requests
 	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
+	HasTenantBilling        bool     `json:"hasTenantBilling"`        // Enable tenant billing features
 	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
 	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp
 	EndToEndEncryption      bool     `json:"endToEndEncryption"`      // Enable end-to-end encryption
