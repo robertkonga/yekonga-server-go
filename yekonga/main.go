@@ -612,7 +612,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := Response{
-		httpResponseWriter: w,
+		httpResponseWriter: &w,
 		staticConfig:       y.staticConfig,
 		request:            &req,
 		headers:            make(MIMEHeader, 0),

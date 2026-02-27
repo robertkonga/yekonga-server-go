@@ -21,7 +21,7 @@ type MIMEHeader map[string][]string
 
 // Response represents an HTTP response wrapper
 type Response struct {
-	httpResponseWriter http.ResponseWriter
+	httpResponseWriter *http.ResponseWriter
 	staticConfig       []*StaticConfig
 	request            *Request
 	headers            MIMEHeader
