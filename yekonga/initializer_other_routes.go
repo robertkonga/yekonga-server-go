@@ -201,6 +201,95 @@ func (y *YekongaData) initializerOtherRoutes() {
 		res.Byte([]byte(content))
 	})
 
+	y.Get("/tenant", func(req *Request, res *Response) {
+		tenantModelName := "Tenant"
+		client := req.Client()
+		host := client.OriginDomain()
+
+		var domain any
+		var tenantId any
+		var tenantName any
+
+		if req.App.Config.HasTenant {
+			tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+				"domain": host,
+			})
+
+			if helper.IsEmpty(tenant) {
+				tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+					"subdomain": host,
+				})
+			}
+
+			if helper.IsNotEmpty(tenant) {
+				domain = host
+				tenantId = helper.GetValueOfString(tenant, "_id")
+				tenantName = helper.GetValueOfString(tenant, "name")
+			}
+		}
+
+		if helper.IsNotEmpty(tenantId) {
+			res.Json(datatype.DataMap{
+				"domain":   domain,
+				"tenantId": tenantId,
+				"name":     tenantName,
+			})
+			return
+		}
+
+		res.Status(404)
+		res.Json(datatype.DataMap{
+			"error": "Tenant not found",
+		})
+	})
+
+	y.Get("/tenant-config", func(req *Request, res *Response) {
+		tenantModelName := "Tenant"
+		client := req.Client()
+		host := client.OriginDomain()
+
+		var tenant any
+
+		if req.App.Config.HasTenant {
+			tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+				"domain": host,
+			})
+
+			if helper.IsEmpty(tenant) {
+				tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+					"subdomain": host,
+				})
+			}
+		}
+
+		if helper.IsNotEmpty(tenant) {
+			tenantConfigModelName := "TenantConfig"
+			tenantId := helper.GetValueOf(tenant, "id")
+
+			tenantConfig := req.App.ModelQuery(tenantConfigModelName).FindOne(datatype.DataMap{
+				"tenantId": tenantId,
+			})
+
+			if helper.IsNotEmpty(tenantConfig) {
+				res.Json(datatype.DataMap{
+					"domain":    host,
+					"tenantId":  tenantId,
+					"smtp":      helper.GetValueOf(tenantConfig, "smtp"),
+					"sms":       helper.GetValueOf(tenantConfig, "sms"),
+					"whatsapp":  helper.GetValueOf(tenantConfig, "whatsapp"),
+					"coreTheme": helper.GetValueOf(tenantConfig, "coreTheme"),
+					"darkTheme": helper.GetValueOf(tenantConfig, "darkTheme"),
+				})
+				return
+			}
+		}
+
+		res.Status(404)
+		res.Json(datatype.DataMap{
+			"error": "Tenant config not found",
+		})
+	})
+
 	y.All("/download/:filename", func(req *Request, res *Response) {
 		filename := req.Param("filename")
 		title := req.Query("title")
@@ -321,9 +410,8 @@ func (y *YekongaData) initializerSocketRoutes() {
 	})
 
 	y.All("/yekonga.io/", func(req *Request, res *Response) {
-
 		(*res.httpResponseWriter).Header().Set("access-control-allow-origin", "*")
-		(*res.httpResponseWriter).Header().Add("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
+		(*res.httpResponseWriter).Header().Set("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
 
 		y.socketServer.ServeWS(req, res)
 	})
@@ -384,8 +472,10 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	uploadDir := filepath.Join(helper.GetPath("public"), "uploads")
 	os.MkdirAll(uploadDir, os.ModePerm)
 
+	fileExt := filepath.Ext(handler.Filename)
 	// 4. Create a local file to save the uploaded data
-	dst, err := os.Create(filepath.Join(uploadDir, helper.GetHexString(24)+filepath.Ext(handler.Filename)))
+	savedFile := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
+	dst, err := os.Create(savedFile)
 	if err != nil {
 		http.Error(w, "Error saving the file", http.StatusInternalServerError)
 		return
@@ -393,6 +483,15 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	defer dst.Close()
 	uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dst.Name()), r.Host)
 	fileNames = append(fileNames, uploadedUrl)
+
+	if helper.Contains([]string{".png", ".jpg", ".jpeg", "webp"}, fileExt) {
+		// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
+		helper.ResizeFile(savedFile, savedFile, helper.ResizeOptions{
+			MaxWidth: 900,
+			// OutputFormat: "png",
+			Quality: 80,
+		})
+	}
 
 	// 5. Copy the uploaded file to the destination
 	if _, err := io.Copy(dst, file); err != nil {
@@ -454,7 +553,8 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		// 3. Create destination path
-		dstPath := filepath.Join(uploadDir, helper.GetHexString(24)+filepath.Ext(fileHeader.Filename))
+		fileExt := filepath.Ext(fileHeader.Filename)
+		dstPath := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
 		dst, err := os.Create(dstPath)
 		if err != nil {
 			console.Log("Saving file to:", err.Error())
@@ -471,13 +571,19 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if helper.Contains([]string{".png", ".jpg", ".jpeg", "webp"}, fileExt) {
+			helper.ResizeFile(dstPath, dstPath, helper.ResizeOptions{
+				MaxWidth: 900,
+				// OutputFormat: "png",
+				Quality: 80,
+			})
+		}
+
 		uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dstPath), r.Host)
 		fileNames = append(fileNames, uploadedUrl)
 
 		fmt.Printf("Saved: %s\n", fileHeader.Filename)
 	}
-
-	w.WriteHeader(http.StatusOK)
 
 	// 1. Set the header so the client (Vue/Postman) knows it's JSON
 	w.Header().Set("Content-Type", "application/json")
@@ -487,6 +593,8 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 		"status": "success",
 		"files":  fileNames,
 	}
+
+	w.WriteHeader(http.StatusOK)
 
 	// 4. Encode directly to the response writer
 	if err := json.NewEncoder(w).Encode(data); err != nil {

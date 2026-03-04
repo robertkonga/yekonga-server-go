@@ -2,7 +2,7 @@ package yekonga
 
 type DatabaseStructureType = map[string]map[string]map[string]interface{}
 
-var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
+var DefaultTenantDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 	"Tenants": {
 		"id":              {"type": "ID", "default": nil, "required": false},
 		"userId":          {"type": "ID", "default": nil, "required": false, "foreignKey": "User.id"},
@@ -34,7 +34,7 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 	"TenantFeatures": {
 		"id":          {"type": "ID", "default": nil, "required": false},
 		"tenantId":    {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},
-		"namespace":   {"type": "String", "default": nil, "required": false},
+		"moduleName":  {"type": "String", "default": nil, "required": false},
 		"featureCode": {"type": "String", "default": nil, "required": false},
 		"enabled":     {"type": "Boolean", "default": true, "required": false},
 	},
@@ -46,6 +46,17 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 		"status":    {"type": "String", "default": "active", "required": false, "options": []string{"active", "inactive"}},
 		"createdAt": {"type": "Date", "default": "now", "required": false},
 	},
+}
+
+var DefaultTenantCatchDatabaseStructure DatabaseStructureType = DatabaseStructureType{
+	"TenantCatches": {
+		"id":       {"type": "ID", "default": nil, "required": false},
+		"tenantId": {"type": "ID", "default": nil, "required": false},
+		"domain":   {"type": "String", "default": nil, "required": false},
+	},
+}
+
+var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 	"Users": {
 		"id":                 {"type": "ID", "default": nil, "required": false},
 		"tenantId":           {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},
@@ -173,7 +184,7 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 	},
 	"AuthPermissions": {
 		"id":          {"type": "ID", "default": nil, "required": false},
-		"namespace":   {"type": "String", "default": nil, "required": false},
+		"moduleName":  {"type": "String", "default": nil, "required": false},
 		"group":       {"type": "String", "default": nil, "required": false},
 		"code":        {"type": "String", "default": nil, "required": false},
 		"name":        {"type": "String", "default": nil, "required": false},
@@ -184,7 +195,7 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 		"id":          {"type": "ID", "default": nil, "required": false},
 		"tenantId":    {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},
 		"profileId":   {"type": "ID", "default": nil, "required": false, "foreignKey": "Profile.id"},
-		"namespace":   {"type": "String", "default": nil, "required": false},
+		"moduleName":  {"type": "String", "default": nil, "required": false},
 		"name":        {"type": "String", "default": nil, "required": false},
 		"description": {"type": "String", "default": nil, "required": false},
 	},
@@ -200,7 +211,7 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 		"profileId":   {"type": "ID", "default": nil, "required": false, "foreignKey": "Profile.id"},
 		"userId":      {"type": "ID", "default": nil, "required": false, "foreignKey": "User.id"},
 		"authGroupId": {"type": "ID", "default": nil, "required": false, "foreignKey": "AuthGroup.id"},
-		"namespace":   {"type": "String", "default": nil, "required": false},
+		"moduleName":  {"type": "String", "default": nil, "required": false},
 		"code":        {"type": "String", "default": nil, "required": false},
 	},
 	"TranslatorLanguages": {
@@ -214,7 +225,7 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 		"id":                   {"type": "ID", "default": nil, "required": false},
 		"translatorLanguageId": {"type": "ID", "default": nil, "required": false, "foreignKey": "TranslatorLanguage.id"},
 		"locale":               {"type": "String", "default": nil, "required": false},
-		"namespace":            {"type": "String", "default": nil, "required": false},
+		"moduleName":           {"type": "String", "default": nil, "required": false},
 		"group":                {"type": "String", "default": nil, "required": false},
 		"item":                 {"type": "String", "default": nil, "required": false},
 		"description":          {"type": "String", "default": nil, "required": false},
@@ -244,8 +255,8 @@ var DefaultAuthDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 var DefaultBillingDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 	"Modules": {
 		"id":          {"type": "ID", "default": nil, "required": false},
-		"namespace":   {"type": "String", "default": nil, "required": false},
-		"name":        {"type": "String", "default": nil, "required": false},
+		"moduleName":  {"type": "String", "default": nil, "required": false},
+		"title":       {"type": "String", "default": nil, "required": false},
 		"description": {"type": "String", "default": nil, "required": false},
 		"enabled":     {"type": "Boolean", "default": true, "required": false},
 	},
@@ -477,7 +488,7 @@ var DefaultExtraDatabaseStructure DatabaseStructureType = DatabaseStructureType{
 		},
 		"timestamp": {"type": "Date", "default": "now", "required": false},
 	},
-	"ChatMessageStatuses": {
+	"ChatMessageStates": {
 		"id":                {"type": "ID", "default": nil, "required": false},
 		"tenantId":          {"type": "ID", "default": nil, "required": false, "foreignKey": "Tenant.id"},
 		"chatMessageId":     {"type": "ID", "default": nil, "required": false, "foreignKey": "ChatMessage.id"},

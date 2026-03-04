@@ -616,6 +616,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		staticConfig:       y.staticConfig,
 		request:            &req,
 		headers:            make(MIMEHeader, 0),
+		statusCode:         http.StatusOK,
 	}
 
 	if y.Config.Cors {
@@ -627,6 +628,19 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("access-control-allow-methods", "GET, POST, OPTIONS, PUT, PATCH, DELETE")
 	w.Header().Set("keep-alive", "timeout=5, max=98")
 	w.Header().Set("connection", "keep-alive")
+
+	// isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
+	// if !isJson {
+	// 	isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
+	// }
+	// if isJson {
+	// 	w.Header().Set("content-type", "application/json")
+	// }
+
+	// if err := res.initGzip(&w); err == nil {
+	// 	w.Header().Set("content-encoding", "gzip")
+	// 	w.Header().Set("vary", "accept-encoding")
+	// }
 
 	defer res.Close()
 
@@ -650,6 +664,13 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Apply client middleware
 	status, err = ClientMiddleware(&req, &res)
+	if err != nil {
+		res.Abort(status, err.Error())
+		return
+	}
+
+	// Apply client middleware
+	status, err = TenantCatchMiddleware(&req, &res)
 	if err != nil {
 		res.Abort(status, err.Error())
 		return

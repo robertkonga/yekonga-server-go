@@ -78,72 +78,74 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 		m.where = make(datatype.DataMap)
 	}
 
-	if helper.Contains(m.Model.RelativeKeys, name) || name == "id" || name == "_id" {
+	if helper.Contains(m.Model.RelativeKeys, name) || helper.Contains(m.Model.IDKeys, name) || name == "id" || name == "_id" {
 		if name == "id" || name == "_id" {
 			name = "_id"
 		}
 
-		if v, ok := value.(string); ok {
-			switch v {
-			case string(NULLValue):
-				newValue = nil
-			case string(NullValue):
-				newValue = nil
-			case string(nullValue):
-				newValue = nil
-			default:
-				newValue = helper.ObjectID(v)
-			}
-		} else if helper.IsArray(value) {
-			array := helper.ToList[interface{}](value)
-			count := len(array)
-			vpi := make([]bson.ObjectID, 0, count)
+		if value != nil {
+			if v, ok := value.(string); ok {
+				switch v {
+				case string(NULLValue):
+					newValue = nil
+				case string(NullValue):
+					newValue = nil
+				case string(nullValue):
+					newValue = nil
+				default:
+					newValue = helper.ObjectID(v)
+				}
+			} else if helper.IsArray(value) {
+				array := helper.ToList[interface{}](value)
+				count := len(array)
+				vpi := make([]bson.ObjectID, 0, count)
 
-			for i := 0; i < count; i++ {
-				vpi = append(vpi, helper.ObjectID(array[i]))
-			}
+				for i := 0; i < count; i++ {
+					vpi = append(vpi, helper.ObjectID(array[i]))
+				}
 
-			newValue = vpi
-		} else if v, ok := value.(map[string]interface{}); ok {
-			vp := make(map[string]interface{})
+				newValue = vpi
+			} else if v, ok := value.(map[string]interface{}); ok {
+				vp := make(map[string]interface{})
 
-			for ki, vi := range v {
-				if vii, ok := vi.(string); ok {
-					switch vii {
-					case string(NULLValue):
-						vp[ki] = nil
-					case string(NullValue):
-						vp[ki] = nil
-					case string(nullValue):
-						vp[ki] = nil
-					default:
-						vp[ki] = helper.ObjectID(vii)
-					}
-				} else if helper.IsArray(vi) {
-					array := helper.ToList[interface{}](vi)
-					count := len(array)
-					vpi := make([]bson.ObjectID, 0, count)
+				for ki, vi := range v {
+					if vii, ok := vi.(string); ok {
+						switch vii {
+						case string(NULLValue):
+							vp[ki] = nil
+						case string(NullValue):
+							vp[ki] = nil
+						case string(nullValue):
+							vp[ki] = nil
+						default:
+							vp[ki] = helper.ObjectID(vii)
+						}
+					} else if helper.IsArray(vi) {
+						array := helper.ToList[interface{}](vi)
+						count := len(array)
+						vpi := make([]bson.ObjectID, 0, count)
 
-					for i := 0; i < count; i++ {
-						vpi = append(vpi, helper.ObjectID(array[i]))
-					}
+						for i := 0; i < count; i++ {
+							vpi = append(vpi, helper.ObjectID(array[i]))
+						}
 
-					vp[ki] = vpi
-				} else {
-					switch vi {
-					case string(NULLValue):
-						vp[ki] = nil
-					case string(NullValue):
-						vp[ki] = nil
-					case string(nullValue):
-						vp[ki] = nil
-					default:
-						vp[ki] = helper.ObjectID(vi)
+						vp[ki] = vpi
+					} else {
+						switch vi {
+						case string(NULLValue):
+							vp[ki] = nil
+						case string(NullValue):
+							vp[ki] = nil
+						case string(nullValue):
+							vp[ki] = nil
+						default:
+							vp[ki] = helper.ObjectID(vi)
+						}
 					}
 				}
-			}
 
-			newValue = vp
+				newValue = vp
+			}
 		}
 	}
 
@@ -171,7 +173,7 @@ func (m *DataModelQuery) WhereMany(where interface{}) *DataModelQuery {
 	}
 
 	if helper.IsMap(where) {
-		p := helper.ToMap[interface{}](where)
+		p := helper.ToDataMap(where)
 		for k, v := range p {
 			m.Where(k, v)
 		}
@@ -268,7 +270,7 @@ func (m *DataModelQuery) Skip(value int) *DataModelQuery {
 }
 
 func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
-	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 		tenantId := m.getTenantId()
 
 		if helper.IsNotEmpty(tenantId) {
@@ -1123,14 +1125,16 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 	}
 
 	if err != nil {
-		// logger.Error("runTriggerAction", err.Error())
+		// if m.Model.Name == "Outlet" {
+		// 	logger.Error("runTriggerAction", action, err.Error())
+		// }
 	}
 
 	return result
 }
 
 func (m *DataModelQuery) addTenantId() {
-	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 		payload := m.RequestContext.TokenPayload
 		tenantId := ""
 
@@ -1150,7 +1154,7 @@ func (m *DataModelQuery) addTenantId() {
 
 func (m *DataModelQuery) getTenantId() string {
 	tenantId := ""
-	if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
+	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 		payload := m.RequestContext.TokenPayload
 
 		if payload != nil && helper.IsNotEmpty(payload.TenantId) {

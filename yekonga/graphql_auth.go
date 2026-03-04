@@ -232,6 +232,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 			var usernameType = helper.GetValueOfString(input, "usernameType")
 			var password = helper.GetValueOfString(input, "password")
 			var loginType = helper.GetValueOfString(input, "type")
+			var moduleName = helper.GetValueOfString(input, "moduleName")
 			var rememberMe = helper.GetValueOfBoolean(input, "rememberMe")
 
 			cookieEnabled := ""
@@ -287,6 +288,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 						profileId := helper.GetValueOfString(user, "profileId")
 						tenantId := helper.GetValueOfString(user, "tenantId")
 						adminId := helper.GetValueOfString(user, "adminId")
+						permissions := g.yekonga.GetUserPermission(tenantId, userId, moduleName)
 
 						refreshToken := g.yekonga.getRefreshToken(*req.Client, TokenPayload{
 							Domain:      req.Client.OriginDomain(),
@@ -294,9 +296,11 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							ProfileId:   profileId,
 							UserId:      userId,
 							AdminId:     adminId,
+							ModuleName:  moduleName,
 							Roles:       make([]string, 0), // ["admin", "finance"],
-							Permissions: make([]string, 0), // ["payroll.read", "asset.write"],
-							ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
+							Permissions: permissions,       // ["payroll.read", "asset.write"],
+							// ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
+							ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
 						}, rememberMe)
 
 						if helper.IsEmpty(cookieEnabled) {
@@ -307,7 +311,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							user[helper.ToVariable(string(RefreshTokenKey))] = "Cookie is set"
 						}
 
-						g.yekonga.setAuthCookies(req, accessToken, refreshToken)
+						g.yekonga.setAuthCookies(req, accessToken, refreshToken, moduleName)
 					}
 
 					return user, nil
@@ -351,13 +355,17 @@ func _refreshToken(g *GraphqlAutoBuild) *graphql.Field {
 			"refreshToken": &graphql.ArgumentConfig{
 				Type: graphql.String,
 			},
+			"moduleName": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			refreshToken := helper.GetValueOfString(p.Args, "refreshToken")
+			moduleName := helper.GetValueOfString(p.Args, "moduleName")
 
 			if g.yekonga.Config.SecureAuthentication {
-				result, status := req.App.refreshTokenProcess(req.Request, req.Response, refreshToken)
+				result, status := req.App.refreshTokenProcess(req.Request, req.Response, refreshToken, moduleName)
 
 				if status == http.StatusOK {
 					return result, nil
@@ -370,7 +378,6 @@ func _refreshToken(g *GraphqlAutoBuild) *graphql.Field {
 			}
 
 			return nil, nil
-
 		},
 	}
 }

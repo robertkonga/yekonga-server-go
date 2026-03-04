@@ -3,15 +3,16 @@ package yekonga
 import (
 	"errors"
 	"fmt"
-	"time"
 
+	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
 const (
-	CustomCSS    string = "__SET_CUSTOM_CSS__"
-	CustomConfig string = "__SET_CUSTOM_CONFIG__"
+	FetchTenantByDomain string = "__SET_FETCH_TENANT_BY_DOMAIN__"
+	CustomCSS           string = "__SET_CUSTOM_CSS__"
+	CustomConfig        string = "__SET_CUSTOM_CONFIG__"
 )
 
 type TriggerAction string
@@ -87,7 +88,7 @@ func (y *YekongaData) Define(name string, fn CloudFunction) error {
 	return nil
 }
 
-func (y *YekongaData) Run(name string, data interface{}, ctx *RequestContext, timeout time.Duration) (interface{}, error) {
+func (y *YekongaData) Run(name string, data interface{}, ctx *RequestContext) (interface{}, error) {
 	y.mut.RLock()
 	fun, exists := y.functions[name]
 	y.mut.RUnlock()
@@ -298,7 +299,7 @@ func (y *YekongaData) setTrigger(model string, action TriggerAction, accessRole 
 	}
 
 	y.triggerFunctions[model][action][actionAccess] = fn
-	logger.Warn("Registered cloud function: %s -> %v -> %v -> %v", model, action, accessRole, route)
+	// logger.Warn("Registered cloud function: %s -> %v -> %v -> %v", model, action, accessRole, route)
 	return nil
 }
 
@@ -433,6 +434,85 @@ func (y *YekongaData) CustomCSS(req *Request, res *Response) (interface{}, error
 	}
 
 	return nil, errors.New("Custom CSS not set")
+}
+
+// AddCloudFunction registers a new cloud function
+func (y *YekongaData) SetFetchTenantByDomain(fn CloudFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.functions[FetchTenantByDomain]; exists {
+		return fmt.Errorf("cloud function %s already exists", FetchTenantByDomain)
+	}
+
+	y.functions[FetchTenantByDomain] = fn
+	logger.Error("Registered system cloud function SetFetchTenantByDomain")
+	return nil
+}
+
+func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response) (interface{}, error) {
+	y.mut.RLock()
+	fun, exists := y.functions[FetchTenantByDomain]
+	y.mut.RUnlock()
+
+	const tenantCatchModelName = "TenantCatch"
+	var tenant any
+	var tenantId any
+	var domain any
+	var err error
+	var response any
+	if value, ok := data.(string); ok {
+		domain = value
+	} else {
+		domain = helper.GetValueOf(data, "domain")
+	}
+
+	if helper.IsNotEmpty(domain) {
+		if y.Config.HasTenantCatch {
+			tenant = req.App.ModelQuery(tenantCatchModelName).FindOne(datatype.DataMap{
+				"domain": domain,
+			})
+
+			if helper.IsNotEmpty(tenant) {
+				tenantId = helper.GetValueOf(tenant, "tenantId")
+			}
+		}
+
+		if exists && helper.IsEmpty(tenantId) {
+			auth := req.Auth()
+			client := req.Client()
+			tokenPayload := req.TokenPayload()
+
+			ctx := RequestContext{
+				App:          y,
+				Auth:         auth,
+				Request:      req,
+				Response:     res,
+				Client:       client,
+				TokenPayload: tokenPayload,
+			}
+			response, err = fun(data, &ctx)
+
+			if err == nil {
+				domain = helper.GetValueOf(response, "domain")
+				tenantId = helper.GetValueOf(response, "tenantId")
+
+				if y.Config.HasTenantCatch && helper.IsNotEmpty(domain) && helper.IsNotEmpty(tenantId) {
+					tenant = req.App.ModelQuery(tenantCatchModelName).Create(datatype.DataMap{
+						"domain":   domain,
+						"tenantId": tenantId,
+					})
+				}
+			}
+		}
+
+		return datatype.DataMap{
+			"domain":   domain,
+			"tenantId": tenantId,
+		}, err
+	}
+
+	return nil, errors.New("Fetch Tenant By Domain not set")
 }
 
 // AddCloudFunction registers a new cloud function

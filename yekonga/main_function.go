@@ -35,6 +35,7 @@ type LoginData struct {
 	ProfileID  string
 	UserID     string
 	Username   string
+	ModuleName string
 	RememberMe bool
 	IsAdmin    bool
 }
@@ -335,8 +336,11 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 
 	if helper.IsNotEmpty(user) {
 		model := y.Model(userModelName)
+		tenantId := *req.Request.TenantId()
+		permissions := y.GetUserPermission(tenantId, userId, input.ModuleName)
+
 		payload := TokenPayload{
-			TenantId:     *req.Request.TenantId(),
+			TenantId:     tenantId,
 			Domain:       domain,
 			UserId:       userId,
 			Username:     helper.GetValueOfString(user, "username"),
@@ -344,9 +348,11 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 			Phone:        helper.GetValueOfString(user, "phone"),
 			Email:        helper.GetValueOfString(user, "email"),
 			Whatsapp:     helper.GetValueOfString(user, "whatsapp"),
+			ModuleName:   input.ModuleName,
 			Roles:        make([]string, 0), // ["admin", "finance"],
-			Permissions:  make([]string, 0), // ["payroll.read", "asset.write"],
-			ExpiresAt:    time.Now().Add(time.Minute * 15),
+			Permissions:  permissions,       // ["payroll.read", "asset.write"],
+			// ExpiresAt:    time.Now().Add(time.Minute * 15),
+			ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
 		}
 
 		userRole := helper.GetValueOf(user, "role")
@@ -429,6 +435,27 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	return &user
 }
 
+func (y *YekongaData) GetUserPermission(tenantId string, userId string, moduleName string) []string {
+	var list = make([]string, 0, 0)
+
+	if helper.IsNotEmpty(moduleName) {
+		const userPermissionModelName = "AuthUserPermission"
+		var where = datatype.DataMap{
+			"tenantId":   tenantId,
+			"userId":     userId,
+			"moduleName": moduleName,
+		}
+		var permissions = y.ModelQuery(userPermissionModelName).WhereAll(where).Find(nil)
+
+		for _, e := range *permissions {
+			var name = helper.GetValueOfString(e, "code")
+			list = append(list, name)
+		}
+	}
+
+	return list
+}
+
 func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, req *Request, res *Response) interface{} {
 	requestString := query
 	variableValues := variables
@@ -476,10 +503,10 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		userId = nil
 	}
 
-	var days time.Duration = 7
-	if rememberMe {
-		days = 30
-	}
+	// var days time.Duration = 7
+	// if rememberMe {
+	// 	days = 30
+	// }
 
 	body := datatype.DataMap{
 		"domain":    payload.Domain,
@@ -491,7 +518,8 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		"userAgent": client.UserAgent,
 		"ipAddress": client.IpAddress,
 		"revoked":   false,
-		"expiresAt": time.Now().Add(time.Hour * 24 * days),
+		// "expiresAt": time.Now().Add(time.Hour * 24 * days),
+		"expiresAt": helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
 	}
 
 	y.ModelQuery("RefreshToken").Create(body)
@@ -499,14 +527,18 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 	return token
 }
 
-func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, refreshToken string) {
+func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, refreshToken string, moduleName string) {
 	w := req.Response.httpResponseWriter
 	domain := req.Client.OriginDomain()
+	accessPath := "/"
+	if helper.IsNotEmpty(moduleName) {
+		accessPath = "/" + moduleName
+	}
 
 	http.SetCookie(*w, &http.Cookie{
 		Name:     string(AccessTokenKey),
 		Value:    accessToken,
-		Path:     "/",
+		Path:     accessPath,
 		Domain:   domain,
 		HttpOnly: true,
 		Secure:   y.Config.SecureOnly,

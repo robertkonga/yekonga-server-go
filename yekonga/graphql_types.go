@@ -661,6 +661,9 @@ var LoginInput = graphql.NewInputObject(graphql.InputObjectConfig{
 		"type": &graphql.InputObjectFieldConfig{
 			Type: LoginTypeEnum,
 		},
+		"moduleName": &graphql.InputObjectFieldConfig{
+			Type: graphql.String,
+		},
 		"rememberMe": &graphql.InputObjectFieldConfig{
 			Type: graphql.Boolean,
 		},

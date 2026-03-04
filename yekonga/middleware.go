@@ -29,7 +29,6 @@ func BillingMiddleware(req *Request, res *Response) (int, error) {
 // Middleware to set client detail
 func ClientMiddleware(req *Request, res *Response) (int, error) {
 	r := req.HttpRequest
-	tenantModelName := "Tenant"
 	protoList := strings.Split(strings.ToLower(r.Proto), "/")
 	hostList := strings.Split(strings.ToLower(r.Host), ":")
 	proto := protoList[0]
@@ -62,33 +61,55 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 		IpAddress: ipAddress,
 	}
 
-	// console.Log("Client Info:", client)
+	req.SetContext(string(ClientPayloadKey), client)
 
-	if req.App.Config.HasTenant && req.App.Config.IsAuthorizationServer {
+	return http.StatusOK, nil
+}
+
+func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
+	tenantModelName := "Tenant"
+	client := *req.Client()
+	host := client.Host
+	tenantId := ""
+
+	if req.App.Config.HasTenant {
 		tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
 			"domain": host,
 		})
 
 		if helper.IsNotEmpty(tenant) {
-			client.TenantId = helper.GetValueOfString(tenant, "_id")
+			tenantId = helper.GetValueOfString(tenant, "_id")
 		} else {
 			tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
 				"subdomain": host,
 			})
 
 			if helper.IsNotEmpty(tenant) {
-				client.TenantId = helper.GetValueOfString(tenant, "_id")
+				tenantId = helper.GetValueOfString(tenant, "_id")
 			}
 		}
 
-		if helper.IsEmpty(client.TenantId) && req.App.Config.TenantOnly {
+		if helper.IsEmpty(tenantId) && req.App.Config.TenantOnly {
 			return http.StatusBadRequest, errors.New("tenant not found for the request")
 		}
-
-		req.SetTenantId(client.TenantId)
 	}
 
-	req.SetContext(string(ClientPayloadKey), client)
+	if req.App.Config.HasTenantCatch {
+		tenant, err := req.App.FetchTenantByDomain(host, req, res)
+
+		if err == nil {
+			if helper.IsNotEmpty(tenant) {
+				tenantId = helper.GetValueOfString(tenant, "tenantId")
+			}
+		}
+	}
+
+	if helper.IsNotEmpty(tenantId) {
+		client.TenantId = tenantId
+
+		req.SetTenantId(tenantId)
+		req.SetContext(string(ClientPayloadKey), client)
+	}
 
 	return http.StatusOK, nil
 }

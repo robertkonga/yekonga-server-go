@@ -57,14 +57,14 @@ func (y *YekongaData) initialize() {
 	})
 
 	if y.Config.IsAuthorizationServer {
-		y.Get("/me", y.authHandler)
-		y.Post("/me", y.authHandler)
+		y.Get("/me/:moduleName?", y.authHandler)
+		y.Post("/me/:moduleName?", y.authHandler)
 
 		y.Get("/logout", y.logoutHandler)
 		y.Post("/logout", y.logoutHandler)
 
-		y.Get("/refresh", y.refreshHandler)
-		y.Post("/refresh", y.refreshHandler)
+		y.Get("/refresh/:moduleName?", y.refreshHandler)
+		y.Post("/refresh/:moduleName?", y.refreshHandler)
 	}
 
 	y.initializerSocketRoutes()
@@ -242,11 +242,13 @@ func (y *YekongaData) initialize() {
 	})
 
 	y.initializerOtherRoutes()
+	runDefaultCloudFunctions()
 }
 
 func (y *YekongaData) authHandler(req *Request, res *Response) {
 	var user *datatype.DataMap
 	auth := req.Auth()
+	moduleName := req.Param("moduleName")
 
 	if helper.IsNotEmpty(auth) {
 		requestContext := &RequestContext{
@@ -258,8 +260,9 @@ func (y *YekongaData) authHandler(req *Request, res *Response) {
 		}
 
 		user = y.GetLoginData(requestContext, &LoginData{
-			UserID:    auth.ID,
-			ProfileID: auth.ProfileID,
+			UserID:     auth.ID,
+			ProfileID:  auth.ProfileID,
+			ModuleName: moduleName,
 		})
 
 		if helper.IsNotEmpty(user) {
@@ -293,7 +296,8 @@ func (y *YekongaData) logoutHandler(req *Request, res *Response) {
 }
 
 func (y *YekongaData) refreshHandler(req *Request, res *Response) {
-	result, status := y.refreshTokenProcess(req, res, nil)
+	moduleName := req.Param("moduleName")
+	result, status := y.refreshTokenProcess(req, res, nil, moduleName)
 
 	if !y.Config.SecureAuthentication {
 		result["token"] = nil
@@ -303,7 +307,7 @@ func (y *YekongaData) refreshHandler(req *Request, res *Response) {
 	res.Json(result)
 }
 
-func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshToken interface{}) (datatype.DataMap, int) {
+func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshToken interface{}, moduleName string) (datatype.DataMap, int) {
 	var data *datatype.DataMap
 	status := http.StatusUnauthorized
 	result := datatype.DataMap{}
@@ -346,6 +350,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 					tenantId := helper.GetValueOfString(data, "tenantId")
 					profileId := helper.GetValueOfString(data, "profileId")
 					adminId := helper.GetValueOfString(data, "adminId")
+					permissions := y.GetUserPermission(tenantId, userId, moduleName)
 
 					if tokenDomain == domain {
 						payload := TokenPayload{
@@ -354,8 +359,9 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 							ProfileId:   profileId,
 							UserId:      userId,
 							AdminId:     adminId,
+							ModuleName:  moduleName,
 							Roles:       make([]string, 0),
-							Permissions: make([]string, 0),
+							Permissions: permissions,
 							ExpiresAt:   today.Add(time.Minute * 15),
 						}
 
@@ -377,7 +383,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 							Request:  req,
 							Response: res,
 							Client:   req.Client(),
-						}, newAccessToken, newRefreshToken)
+						}, newAccessToken, newRefreshToken, moduleName)
 
 						y.ModelQuery("RefreshToken").Where("tokenHash", hashedToken).Update(datatype.DataMap{
 							"revoked": true,
@@ -405,7 +411,9 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 	}
 
 	var databaseAuthStructure = DefaultAuthDatabaseStructure
+	var databaseTenantStructure = DefaultTenantDatabaseStructure
 	var databaseBillingStructure = DefaultBillingDatabaseStructure
+	var databaseTenantCatchStructure = DefaultTenantCatchDatabaseStructure
 	var databaseStructure = DefaultExtraDatabaseStructure
 
 	var extraDatabaseStructure map[string]map[string]map[string]interface{}
@@ -430,8 +438,8 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 		}
 	}
 
-	if config.HasTenantBilling {
-		for k, v := range databaseBillingStructure {
+	if config.HasTenantCatch {
+		for k, v := range databaseTenantCatchStructure {
 			k = helper.ToCamelCase(helper.Pluralize(k))
 			if _, ok := databaseStructure[k]; ok {
 				for kn, vn := range extraDatabaseStructure[k] {
@@ -439,6 +447,32 @@ func NewDatabaseStructure(file string, config *config.YekongaConfig) *DatabaseSt
 				}
 			} else {
 				databaseStructure[k] = v
+			}
+		}
+	}
+
+	if config.HasTenant {
+		for k, v := range databaseTenantStructure {
+			k = helper.ToCamelCase(helper.Pluralize(k))
+			if _, ok := databaseStructure[k]; ok {
+				for kn, vn := range extraDatabaseStructure[k] {
+					databaseStructure[k][kn] = vn
+				}
+			} else {
+				databaseStructure[k] = v
+			}
+		}
+
+		if config.HasTenantBilling {
+			for k, v := range databaseBillingStructure {
+				k = helper.ToCamelCase(helper.Pluralize(k))
+				if _, ok := databaseStructure[k]; ok {
+					for kn, vn := range extraDatabaseStructure[k] {
+						databaseStructure[k][kn] = vn
+					}
+				} else {
+					databaseStructure[k] = v
+				}
 			}
 		}
 	}

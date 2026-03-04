@@ -82,12 +82,13 @@ type YekongaConfig struct {
 	Environment             string   `json:"environment"`             // Application environment (e.g., development, production)
 	HasTenant               bool     `json:"hasTenant"`               // Enable multi-tenancy
 	TenantOnly              bool     `json:"tenantOnly"`              // Restrict access to tenants only
+	HasTenantBilling        bool     `json:"hasTenantBilling"`        // Enable tenant billing features
+	HasTenantCatch          bool     `json:"hasTenantCatch"`          //
 	SecureAuthentication    bool     `json:"secureAuthentication"`    // Enable or disable secure authentication
 	IsAuthorizationServer   bool     `json:"isAuthorizationServer"`   // Designate as an authorization server
 	AuthorizeTenantUserOnly bool     `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
 	AuthorizedOnly          bool     `json:"authorizedOnly"`          // Require authorization for all requests
 	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
-	HasTenantBilling        bool     `json:"hasTenantBilling"`        // Enable tenant billing features
 	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
 	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp
 	EndToEndEncryption      bool     `json:"endToEndEncryption"`      // Enable end-to-end encryption

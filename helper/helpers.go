@@ -133,12 +133,19 @@ func ToInt(value interface{}) int {
 		}
 	} else if v, ok := value.(int); ok {
 		number = v
+	} else if IsNumeric(value) {
+		n, err := strconv.ParseInt(fmt.Sprintf("%v", value), 32, 64)
+		if err == nil {
+			number = int(n)
+		}
 	}
 
 	return number
 }
 
 func ToFloat(value interface{}) float64 {
+	// console.Log("ToFloat", fmt.Sprintf("%v", value))
+
 	var number float64 = 0
 	if v, ok := value.(string); ok {
 		n, err := strconv.ParseFloat(v, 64)
@@ -147,7 +154,19 @@ func ToFloat(value interface{}) float64 {
 		}
 	} else if v, ok := value.(float64); ok {
 		number = v
+	} else if v, ok := value.(int); ok {
+		n, err := strconv.ParseFloat(strconv.Itoa(v), 64)
+		if err == nil {
+			number = n
+		}
+	} else if IsNumeric(value) {
+		n, err := strconv.ParseFloat(fmt.Sprintf("%v", value), 64)
+		if err == nil {
+			number = n
+		}
 	}
+
+	// console.Log("ToFloat", GetType(number), number)
 
 	return number
 }
@@ -190,7 +209,14 @@ func ToByte(data interface{}) []byte {
 // JSON file and converts it to a map
 func ToMap[T any](data interface{}) map[string]T {
 	var result map[string]T
-	if err := json.Unmarshal(ToByte(data), &result); err != nil {
+	var dataByte []byte
+	if s, ok := data.(string); ok {
+		dataByte = []byte(s)
+	} else {
+		dataByte = ToByte(data)
+	}
+
+	if err := json.Unmarshal(dataByte, &result); err != nil {
 		return nil
 	}
 
@@ -639,9 +665,9 @@ var pluralRules = []struct {
 	pattern *regexp.Regexp
 	replace string
 }{
-	{regexp.MustCompile("(s|sh|ch|x|z)$"), "${1}es"}, // e.g., bus → buses, box → boxes
 	{regexp.MustCompile("([^aeiou])y$"), "${1}ies"},  // e.g., city → cities
 	{regexp.MustCompile("(f|fe)$"), "ves"},           // e.g., knife → knives
+	{regexp.MustCompile("(s|sh|ch|x|z)$"), "${1}es"}, // e.g., bus → buses, box → boxes
 	{regexp.MustCompile("$"), "s"},                   // Default rule: add "s"
 }
 
@@ -650,10 +676,10 @@ var singularRules = []struct {
 	pattern *regexp.Regexp
 	replace string
 }{
-	{regexp.MustCompile("ies$"), "y"},                 // e.g., cities → city
-	{regexp.MustCompile("ves$"), "f"},                 // e.g., knives → knife
-	{regexp.MustCompile("(s|sh|ch|x|z)$es$"), "${1}"}, // e.g., boxes → box
-	{regexp.MustCompile("s$"), ""},                    // Default rule: remove "s"
+	{regexp.MustCompile("ies$"), "y"},                // e.g., cities → city
+	{regexp.MustCompile("ves$"), "f"},                // e.g., knives → knife
+	{regexp.MustCompile("(s|sh|ch|x|z)es$"), "${1}"}, // e.g., boxes → box
+	{regexp.MustCompile("s$"), ""},                   // Default rule: remove "s"
 }
 
 // Pluralize converts a singular noun to its plural form

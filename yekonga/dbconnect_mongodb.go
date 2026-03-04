@@ -58,6 +58,10 @@ func (con *mongodbConnection) findOne() *datatype.DataMap {
 		opts = opts.SetSort(con.orderBy())
 	}
 
+	// if con.query.Model.Collection == "outlets" {
+	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
+	// }
+
 	res := con.collection().FindOne(context.TODO(), con.where(), opts)
 	err := res.Decode(&result)
 	if err != nil {
@@ -133,17 +137,17 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 	}
 
 	if err != nil {
-		logger.Error("mongodbConnection.find 1", err.Error())
+		logger.Error("mongodbConnection.find", err.Error())
 	}
 
 	defer cursor.Close(context.TODO())
 
-	// if con.query.Model.Name == "FieldOfficer" {
+	// if con.query.Model.Collection == "outlets" {
 	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
 	// }
 
 	if err := cursor.Err(); err != nil {
-		logger.Error("mongodbConnection.find 2", err.Error())
+		// logger.Error("mongodbConnection.find", err.Error())
 	} else {
 		result := make([]datatype.DataMap, 0, cursor.RemainingBatchLength())
 
@@ -169,7 +173,9 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 				result = append(result, data)
 			}
 		}
-		// console.Log("mongodbConnection.find", "Found %d documents", result)
+		// if con.query.Model.Collection == "outlets" {
+		// 	console.Log("mongodbConnection.find", "Found %d documents", result)
+		// }
 
 		return &result
 	}

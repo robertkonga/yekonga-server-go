@@ -3,7 +3,6 @@ package yekonga
 import (
 	"compress/gzip"
 	"embed"
-	"encoding/json"
 	"fmt"
 	"mime"
 	"net/http"
@@ -25,16 +24,25 @@ type Response struct {
 	staticConfig       []*StaticConfig
 	request            *Request
 	headers            MIMEHeader
+	statusCode         int
 	gz                 *gzip.Writer
 }
 
 // Response methods
 func (res *Response) Status(code int) {
-	(*res.httpResponseWriter).WriteHeader(code)
+	res.statusCode = code
 }
 
 func (res *Response) Header() http.Header {
 	return (*res.httpResponseWriter).Header()
+}
+
+func (res *Response) ResetHeaders() {
+	for k, v := range res.headers {
+		for _, s := range v {
+			(*res.httpResponseWriter).Header().Set(k, s)
+		}
+	}
 }
 
 func (res *Response) SetHeader(key string, value string) {
@@ -51,7 +59,6 @@ func (res *Response) WriteHeader(statusCode int) {
 
 func (res *Response) Abort(code int, message string) {
 	var contentUrl string
-	res.Status(code)
 
 	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
 
@@ -93,10 +100,12 @@ func (res *Response) Abort(code int, message string) {
 	}
 
 	// console.Error("Abort:", code, message)
+	res.Status(code)
 
 	if isJson {
 		res.Json(map[string]interface{}{
-			"error": message,
+			"status": code,
+			"error":  message,
 		})
 		return
 	} else if helper.IsNotEmpty(contentUrl) {
@@ -121,35 +130,33 @@ func (res *Response) acceptsGzip() bool {
 	return false
 }
 
-func (res *Response) initGzip(w http.ResponseWriter) error {
+func (res *Response) initGzip(w *http.ResponseWriter) error {
 	if res.gz != nil {
 		return nil
 	}
 
-	w.Header().Set("content-encoding", "gzip")
-	w.Header().Set("vary", "accept-encoding")
+	(*w).Header().Set("content-encoding", "gzip")
+	(*w).Header().Set("vary", "accept-encoding")
 
-	gz := gzip.NewWriter(w)
+	gz := gzip.NewWriter(*w)
 	res.gz = gz
 
 	return nil
 }
 
 func (res *Response) Write(data []byte) (int, error) {
-	w := *res.httpResponseWriter
-	for k, v := range res.headers {
-		for _, s := range v {
-			w.Header().Set(k, s)
-		}
-	}
+	res.SetHeader("yekonga-application", "Yesu")
+	res.ResetHeaders()
 
 	if res.acceptsGzip() {
-		if err := res.initGzip(w); err == nil {
+		if err := res.initGzip(res.httpResponseWriter); err == nil {
+			(*res.httpResponseWriter).WriteHeader(res.statusCode)
+
 			return res.gz.Write(data)
 		}
 		// initGzip failed — fall through to uncompressed (headers not yet set)
 	}
-	return w.Write(data)
+	return (*res.httpResponseWriter).Write(data)
 }
 
 // Close must be called when the response is done to flush the gzip stream.
@@ -181,32 +188,23 @@ func (res *Response) Html(data string) {
 }
 
 func (res *Response) Json(data interface{}) {
-	(*res.httpResponseWriter).Header().Set("Content-Type", "application/json")
-	// w := *res.httpResponseWriter
+	res.SetHeader("Content-Type", "application/json")
+	res.ResetHeaders()
 
-	for k, v := range res.headers {
-		for _, s := range v {
-			(*res.httpResponseWriter).Header().Set(k, s)
-		}
-	}
-
-	json.NewEncoder((*res.httpResponseWriter)).Encode(data)
+	// json.NewEncoder((*res.httpResponseWriter)).Encode(data)
+	res.Write([]byte(helper.ToJson(data)))
 }
 
 func (res *Response) File(file string) {
 	count := len(res.staticConfig)
-	w := *res.httpResponseWriter
-	for k, v := range res.headers {
-		for _, s := range v {
-			w.Header().Set(k, s)
-		}
-	}
 
 	if helper.FileExists(file) {
 		// Set cache headers
-		w.Header().Set("cache-control", fmt.Sprintf("max-age=%d", 1))
+		res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", 1))
+		res.ResetHeaders()
+
 		// Serve the file
-		http.ServeFile(w, res.request.HttpRequest, file)
+		http.ServeFile(res, res.request.HttpRequest, file)
 		return
 	} else {
 		for i := 0; i < count; i++ {
@@ -217,9 +215,10 @@ func (res *Response) File(file string) {
 
 				if helper.FileExists(filePath) {
 					// Set cache headers
-					w.Header().Set("cache-control", fmt.Sprintf("max-age=%d", static.CacheMaxAge))
+					res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", static.CacheMaxAge))
+					res.ResetHeaders()
 					// Serve the file
-					http.ServeFile(w, res.request.HttpRequest, filePath)
+					http.ServeFile((*res.httpResponseWriter), res.request.HttpRequest, filePath)
 					return
 				}
 			}
@@ -231,12 +230,6 @@ func (res *Response) File(file string) {
 
 func (res *Response) Download(filename string, name string) {
 	CacheMaxAge := false
-	w := *res.httpResponseWriter
-	for k, v := range res.headers {
-		for _, s := range v {
-			w.Header().Set(k, s)
-		}
-	}
 
 	if helper.FileExists(filename) {
 		if helper.IsEmpty(name) {
@@ -268,22 +261,23 @@ func (res *Response) Download(filename string, name string) {
 
 		// === 5. Set headers ===
 		// Force download (not browser preview)
-		w.Header().Set("content-disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
+		res.SetHeader("content-disposition", fmt.Sprintf(`attachment; filename="%s"`, name))
 
 		// MIME type (auto-detect)
 		if mimeType := mime.TypeByExtension(filepath.Ext(name)); mimeType != "" {
-			w.Header().Set("content-type", mimeType)
+			res.SetHeader("content-type", mimeType)
 		} else {
-			w.Header().Set("content-type", "application/octet-stream")
+			res.SetHeader("content-type", "application/octet-stream")
 		}
 
 		if !CacheMaxAge {
 			// Cache control: short cache or no-cache
-			w.Header().Set("cache-control", "max-age=1, must-revalidate") // or "no-cache, no-store"
+			res.SetHeader("cache-control", "max-age=1, must-revalidate") // or "no-cache, no-store"
 		}
 
 		// Optional security headers
-		w.Header().Set("x-content-type-options", "nosniff")
+		res.SetHeader("x-content-type-options", "nosniff")
+		res.ResetHeaders()
 
 		// === 6. Serve file efficiently (zero-copy) ===
 		http.ServeContent(res, res.request.HttpRequest, filename, stat.ModTime(), file)

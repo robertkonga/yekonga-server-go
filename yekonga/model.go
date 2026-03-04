@@ -362,15 +362,24 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 		}
 	}
 
-	if v, ok := field["defaultValue"]; ok {
+	hasDefault := false
+	if v, ok := field["default"]; ok {
+		hasDefault = true
+		defaultValue = v
+	}
+
+	if v, ok := field["defaultValue"]; ok && !hasDefault {
+		hasDefault = true
+		defaultValue = v
+	}
+
+	if hasDefault {
 		if isArray {
-			if helper.IsArray(v) {
-				defaultValue = helper.ToList[interface{}](v)
+			if helper.IsArray(defaultValue) {
+				defaultValue = helper.ToList[interface{}](defaultValue)
 			} else {
 				defaultValue = []interface{}{}
 			}
-		} else {
-			defaultValue = v
 		}
 	}
 
