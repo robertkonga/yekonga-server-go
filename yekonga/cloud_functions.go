@@ -6,6 +6,7 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
 
@@ -54,16 +55,18 @@ const (
 type ContextKey string
 
 const (
-	AccessTokenKey     ContextKey = "access_token"
-	RefreshTokenKey    ContextKey = "refresh_token"
-	UserInfoPayloadKey ContextKey = "userInfoPayload"
-	ClientPayloadKey   ContextKey = "clientPayload"
-	TokenPayloadKey    ContextKey = "tokenPayload"
-	CurrentTenantId    ContextKey = "currentTenantId"
-	RequestKey         ContextKey = "requestObject"
-	YekongaKey         ContextKey = "yekongaObject"
-	RequestContextKey  ContextKey = "requestContext"
-	ResponseContextKey ContextKey = "responseContext"
+	AccessTokenKey      ContextKey = "access_token"
+	RefreshTokenKey     ContextKey = "refresh_token"
+	UserInfoPayloadKey  ContextKey = "userInfoPayload"
+	MasterKey           ContextKey = "masterKey"
+	ClientPayloadKey    ContextKey = "clientPayload"
+	TokenPayloadKey     ContextKey = "tokenPayload"
+	CurrentTenantId     ContextKey = "currentTenantId"
+	CurrentTenantConfig ContextKey = "currentTenantConfig"
+	RequestKey          ContextKey = "requestObject"
+	YekongaKey          ContextKey = "yekongaObject"
+	RequestContextKey   ContextKey = "requestContext"
+	ResponseContextKey  ContextKey = "responseContext"
 )
 
 type PrimaryCloudKey string
@@ -332,6 +335,9 @@ func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxReq
 
 		result, err = y.triggerFunctions[model][action][actionAccess](ctxRequest, ctxQuery)
 
+		if err != nil {
+			console.Error("Error:triggerCallback", model, action, actionAccess, err.Error())
+		}
 		return result, err
 	}
 
@@ -465,11 +471,17 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 		domain = value
 	} else {
 		domain = helper.GetValueOf(data, "domain")
+
+		if helper.IsEmpty(domain) {
+			domain = helper.GetValueOf(data, "host")
+		}
 	}
+
+	// console.Log("FetchTenantByDomain domain", domain)
 
 	if helper.IsNotEmpty(domain) {
 		if y.Config.HasTenantCatch {
-			tenant = req.App.ModelQuery(tenantCatchModelName).FindOne(datatype.DataMap{
+			tenant = req.App.ModelQuery(tenantCatchModelName).SkipBeforeFind().FindOne(datatype.DataMap{
 				"domain": domain,
 			})
 
@@ -492,6 +504,7 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 				TokenPayload: tokenPayload,
 			}
 			response, err = fun(data, &ctx)
+			// console.Log("FetchTenantByDomain response", response, "err", err)
 
 			if err == nil {
 				domain = helper.GetValueOf(response, "domain")
@@ -502,6 +515,8 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 						"domain":   domain,
 						"tenantId": tenantId,
 					})
+
+					console.Log("Created tenant catch", tenant)
 				}
 			}
 		}

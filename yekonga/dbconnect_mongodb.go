@@ -34,6 +34,8 @@ func newMongodbInstance(con *mongodbConnection) mongodbConnection {
 			Model:          con.query.Model,
 			RequestContext: con.query.RequestContext,
 			QueryContext:   con.query.QueryContext,
+			isAdmin:        con.query.isAdmin,
+			skipBeforeFind: con.query.skipBeforeFind,
 		},
 	}
 }
@@ -447,7 +449,6 @@ func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 
 	if res.Acknowledged {
 		where := map[string]interface{}{"_id": map[string]interface{}{"in": res.InsertedIDs}}
-		// console.Log("ssss", res.InsertedIDs)
 		result = newMongodbInstance(con).query.WhereAll(where).collection().find()
 	}
 
@@ -465,8 +466,8 @@ func (con *mongodbConnection) update(data datatype.DataMap) (*datatype.DataMap, 
 		return nil, err
 	}
 
-	if res.Acknowledged && res.ModifiedCount > 0 {
-		result = newMongodbInstance(con).query.WhereAll(con.where()).FindOne(nil)
+	if res.Acknowledged && res.MatchedCount > 0 {
+		result = con.findOne()
 	}
 
 	return result, nil
@@ -484,7 +485,7 @@ func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.Dat
 	}
 
 	if res.Acknowledged {
-		result = newMongodbInstance(con).query.WhereAll(con.where()).Find(nil)
+		result = con.find()
 	}
 
 	return result, nil

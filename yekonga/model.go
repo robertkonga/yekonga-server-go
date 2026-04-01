@@ -20,6 +20,7 @@ const (
 	DataModelDate   DataModelFieldType = "date"
 	DataModelBool   DataModelFieldType = "bool"
 	DataModelObject DataModelFieldType = "object"
+	DataModelAny    DataModelFieldType = "any"
 	DataModelArray  DataModelFieldType = "array"
 	DataModelFile   DataModelFieldType = "file"
 )
@@ -291,6 +292,19 @@ func (m *DataModel) initialize(collection string, fields map[string]map[string]i
 }
 
 func (m *DataModel) getDataModelField(name string, field map[string]interface{}) *DataModelField {
+	return getDataModelField(name, field)
+}
+
+func (m *DataModel) Query() *DataModelQuery {
+	return &DataModelQuery{
+		Model: m,
+		QueryContext: QueryContext{
+			Params: make(map[string]interface{}),
+		},
+	}
+}
+
+func getDataModelField(name string, field map[string]interface{}) *DataModelField {
 	var primaryKey bool
 	var kind DataModelFieldType = DataModelString
 	var required bool
@@ -328,14 +342,14 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 				kind = DataModelNumber
 			case "text", "string":
 				kind = DataModelString
-			case "any":
-				kind = DataModelObject
-			case "object":
-				kind = DataModelObject
 			case "array":
 				isArray = true
 				defaultValue = []interface{}{}
 				kind = DataModelArray
+			case "any":
+				kind = DataModelAny
+			case "object":
+				kind = DataModelObject
 			case "url":
 				kind = DataModelFile
 			case "file":
@@ -435,9 +449,6 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 				parentKey = "_id"
 			}
 
-			/// Remove or comment the line below in production
-			// parentKey = helper.ToVariable(parentCollection + "_id")
-
 			if helper.IsNotEmpty(parentCollection) {
 				foreignKey = DataModelFieldForeignKey{
 					ModelName:  helper.ToCamelCase(parentCollection),
@@ -458,15 +469,7 @@ func (m *DataModel) getDataModelField(name string, field map[string]interface{})
 		ForeignKey:   foreignKey,
 		Options:      options,
 		IsArray:      isArray,
-		ID:           kind == DataModelID,
-	}
-}
 
-func (m *DataModel) Query() *DataModelQuery {
-	return &DataModelQuery{
-		Model: m,
-		QueryContext: QueryContext{
-			Params: make(map[string]interface{}),
-		},
+		ID: kind == DataModelID,
 	}
 }

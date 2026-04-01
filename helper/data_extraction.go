@@ -21,8 +21,16 @@ import (
 func GetSortedUniqueKeys(records []datatype.DataMap) []string {
 	keyMap := make(map[string]struct{})
 	for _, record := range records {
-		for key := range record {
-			keyMap[key] = struct{}{}
+		for key, val := range record {
+			if v, ok := val.(map[string]interface{}); ok {
+				sub_keys := GetSortedUniqueKeys([]datatype.DataMap{ToDataMap(v)})
+
+				for _, k := range sub_keys {
+					keyMap[key+"."+k] = struct{}{}
+				}
+			} else {
+				keyMap[key] = struct{}{}
+			}
 		}
 	}
 
@@ -58,18 +66,65 @@ func ConvertJSONArrayToDataArray(jsonData interface{}, headingColumns []string) 
 	}
 
 	for _, col := range headingColumns {
-		headingColumnsNames = append(headingColumnsNames, ToTitle(col))
+		colName := strings.ReplaceAll(col, ".", " ")
+		headingColumnsNames = append(headingColumnsNames, ToTitle(colName))
 	}
 
 	result = append(result, headingColumnsNames)
+	dataList := ConvertJSONArrayToListDataArray(records, headingColumns)
+
+	for _, v := range dataList {
+		result = append(result, v)
+	}
+
+	return result, nil
+}
+
+func ConvertJSONArrayToListDataArray(records []datatype.DataMap, headingColumns []string) [][]string {
+	result := make([][]string, 0, len(records))
 
 	// --- 4. Write Data Rows ---
 	for _, record := range records {
 		var csvRow []string
 		// Iterate through the specified columns to maintain order
 		for _, key := range headingColumns {
-			// Get the value from the record map
-			value, exists := record[key]
+			// Get the value from the record map using dot-notation path
+			var value interface{}
+			var exists bool
+
+			if v, ok := record[key]; ok {
+				value = v
+				exists = true
+			} else if strings.Contains(key, ".") {
+				// Traverse nested objects
+				var current interface{} = record
+				parts := strings.Split(key, ".")
+				exists = true
+
+				for _, part := range parts {
+					if m, ok := current.(datatype.DataMap); ok {
+						if v, ok2 := m[part]; ok2 {
+							current = v
+						} else {
+							exists = false
+							break
+						}
+					} else if m, ok := current.(map[string]interface{}); ok {
+						if v, ok2 := m[part]; ok2 {
+							current = v
+						} else {
+							exists = false
+							break
+						}
+					} else {
+						exists = false
+						break
+					}
+				}
+				if exists {
+					value = current
+				}
+			}
 
 			if !exists {
 				// If the key is not present in the record, add an empty string
@@ -96,6 +151,14 @@ func ConvertJSONArrayToDataArray(jsonData interface{}, headingColumns []string) 
 					strElements[i] = fmt.Sprintf("%v", elem)
 				}
 				valueStr = strings.Join(strElements, " / ")
+			case map[string]interface{}:
+				// Handle explicitly selected map-type columns by printing as JSON to maintain 1-to-1 column mapping
+				jsonBytes, err := json.Marshal(v)
+				if err == nil {
+					valueStr = string(jsonBytes)
+				} else {
+					valueStr = fmt.Sprintf("%v", v)
+				}
 			default:
 				// Catch-all for other types (e.g., nested objects, null)
 				if value != nil {
@@ -113,13 +176,14 @@ func ConvertJSONArrayToDataArray(jsonData interface{}, headingColumns []string) 
 		result = append(result, csvRow)
 	}
 
-	return result, nil
+	return result
 }
 
 // ConvertJSONArrayToCSV takes a byte slice of JSON data (an array of objects)
 // and a list of desired column names. It converts this data into a CSV string.
 func ConvertJSONArrayToCSV(jsonData interface{}, headingColumns []string, filename string) (string, error) {
 	records, _ := ConvertJSONArrayToDataArray(jsonData, headingColumns)
+	// console.Log("ConvertJSONArrayToCSV", records)
 
 	// 2. Prepare the CSV writer
 	// A bytes.Buffer implements io.Writer, which the csv.Writer needs.

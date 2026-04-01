@@ -293,10 +293,6 @@ func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis string, grou
 			},
 			"group": fmt.Sprintf("$%s", groupBy),
 		}
-
-		cb.dataModel.WhereAll(map[string]interface{}{
-			xAxis: map[string]string{"$type": "date"},
-		})
 		cb.dataModel.GroupByRaw("_id", groupByConfig)
 	} else if periodFormat != "" && cb.contains(datePeriods, periodicity) {
 		groupByConfig := map[string]interface{}{
@@ -307,9 +303,6 @@ func (cb *ChartBuilder) configureGrouping(periodicity string, xAxis string, grou
 				},
 			},
 		}
-		cb.dataModel.WhereAll(map[string]interface{}{
-			xAxis: map[string]string{"$type": "date"},
-		})
 		cb.dataModel.GroupByRaw("_id", groupByConfig)
 	} else if helper.IsNotEmpty(xAxis) && helper.IsNotEmpty(groupBy) && periodicity == "NONE" {
 		groupByConfig := map[string]interface{}{

@@ -44,32 +44,56 @@ type DataModelQuery struct {
 	RequestContext *RequestContext
 	QueryContext   QueryContext
 
-	limit      int
-	page       int
-	skip       int
-	where      datatype.DataMap
-	orderBy    map[string]string
-	selection  []string
-	distinct   []string
-	groupBy    []string
-	groupByRaw map[string]interface{}
+	isAdmin        bool
+	skipBeforeFind bool
+	limit          int
+	page           int
+	skip           int
+	where          datatype.DataMap
+	orderBy        map[string]string
+	selection      []string
+	distinct       []string
+	groupBy        []string
+	groupByRaw     map[string]interface{}
 }
 
 func NewDataModelQuery(model *DataModel) DataModelQuery {
 
 	return DataModelQuery{
-		Model: model,
-		limit: 10,
+		Model:          model,
+		limit:          10,
+		isAdmin:        false,
+		skipBeforeFind: false,
 	}
 }
 
 func (m *DataModelQuery) NewInstance() *DataModelQuery {
 	return &DataModelQuery{
-		Model: m.Model,
+		Model:          m.Model,
+		isAdmin:        false,
+		skipBeforeFind: m.skipBeforeFind,
 		QueryContext: QueryContext{
 			Params: make(map[string]interface{}),
 		},
 	}
+}
+
+func (m *DataModelQuery) SkipBeforeFind() *DataModelQuery {
+	m.skipBeforeFind = true
+
+	return m
+}
+
+func (m *DataModelQuery) Admin() *DataModelQuery {
+	m.isAdmin = true
+
+	return m
+}
+
+func (m *DataModelQuery) SetIsAdmin(isAdmin bool) *DataModelQuery {
+	m.isAdmin = isAdmin
+
+	return m
 }
 
 func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
@@ -77,7 +101,7 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 	if m.where == nil {
 		m.where = make(datatype.DataMap)
 	}
-
+	// console.Log("Where", 1, name, newValue)
 	if helper.Contains(m.Model.RelativeKeys, name) || helper.Contains(m.Model.IDKeys, name) || name == "id" || name == "_id" {
 		if name == "id" || name == "_id" {
 			name = "_id"
@@ -93,7 +117,11 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 				case string(nullValue):
 					newValue = nil
 				default:
-					newValue = helper.ObjectID(v)
+					if helper.IsNotEmpty(v) {
+						newValue = helper.ObjectID(v)
+					} else {
+						newValue = nil
+					}
 				}
 			} else if helper.IsArray(value) {
 				array := helper.ToList[interface{}](value)
@@ -148,14 +176,19 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 			}
 		}
 	}
+	// console.Log("Where", 2, name, newValue)
 
 	if w, ok := m.where[name]; ok {
-		w1, ok1 := w.(map[string]interface{})
-		w2, ok2 := newValue.(map[string]interface{})
+		if w != nil && newValue != nil {
+			w1, ok1 := w.(map[string]interface{})
+			w2, ok2 := newValue.(map[string]interface{})
 
-		if ok1 && ok2 {
-			for kii, vii := range w2 {
-				w1[kii] = vii
+			if ok1 && ok2 {
+				for kii, vii := range w2 {
+					w1[kii] = vii
+				}
+			} else {
+				m.where[name] = newValue
 			}
 		} else {
 			m.where[name] = newValue
@@ -163,6 +196,7 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 	} else {
 		m.where[name] = newValue
 	}
+	// console.Log("Where", 3, name, newValue)
 
 	return m
 }
@@ -364,6 +398,19 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 }
 
 func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interface{} {
+	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
+		tenantId := m.getTenantId()
+
+		if helper.IsNotEmpty(tenantId) {
+			for i := range data {
+				d := helper.ToDataMap(data[i])
+				d[TenantIDKey] = helper.ObjectID(tenantId)
+
+				data[i] = d
+			}
+		}
+	}
+
 	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
 	if v, ok := triggerBefore.(bool); ok && !v {
 		return nil
@@ -395,23 +442,30 @@ func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interfa
 
 ParentLoop:
 	for _, v := range data {
-		vi, _ := helper.ConvertTo[map[string]interface{}](v)
+		vi := helper.ToDataMap(v)
 
-		if vi != nil {
-			if m.Model.HasTenant && m.RequestContext != nil && m.Model.App.Config.HasTenant {
-				tenantId := m.getTenantId()
-
-				if helper.IsNotEmpty(tenantId) {
-					vi[TenantIDKey] = helper.ObjectID(tenantId)
-				}
-			}
-
+		if helper.IsNotEmpty(vi) {
+			isUpdate := false
 			whereData := make(datatype.DataMap)
 
 			for _, key := range uniqueKeys {
-				if value, ok := vi[key]; ok {
-					if helper.IsNotEmpty(value) {
-						whereData[key] = value
+				val := helper.GetValueOf(vi, key)
+				if key == "id" || key == "_id" {
+					if key == "_id" && helper.IsEmpty(val) {
+						val = helper.GetValueOf(vi, "id")
+					}
+
+					if key == "id" && helper.IsEmpty(val) {
+						val = helper.GetValueOf(vi, "_id")
+					}
+
+					key = "id"
+				}
+
+				if helper.IsNotEmpty(val) {
+					if helper.IsNotEmpty(val) {
+						whereData[key] = val
+						isUpdate = true
 					} else {
 						ignored++
 						continue ParentLoop // Skip if unique key value is empty
@@ -419,12 +473,13 @@ ParentLoop:
 				}
 			}
 
-			if len(whereData) > 0 {
+			if isUpdate {
 				existsData := m.NewInstance().FindOne(whereData)
+				// console.Log("existsData", existsData)
 
-				if existsData != nil && (*existsData) != nil {
+				if helper.IsNotEmpty(existsData) {
 					// Update existing data
-					vi["_id"] = (*existsData)["_id"]
+					vi["_id"] = helper.GetValueOf(existsData, "_id")
 					formattedUpdateData = append(formattedUpdateData, vi)
 				} else {
 					// Create new data
@@ -462,17 +517,15 @@ ParentLoop:
 		}
 	}
 
+	// console.Log("formattedUpdateData", formattedUpdateData)
 	if len(formattedUpdateData) > 0 {
 		for _, v := range formattedUpdateData {
-			vi := helper.ToMap[interface{}](v)
-			vii, _ := helper.ConvertTo[datatype.DataMap](vi)
+			updateData := m.NewInstance().Where("id", v["_id"]).Update(*m.formatInputData(v, UpdateInputAction), nil)
 
-			updateData := m.NewInstance().Where("id", vii["_id"]).Update(*m.formatInputData(vii, UpdateInputAction), nil)
-
-			if ud, ok := updateData.(*datatype.DataMap); ok && ud != nil {
+			if helper.IsNotEmpty(updateData) {
 				updated++
-				interfaceData := helper.ToList[interface{}](updateData)
-				afterData = append(afterData, interfaceData...)
+				interfaceData := helper.ToDataMap(updateData)
+				afterData = append(afterData, interfaceData)
 
 				status = true
 				message = "SUCCESS"
@@ -564,18 +617,20 @@ func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
-	}
+	if !m.skipBeforeFind {
+		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
+		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 	}
 
 	result := m.collection().findOne()
@@ -599,18 +654,22 @@ func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
-	}
+	if !m.skipBeforeFind {
+		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			vl := make([]datatype.DataMap, 0)
+			return &vl
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
+		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			vl := make([]datatype.DataMap, 0)
+			return &vl
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 	}
 
 	result := m.collection().find()
@@ -634,18 +693,20 @@ func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
-	}
+	if !m.skipBeforeFind {
+		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
+		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 	}
 
 	result := m.collection().pagination()
@@ -669,18 +730,20 @@ func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return m.collection().summary()
@@ -690,18 +753,20 @@ func (m *DataModelQuery) Count(where interface{}) int64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return int64(m.collection().count())
@@ -711,18 +776,20 @@ func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return float64(m.collection().sum(target))
@@ -732,18 +799,20 @@ func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return m.collection().max(target)
@@ -753,18 +822,20 @@ func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return m.collection().min(target)
@@ -774,18 +845,20 @@ func (m *DataModelQuery) Average(target string, where interface{}) float64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
+	if !m.skipBeforeFind {
+		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return 0
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
+		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
+		if v, ok := result.(bool); ok && !v {
+			return 0
+		} else if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
+		}
 	}
 
 	return m.collection().average(target)
@@ -1021,7 +1094,11 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 
 			if vi, exist := input[k]; exist {
 				if helper.Contains(m.Model.IDKeys, k) {
-					v = helper.ObjectID(vi)
+					if helper.IsNotEmpty(vi) {
+						v = helper.ObjectID(vi)
+					} else {
+						v = vi
+					}
 				} else {
 					v = vi
 				}
@@ -1136,31 +1213,32 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 func (m *DataModelQuery) addTenantId() {
 	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 		payload := m.RequestContext.TokenPayload
-		tenantId := ""
+		var tenantId interface{}
 
 		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
 			tenantId = payload.TenantId
 		} else {
-			tenantId = *m.RequestContext.Request.TenantId()
+			tenantId = m.RequestContext.Request.TenantId()
 		}
 
 		if helper.IsEmpty(tenantId) {
-			tenantId = "000"
+			tenantId = "000000000000000000000000"
 		}
 
 		m.Where(TenantIDKey, helper.ObjectID(tenantId))
 	}
 }
 
-func (m *DataModelQuery) getTenantId() string {
-	tenantId := ""
+func (m *DataModelQuery) getTenantId() interface{} {
+	var tenantId interface{}
+
 	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 		payload := m.RequestContext.TokenPayload
 
 		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
 			tenantId = payload.TenantId
 		} else {
-			tenantId = *m.RequestContext.Request.TenantId()
+			tenantId = m.RequestContext.Request.TenantId()
 		}
 	}
 

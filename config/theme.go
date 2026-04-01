@@ -45,12 +45,36 @@ func LoadThemeFile(filePath string) (*Theme, error) {
 	return &theme, nil
 }
 
-type Theme struct {
-	Light CoreTheme `json:"light"`
-	Dark  DartTheme `json:"dark"`
+type TenantConfig struct {
+	TenantId          string     `json:"tenantId"`
+	Domain            string     `json:"domain"`
+	TenantName        string     `json:"tenantName"`
+	AppName           string     `json:"appName"`
+	BaseUrl           string     `json:"baseUrl"`
+	Description       string     `json:"description"`
+	Language          string     `json:"language"`
+	LogoUrl           string     `json:"logoUrl"`
+	FaviconUrl        string     `json:"faviconUrl"`
+	Type              string     `json:"type"`
+	Address           string     `json:"address"`
+	Email             string     `json:"email"`
+	Phone             string     `json:"phone"`
+	Smtp              any        `json:"smtp"`
+	Sms               any        `json:"sms"`
+	Whatsapp          any        `json:"whatsapp"`
+	OtherConfig       any        `json:"otherConfig,omitempty"`
+	LightTheme        LightTheme `json:"lightTheme"`
+	DarkTheme         DartTheme  `json:"darkTheme"`
+	HasMembership     bool       `json:"hasMembership"`
+	PublicCanRegister bool       `json:"publicCanRegister"`
 }
 
-type CoreTheme struct {
+type Theme struct {
+	LightTheme LightTheme `json:"lightTheme"`
+	DarkTheme  DartTheme  `json:"darkTheme"`
+}
+
+type LightTheme struct {
 	Logo       string           `json:"logo"`
 	Semantic   SemanticColors   `json:"semantic"`
 	Background BackgroundColors `json:"background"`

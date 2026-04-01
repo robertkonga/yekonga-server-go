@@ -16,32 +16,47 @@ import (
 )
 
 type WebConfig struct {
-	config                map[string]any
-	profileConfig         map[string]any
-	systemLanguages       []map[string]any
-	systemDefaultLanguage []map[string]any
-	systemPermissions     []map[string]any
-	systemTemplateConfig  map[string]any
+	Config                map[string]any   `json:"config"`
+	ProfileConfig         map[string]any   `json:"profileConfig"`
+	SystemLanguages       []map[string]any `json:"systemLanguages"`
+	SystemDefaultLanguage []map[string]any `json:"systemDefaultLanguage"`
+	SystemPermissions     []map[string]any `json:"systemPermissions"`
+	SystemTemplateConfig  map[string]any   `json:"systemTemplateConfig"`
 }
 
-func (y *YekongaData) initializerConfig(req *Request) WebConfig {
+func (y *YekongaData) GetWebConfig(req *Request) WebConfig {
 	locale := "en"
+	tenantConfig := y.GetTenantConfig(req)
+
+	// console.Log("Tenant config for", tenantConfig)
 	// auth := *req.Auth()
 	client := *req.Client()
 	config := map[string]any{}
 	profileConfig := map[string]any{}
 	systemTemplateConfig := map[string]any{}
 	systemPermissions := []map[string]any{}
-	baseUrl := client.Proto + "://" + client.Host + ":" + client.Port
+	port := client.Port
 
+	if helper.IsEmpty(port) || port == "80" || port == "443" {
+		port = ""
+	} else {
+		port = ":" + port
+	}
+
+	baseUrl := client.Proto + "://" + client.Host + port
 	systemLanguages := []map[string]interface{}{}
 	systemDefaultLanguage := []map[string]interface{}{}
 
-	listA := y.ModelQuery("TranslatorLanguage").Find(nil)
-	countA := len(*listA)
+	listA := make([]datatype.DataMap, 0)
+
+	if y.Config.IsAuthorizationServer {
+		listA = *(y.ModelQuery("TranslatorLanguage").Find(nil))
+	}
+
+	countA := len(listA)
 
 	for i := 0; i < countA; i++ {
-		e := (*listA)[i]
+		e := (listA)[i]
 		d := datatype.DataMap{
 			"locale": e["locale"],
 			"name":   e["name"],
@@ -52,11 +67,14 @@ func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 		systemLanguages = append(systemLanguages, d)
 	}
 
-	listB := y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale})
-	countB := len(*listB)
+	listB := make([]datatype.DataMap, 0)
+	if y.Config.IsAuthorizationServer {
+		listB = *(y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale}))
+	}
+	countB := len(listB)
 
 	for i := 0; i < countB; i++ {
-		e := (*listB)[i]
+		e := (listB)[i]
 		d := datatype.DataMap{
 			"id":           e["id"],
 			"locale":       e["locale"],
@@ -72,9 +90,18 @@ func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 		systemDefaultLanguage = append(systemDefaultLanguage, d)
 	}
 
+	logoUrl := helper.GetValueOf(tenantConfig, "logoUrl")
+	faviconUrl := helper.GetValueOf(tenantConfig, "faviconUrl")
+	tenantName := helper.GetValueOf(tenantConfig, "tenantName")
+	description := helper.GetValueOf(tenantConfig, "description")
+
 	config["baseUrl"] = baseUrl
+	config["logoUrl"] = logoUrl
+	config["faviconUrl"] = faviconUrl
 	config["host"] = client.Host
 	config["appName"] = y.Config.AppName
+	config["description"] = description
+	config["tenantName"] = tenantName
 	config["endToEndEncryption"] = y.Config.EndToEndEncryption
 	config["apiRoute"] = y.Config.Graphql.ApiRoute
 	config["authRoute"] = y.Config.Graphql.ApiAuthRoute
@@ -88,12 +115,12 @@ func (y *YekongaData) initializerConfig(req *Request) WebConfig {
 	config["language"] = locale
 
 	return WebConfig{
-		config:                config,
-		profileConfig:         profileConfig,
-		systemLanguages:       systemLanguages,
-		systemDefaultLanguage: systemDefaultLanguage,
-		systemPermissions:     systemPermissions,
-		systemTemplateConfig:  systemTemplateConfig,
+		Config:                config,
+		ProfileConfig:         profileConfig,
+		SystemLanguages:       systemLanguages,
+		SystemDefaultLanguage: systemDefaultLanguage,
+		SystemPermissions:     systemPermissions,
+		SystemTemplateConfig:  systemTemplateConfig,
 	}
 }
 
@@ -110,7 +137,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
 
-		list := y.ModelQuery("TranslatorLanguage").Find(nil)
+		list := y.ModelQuery("TranslatorLanguage").SkipBeforeFind().Find(nil)
 		count := len(*list)
 
 		for i := 0; i < count; i++ {
@@ -155,15 +182,15 @@ func (y *YekongaData) initializerOtherRoutes() {
 	})
 
 	y.All("/config/data", func(req *Request, res *Response) {
-		wetConfig := y.initializerConfig(req)
+		wetConfig := y.GetWebConfig(req)
 
 		res.Json(map[string]interface{}{
-			"config":                wetConfig.config,
-			"profileConfig":         wetConfig.profileConfig,
-			"systemLanguages":       wetConfig.systemLanguages,
-			"systemDefaultLanguage": wetConfig.systemDefaultLanguage,
-			"systemPermissions":     wetConfig.systemPermissions,
-			"systemTemplateConfig":  wetConfig.systemTemplateConfig,
+			"config":                wetConfig.Config,
+			"profileConfig":         wetConfig.ProfileConfig,
+			"systemLanguages":       wetConfig.SystemLanguages,
+			"systemDefaultLanguage": wetConfig.SystemDefaultLanguage,
+			"systemPermissions":     wetConfig.SystemPermissions,
+			"systemTemplateConfig":  wetConfig.SystemTemplateConfig,
 		})
 	})
 
@@ -187,14 +214,14 @@ func (y *YekongaData) initializerOtherRoutes() {
 	})
 
 	y.All("/config", func(req *Request, res *Response) {
-		wetConfig := y.initializerConfig(req)
+		wetConfig := y.GetWebConfig(req)
 
-		content := "window['systemLanguages'] = " + helper.ToJson(wetConfig.systemLanguages) + ";\n" +
-			"window['systemDefaultLanguage'] = " + helper.ToJson(wetConfig.systemDefaultLanguage) + ";\n" +
+		content := "window['systemLanguages'] = " + helper.ToJson(wetConfig.SystemLanguages) + ";\n" +
+			"window['systemDefaultLanguage'] = " + helper.ToJson(wetConfig.SystemDefaultLanguage) + ";\n" +
 			"window['systemTemplateConfig'] = {};\n" +
-			"window['systemPermissions'] = " + helper.ToJson(wetConfig.systemPermissions) + ";\n" +
-			"window['systemConfig'] = " + helper.ToJson(wetConfig.config) + ";\n" +
-			"window['ProfileConfig'] = " + helper.ToJson(wetConfig.profileConfig) + ";\n"
+			"window['systemPermissions'] = " + helper.ToJson(wetConfig.SystemPermissions) + ";\n" +
+			"window['systemConfig'] = " + helper.ToJson(wetConfig.Config) + ";\n" +
+			"window['ProfileConfig'] = " + helper.ToJson(wetConfig.ProfileConfig) + ";\n"
 
 		res.SetHeader("Cache-Control", "public, max-age=0")
 		res.SetHeader("content-type", "application/javascript; charset=UTF-8")
@@ -211,12 +238,12 @@ func (y *YekongaData) initializerOtherRoutes() {
 		var tenantName any
 
 		if req.App.Config.HasTenant {
-			tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+			tenant := req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
 				"domain": host,
 			})
 
 			if helper.IsEmpty(tenant) {
-				tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+				tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
 					"subdomain": host,
 				})
 			}
@@ -244,44 +271,11 @@ func (y *YekongaData) initializerOtherRoutes() {
 	})
 
 	y.Get("/tenant-config", func(req *Request, res *Response) {
-		tenantModelName := "Tenant"
-		client := req.Client()
-		host := client.OriginDomain()
-
-		var tenant any
-
-		if req.App.Config.HasTenant {
-			tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
-				"domain": host,
-			})
-
-			if helper.IsEmpty(tenant) {
-				tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
-					"subdomain": host,
-				})
-			}
-		}
-
-		if helper.IsNotEmpty(tenant) {
-			tenantConfigModelName := "TenantConfig"
-			tenantId := helper.GetValueOf(tenant, "id")
-
-			tenantConfig := req.App.ModelQuery(tenantConfigModelName).FindOne(datatype.DataMap{
-				"tenantId": tenantId,
-			})
-
-			if helper.IsNotEmpty(tenantConfig) {
-				res.Json(datatype.DataMap{
-					"domain":    host,
-					"tenantId":  tenantId,
-					"smtp":      helper.GetValueOf(tenantConfig, "smtp"),
-					"sms":       helper.GetValueOf(tenantConfig, "sms"),
-					"whatsapp":  helper.GetValueOf(tenantConfig, "whatsapp"),
-					"coreTheme": helper.GetValueOf(tenantConfig, "coreTheme"),
-					"darkTheme": helper.GetValueOf(tenantConfig, "darkTheme"),
-				})
-				return
-			}
+		tenantConfig := y.GetTenantConfig(req)
+		// console.Error("tenantConfig", tenantConfig)
+		if helper.IsNotEmpty(tenantConfig) {
+			res.Json(helper.ToMap[interface{}](tenantConfig))
+			return
 		}
 
 		res.Status(404)
@@ -290,15 +284,16 @@ func (y *YekongaData) initializerOtherRoutes() {
 		})
 	})
 
-	y.All("/download/:filename", func(req *Request, res *Response) {
+	y.All("/download/:filename.:ext", func(req *Request, res *Response) {
 		filename := req.Param("filename")
+		ext := req.Param("ext")
 		title := req.Query("title")
-		// console.Log(filename)
+		// console.Log(filename, ext, title)
 
 		publicDir, _ := helper.GetPublicPath()
-		file := path.Join(publicDir, "tmp", filename)
+		file := path.Join(publicDir, "tmp", filename+"."+ext)
 
-		console.Log(file)
+		// console.Log(file)
 
 		res.Download(file, title)
 	})

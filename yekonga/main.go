@@ -63,6 +63,7 @@ type YekongaData struct {
 	triggerFunctions       map[string]map[TriggerAction]map[string]TriggerFunction
 	triggerAllFunctions    map[TriggerAction]TriggerAllFunction
 	graphqlActionFunctions map[string]map[string]map[string]ActionCloudFunction
+	graphqlCustomQuery     []CustomGraphqlQuery
 	middlewares            []Middleware
 	initMiddlewares        []Middleware
 	preloadMiddlewares     []Middleware
@@ -72,13 +73,15 @@ type YekongaData struct {
 	resolverChartGroupData map[string]ResolverChartGroupData
 	databaseStructure      *DatabaseStructureType
 	graphqlBuild           *GraphqlAutoBuild
-	Config                 *config.YekongaConfig
 	socketServer           *SocketServer
 	dbConnect              *DatabaseConnections
 	staticConfig           []*StaticConfig
 	logger                 *log.Logger
 	cronjob                *Cronjob
 	mut                    sync.RWMutex
+
+	Config   *config.YekongaConfig
+	RootPath string
 }
 
 // NewYekonga creates a new instance of Yekonga server
@@ -90,9 +93,17 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 	systemModels := NewSystemModels(config, databaseStructure)
 	dbConnect := NewDatabaseConnections(config)
 	resolverChartGroupData := SetDataGroups(systemModels)
+	exPath := "./"
+
+	ex, err := os.Executable()
+	if err == nil {
+		exPath = filepath.Dir(ex)
+	}
 
 	Server = &YekongaData{
-		Config:                 config,
+		Config:   config,
+		RootPath: exPath,
+
 		dbConnect:              dbConnect,
 		models:                 systemModels,
 		resolverChartGroupData: resolverChartGroupData,
@@ -102,6 +113,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 		initMiddlewares:        make([]Middleware, 0, 5),
 		preloadMiddlewares:     make([]Middleware, 0, 5),
 		catchMiddlewares:       make([]Middleware, 0, 5),
+		graphqlCustomQuery:     make([]CustomGraphqlQuery, 0, 0),
 		whenReady:              make([]func(), 0, 0),
 		functions:              make(map[string]CloudFunction),
 		systemFunctions:        make(map[string]SystemHandler),
@@ -114,11 +126,11 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 
 	dbConnect.appPath = Server.HomeDirectory()
 	SetSystemModelDBconnection(Server, &systemModels)
+
 	graphqlBuild := NewGraphqlAutoBuild(Server, systemModels)
-	graphqlBuild.initialize()
+	Server.graphqlBuild = graphqlBuild
 
 	dbConnect.connect()
-	Server.graphqlBuild = graphqlBuild
 	Server.initialize()
 	Server.cronjob = NewCronjob(Server)
 	Server.setNotification()
@@ -497,13 +509,15 @@ func (y *YekongaData) handleStaticFile(w http.ResponseWriter, r *http.Request) b
 	for i := 0; i < count; i++ {
 		static := y.staticConfig[i]
 
-		if static != nil {
+		if helper.IsNotEmpty(static) {
 			// Remove path prefix to get relative file path
 			urlPath := strings.TrimPrefix(r.URL.Path, static.PathPrefix)
 			urlPath = strings.TrimPrefix(urlPath, "/")
+			// console.Info("Static file request:", urlPath)
 
 			// Construct full file path
 			filePath := filepath.Join(static.Directory, urlPath)
+			// console.Info("Checking file path:", filePath)
 
 			// Check if path is a directory
 			fileInfo, err := os.Stat(filePath)
@@ -551,6 +565,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var rawBody interface{}
 
 	// Check for static file requests first
+	// console.Info("Static file request:", r.URL.Path)
 	if y.isStaticPath(r.URL.Path) {
 		if y.handleStaticFile(w, r) {
 			return
@@ -629,23 +644,17 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("keep-alive", "timeout=5, max=98")
 	w.Header().Set("connection", "keep-alive")
 
-	// isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
-	// if !isJson {
-	// 	isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
-	// }
-	// if isJson {
-	// 	w.Header().Set("content-type", "application/json")
-	// }
-
-	// if err := res.initGzip(&w); err == nil {
-	// 	w.Header().Set("content-encoding", "gzip")
-	// 	w.Header().Set("vary", "accept-encoding")
-	// }
-
 	defer res.Close()
 
 	// Apply middlewares
-	status, err = ApplicationKeyMiddleware(&req, &res)
+	status, err = MasterKeyMiddleware(&req, &res)
+	if err != nil {
+		res.Abort(status, err.Error())
+		return
+	}
+
+	// Apply middlewares
+	status, err = ApplicationIDMiddleware(&req, &res)
 	if err != nil {
 		res.Abort(status, err.Error())
 		return
@@ -776,6 +785,9 @@ func (y *YekongaData) Start(address interface{}) {
 	if helper.IsNotEmpty(address) {
 		port = helper.ToInt(address)
 	}
+
+	Server.graphqlBuild.initialize()
+	runDefaultCloudFunctions()
 
 	y.Config.Ports.Server = port
 

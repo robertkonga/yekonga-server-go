@@ -30,6 +30,9 @@ func Execute(p *ExecuteParams) (result *Result) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	// console.Log("Execute", p.OperationName)
+	// console.Log("Execute", p.AST.Definitions)
 	// run executionDidStart functions from extensions
 	extErrs, executionFinishFn := handleExtensionsExecutionDidStart(p)
 	if len(extErrs) != 0 {

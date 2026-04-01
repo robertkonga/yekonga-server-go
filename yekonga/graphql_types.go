@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
@@ -46,6 +47,7 @@ var ScalarDateType = graphql.NewScalar(graphql.ScalarConfig{
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
 		result := helper.StringToDatetime(valueAST.GetValue())
+
 		if result != nil {
 			return *result
 		}
@@ -116,18 +118,40 @@ var ScalarAnyType = graphql.NewScalar(graphql.ScalarConfig{
 	Name:        "Any",
 	Description: "Custom scalar type for Any",
 	Serialize: func(value interface{}) interface{} {
-		// logger.Success("Serialize")
-		// logger.Success(value)
+		// logger.Success("Any.Serialize", value)
 		return value
 	},
 	ParseValue: func(value interface{}) interface{} {
-		// logger.Success("ParseValue")
-		// logger.Success(value)
+		// logger.Success("Any.ParseValue", value)
 		return value
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
-		// logger.Success("ParseLiteral")
-		// logger.Success(valueAST)
+		// logger.Success("Any.ParseLiteral", valueAST)
+		return valueAST.GetValue()
+	},
+})
+
+// Define the custom Array scalar type
+var ScalarArrayType = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "Array",
+	Description: "Custom scalar type for Array",
+	Serialize: func(value interface{}) interface{} {
+		logger.Success("Array.Serialize", value)
+
+		if helper.IsArray(value) {
+			return helper.ToList[interface{}](value)
+		}
+
+		return []interface{}{}
+	},
+	ParseValue: func(value interface{}) interface{} {
+		logger.Success("Array.ParseValue", value)
+
+		return value
+	},
+	ParseLiteral: func(valueAST ast.Value) interface{} {
+		logger.Success("Array.ParseLiteral", valueAST)
+
 		return valueAST.GetValue()
 	},
 })
@@ -137,13 +161,9 @@ var ScalarStringType = graphql.NewScalar(graphql.ScalarConfig{
 	Name:        "CustomString",
 	Description: "Custom scalar type for String",
 	Serialize: func(value interface{}) interface{} {
-		// logger.Success("Serialize")
-		// logger.Success(value)
 		return value
 	},
 	ParseValue: func(value interface{}) interface{} {
-		// logger.Success("ParseValue")
-		// logger.Success(value)
 		return value
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
@@ -811,7 +831,7 @@ var RegistrationInput = graphql.NewInputObject(graphql.InputObjectConfig{
 		"subdomain": &graphql.InputObjectFieldConfig{
 			Type: graphql.String,
 		},
-		"defaultLanguage": &graphql.InputObjectFieldConfig{
+		"language": &graphql.InputObjectFieldConfig{
 			Type: graphql.String,
 		},
 		"isApproved": &graphql.InputObjectFieldConfig{

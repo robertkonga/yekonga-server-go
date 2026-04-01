@@ -211,7 +211,9 @@ func (res *Response) File(file string) {
 			static := res.staticConfig[i]
 
 			if static != nil {
-				filePath := filepath.Join(static.Directory, file)
+				filePath := helper.GetPath(filepath.Join(static.Directory, file))
+				// console.Log("File", filePath)
+				// console.Log("File", helper.GetPath(filePath))
 
 				if helper.FileExists(filePath) {
 					// Set cache headers

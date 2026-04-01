@@ -36,9 +36,14 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 	port := ""
 	ipAddress := helper.GetClientIP(r)
 	origin := r.Header.Get("origin")
+	altProto := r.Header.Get("X-Forwarded-Proto")
 
 	if len(hostList) > 1 {
 		port = hostList[len(hostList)-1]
+	}
+
+	if helper.IsNotEmpty(altProto) {
+		proto = altProto
 	}
 
 	if helper.IsEmpty(origin) {
@@ -46,9 +51,11 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 		origin = helper.ExtractDomain(referer)
 
 		if helper.IsEmpty(origin) {
-			origin = proto + "://" + host
+			origin = "" + host
 		}
 	}
+
+	origin = proto + "://" + helper.ExtractDomain(origin)
 
 	client := ClientPayload{
 		Host:      host,
@@ -69,18 +76,20 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 	tenantModelName := "Tenant"
 	client := *req.Client()
-	host := client.Host
-	tenantId := ""
+	host := client.OriginDomain()
+	// console.Log("host", client)
+
+	var tenantId interface{}
 
 	if req.App.Config.HasTenant {
-		tenant := req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+		tenant := req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
 			"domain": host,
 		})
 
 		if helper.IsNotEmpty(tenant) {
 			tenantId = helper.GetValueOfString(tenant, "_id")
 		} else {
-			tenant = req.App.ModelQuery(tenantModelName).FindOne(datatype.DataMap{
+			tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
 				"subdomain": host,
 			})
 
@@ -92,14 +101,20 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 		if helper.IsEmpty(tenantId) && req.App.Config.TenantOnly {
 			return http.StatusBadRequest, errors.New("tenant not found for the request")
 		}
-	}
 
-	if req.App.Config.HasTenantCatch {
+		if helper.IsNotEmpty(tenantId) {
+			tenantConfig := req.App.GetTenantConfig(req)
+
+			if helper.IsNotEmpty(tenantConfig) {
+				req.SetTenant(*tenantConfig)
+			}
+		}
+	} else if req.App.Config.HasTenantCatch {
 		tenant, err := req.App.FetchTenantByDomain(host, req, res)
 
 		if err == nil {
 			if helper.IsNotEmpty(tenant) {
-				tenantId = helper.GetValueOfString(tenant, "tenantId")
+				tenantId = helper.GetValueOf(tenant, "tenantId")
 			}
 		}
 	}
@@ -120,6 +135,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	config := req.App.Config
 	clientPayload := req.Client()
 	domain := clientPayload.OriginDomain()
+	masterKey := req.GetContext(string(MasterKey))
 
 	var isValid bool
 	var accessToken string
@@ -189,7 +205,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		req.SetContext(string(AccessTokenKey), accessToken)
 		req.SetContext(string(TokenPayloadKey), tokenPayload)
 
-		if helper.IsNotEmpty(tokenPayload.TenantId) {
+		if helper.IsNotEmpty(tokenPayload.TenantId) && helper.IsEmpty(req.TenantId()) {
 			req.SetTenantId(tokenPayload.TenantId)
 		}
 	}
@@ -206,7 +222,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		}
 		currentPath := req.HttpRequest.URL.Path
 
-		if helper.Contains(paths, currentPath) && helper.IsEmpty(accessToken) {
+		if !(helper.IsNotEmpty(masterKey) && masterKey == config.MasterKey) && (helper.Contains(paths, currentPath) && helper.IsEmpty(accessToken)) {
 			return http.StatusUnauthorized, errors.New("Must be authorized/login")
 		}
 	}
@@ -220,6 +236,8 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 	const userModelName = "User"
 	tokenPayload := req.GetContext(string(TokenPayloadKey))
 
+	// console.Error("tokenPayload", tokenPayload)
+
 	if helper.IsNotEmpty(tokenPayload) {
 		if payload, ok := tokenPayload.(TokenPayload); ok {
 			id := payload.UserId
@@ -230,21 +248,18 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 						"_id": helper.ObjectID(id),
 					})
 				} else {
-					userInfo = &datatype.DataMap{
-						"_id":         id,
-						"id":          id,
-						"userId":      payload.UserId,
-						"profileId":   payload.ProfileId,
-						"tenantId":    payload.TenantId,
-						"adminId":     payload.AdminId,
-						"roles":       payload.Roles,
-						"permissions": payload.Permissions,
-					}
+					data := helper.ToDataMap(payload.ToMap())
+					data["_id"] = id
+					data["id"] = id
+
+					userInfo = &data
 				}
 
 			}
 		}
 	}
+
+	// console.Error("userInfo", userInfo)
 
 	if userInfo != nil {
 		req.SetContext(string(UserInfoPayloadKey), *userInfo)
@@ -253,37 +268,42 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 	return http.StatusOK, nil
 }
 
-func ApplicationKeyMiddleware(req *Request, res *Response) (int, error) {
-	var appKey string = req.GetHeader("application-key")
-	var path string = req.HttpRequest.URL.Path
-	var extension string = filepath.Ext(path)
-	var allowed = []string{
-		".css",
-		".js",
-		".ico",
-		".pdf",
-		".flv",
-		".jpg",
-		".jpeg",
-		".png",
-		".gif",
-		".webp",
-		".woff2",
-		".woff",
-		".ttf",
-		".eot",
-	}
+func ApplicationIDMiddleware(req *Request, res *Response) (int, error) {
+	if req.App.Config.EnableAppKey {
 
-	if !helper.Contains(allowed, extension) {
-		if helper.IsEmpty(appKey) {
-			appKey = req.Query("application-key")
-
-			if helper.IsEmpty(appKey) {
-				appKey = req.Query("app-key")
-			}
+		var appKey string = req.GetHeader("application-key")
+		var path string = req.HttpRequest.URL.Path
+		var extension string = filepath.Ext(path)
+		var allowed = []string{
+			".css",
+			".js",
+			".ico",
+			".pdf",
+			".flv",
+			".jpg",
+			".jpeg",
+			".png",
+			".gif",
+			".webp",
+			".woff2",
+			".woff",
+			".ttf",
+			".eot",
 		}
 
-		if req.App.Config.EnableAppKey {
+		if helper.IsEmpty(appKey) {
+			appKey = req.GetHeader("X-Core-Application-Id")
+		}
+
+		if !helper.Contains(allowed, extension) {
+			if helper.IsEmpty(appKey) {
+				appKey = req.Query("application-key")
+
+				if helper.IsEmpty(appKey) {
+					appKey = req.Query("app-key")
+				}
+			}
+
 			if helper.IsNotEmpty(appKey) {
 				if appKey != req.App.Config.AppKey {
 					return http.StatusUnauthorized, errors.New("application key invalid")
@@ -291,6 +311,28 @@ func ApplicationKeyMiddleware(req *Request, res *Response) (int, error) {
 			} else {
 				return http.StatusUnauthorized, errors.New("application key not provided")
 			}
+		}
+	}
+
+	return http.StatusOK, nil
+}
+
+func MasterKeyMiddleware(req *Request, res *Response) (int, error) {
+	var masterKey string = req.GetHeader("master-key")
+
+	if helper.IsEmpty(masterKey) {
+		masterKey = req.GetHeader("X-Core-Master-Key")
+	}
+
+	if helper.IsEmpty(masterKey) {
+		masterKey = req.Query("master-key")
+	}
+
+	if helper.IsNotEmpty(masterKey) {
+		req.SetContext(string(MasterKey), masterKey)
+
+		if masterKey != req.App.Config.MasterKey {
+			return http.StatusUnauthorized, errors.New("master key invalid")
 		}
 	}
 

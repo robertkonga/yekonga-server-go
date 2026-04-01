@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/console"
@@ -26,17 +27,27 @@ type RequestContext struct {
 }
 
 type AuthPayload struct {
-	ID           string
-	ProfileID    string
-	Username     string
-	UsernameType string
-	FirstName    string
-	LastName     string
-	Phone        string
-	Email        string
-	Whatsapp     string
-	Role         string
-	Extracts     map[string]interface{}
+	ID string `json:"id"`
+
+	Domain     string `json:"domain"`
+	TenantID   string `json:"tenantId"`
+	ProfileID  string `json:"profileId"`
+	UserId     string `json:"userId"`
+	AdminId    string `json:"adminId"`
+	ModuleName string `json:"moduleName"`
+
+	UsernameType string `json:"usernameType"`
+	Username     string `json:"username"`
+	FirstName    string `json:"firstName"`
+	LastName     string `json:"lastName"`
+	Phone        string `json:"phone"`
+	Email        string `json:"email"`
+	Whatsapp     string `json:"whatsapp"`
+
+	Roles       []string  `json:"roles"`
+	Permissions []string  `json:"permissions"`
+	ExpiresAt   time.Time `json:"expiresAt"`
+	Extracts    map[string]interface{}
 }
 
 func (a *AuthPayload) ToMap() map[string]interface{} {
@@ -48,17 +59,27 @@ func (a *AuthPayload) ToMap() map[string]interface{} {
 	// json.Unmarshal(jsonData, &result)
 
 	result := map[string]interface{}{
-		"id":           a.ID,
-		"profileId":    a.ProfileID,
-		"username":     a.Username,
+		"id": a.ID,
+
+		"domain":     a.Domain,
+		"tenantID":   a.TenantID,
+		"profileId":  a.ProfileID,
+		"userId":     a.UserId,
+		"adminId":    a.AdminId,
+		"moduleName": a.ModuleName,
+
 		"usernameType": a.UsernameType,
+		"username":     a.Username,
 		"firstName":    a.FirstName,
 		"lastName":     a.LastName,
 		"phone":        a.Phone,
 		"email":        a.Email,
 		"whatsapp":     a.Whatsapp,
-		"role":         a.Role,
-		"extracts":     a.Extracts,
+
+		"roles":       a.Roles,
+		"permissions": a.Permissions,
+		"expiresAt":   a.ExpiresAt,
+		"extracts":    a.Extracts,
 	}
 
 	return result
@@ -82,7 +103,7 @@ type AuditTrailChanges struct {
 func NewDataAuditTrail(request *RequestContext) *DataAuditTrails {
 	return &DataAuditTrails{
 		App:       request.App,
-		TenantId:  *request.Request.TenantId(),
+		TenantId:  request.Request.TenantId(),
 		UserId:    request.TokenPayload.UserId,
 		ProfileId: request.TokenPayload.UserId,
 		AdminId:   request.TokenPayload.AdminId,
@@ -92,7 +113,7 @@ func NewDataAuditTrail(request *RequestContext) *DataAuditTrails {
 
 type DataAuditTrails struct {
 	App       *YekongaData
-	TenantId  string
+	TenantId  interface{}
 	UserId    string
 	ProfileId string
 	AdminId   string
@@ -201,12 +222,12 @@ func (a *DataAuditTrails) Log() {
 }
 
 type TokenPayload struct {
-	Domain     string `json:"domain"`
-	TenantId   string `json:"tenantId"`
-	ProfileId  string `json:"profileId"`
-	UserId     string `json:"userId"`
-	AdminId    string `json:"adminId"`
-	ModuleName string `json:"moduleName"`
+	Domain     string      `json:"domain"`
+	TenantId   interface{} `json:"tenantId"`
+	ProfileId  string      `json:"profileId"`
+	UserId     string      `json:"userId"`
+	AdminId    string      `json:"adminId"`
+	ModuleName string      `json:"moduleName"`
 
 	UsernameType string `json:"usernameType"`
 	Username     string `json:"username"`
@@ -222,12 +243,13 @@ type TokenPayload struct {
 func (a *TokenPayload) ToMap() map[string]interface{} {
 	result := map[string]interface{}{
 		"domain":       a.Domain,
-		"userId":       a.UserId,
 		"tenantId":     a.TenantId,
 		"profileId":    a.ProfileId,
+		"userId":       a.UserId,
 		"adminId":      a.AdminId,
-		"username":     a.Username,
+		"moduleName":   a.ModuleName,
 		"usernameType": a.UsernameType,
+		"username":     a.Username,
 		"phone":        a.Phone,
 		"email":        a.Email,
 		"whatsapp":     a.Whatsapp,
@@ -246,15 +268,15 @@ func (a *TokenPayload) ToJson() string {
 }
 
 type ClientPayload struct {
-	TenantId  string `json:"tenantId"`
-	Origin    string `json:"origin"`
-	Host      string `json:"host"`
-	Port      string `json:"port"`
-	Proto     string `json:"proto"`
-	Path      string `json:"path"`
-	Method    string `json:"method"`
-	UserAgent string `json:"userAgent"`
-	IpAddress string `json:"ipAddress"`
+	TenantId  interface{} `json:"tenantId"`
+	Origin    string      `json:"origin"`
+	Host      string      `json:"host"`
+	Port      string      `json:"port"`
+	Proto     string      `json:"proto"`
+	Path      string      `json:"path"`
+	Method    string      `json:"method"`
+	UserAgent string      `json:"userAgent"`
+	IpAddress string      `json:"ipAddress"`
 }
 
 func (a *ClientPayload) ToMap() map[string]interface{} {
@@ -444,26 +466,58 @@ func (r *Request) TokenPayload() *TokenPayload {
 	return nil
 }
 
-func (r *Request) TenantId() *string {
+func (r *Request) TenantId() interface{} {
 	data, exists := r.Context[string(CurrentTenantId)]
 	if !exists {
 		return nil
 	}
 
-	if m, ok := data.(string); ok {
-		return &m
-	}
-
-	return nil
+	return data
 }
 
-func (r *Request) SetTenantId(tenantId string) {
+func (r *Request) SetTenantId(tenantId interface{}) {
 	r.SetContext(string(CurrentTenantId), tenantId)
 }
 
+func (r *Request) Tenant() config.TenantConfig {
+	data, exists := r.Context[string(CurrentTenantConfig)]
+	if !exists {
+		return config.TenantConfig{}
+	}
+
+	if m, ok := data.(config.TenantConfig); ok {
+		return m
+	}
+
+	return config.TenantConfig{}
+}
+
+func (r *Request) SetTenant(tenant config.TenantConfig) {
+	r.SetContext(string(CurrentTenantConfig), tenant)
+}
+
 func (r *Request) Token() string {
-	// Implementation for JWT token parsing
-	return r.GetHeader("token")
+	token := r.GetContext(string(AccessTokenKey))
+
+	if helper.IsEmpty(token) {
+		token = r.HttpRequest.Header.Get("Authorization")
+
+		if helper.IsEmpty(token) {
+			token = r.Query("token")
+		}
+
+		if helper.IsEmpty(token) {
+			token = r.HttpRequest.Header.Get("X-Core-Session-Token")
+		}
+
+		if helper.IsNotEmpty(token) {
+			return helper.ToString(token)[7:] // Bearer <Token>
+		}
+	} else {
+		return helper.ToString(token)
+	}
+
+	return ""
 }
 
 func (r *Request) Body() interface{} {

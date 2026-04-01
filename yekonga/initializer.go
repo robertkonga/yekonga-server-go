@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -70,8 +71,17 @@ func (y *YekongaData) initialize() {
 	y.initializerSocketRoutes()
 
 	for _, public := range y.Config.Public {
-		if strings.HasPrefix(public, "/") || strings.HasPrefix(public, "./") {
+		if strings.HasPrefix(public, "/") {
 			public = "./" + public[1:]
+		}
+
+		if !strings.HasPrefix(public, "./") {
+			public = "./" + public[1:]
+		}
+
+		altPath := filepath.Join(y.RootPath, public)
+		if helper.FileExists(altPath) {
+			public = altPath
 		}
 
 		if !helper.FileExists(public) {
@@ -79,7 +89,9 @@ func (y *YekongaData) initialize() {
 		}
 
 		if helper.FileExists(public) {
+			public = helper.GetPath(public)
 			// Configure static file serving
+
 			err := y.Static(StaticConfig{
 				Directory:   public,               // Serve files from ./public directory
 				PathPrefix:  y.AppendBaseUrl("/"), // Access files at /public URL path
@@ -90,6 +102,9 @@ func (y *YekongaData) initialize() {
 
 			if err != nil {
 				logger.Error("Failed to configure static file serving:", err)
+			} else {
+				// logger.Info("Static file serving configured for directory:", public)
+				logger.Info("Access static files at:", y.AppendBaseUrl("/"))
 			}
 		} else {
 			logger.Error("Failed", "Public directory not exist", public)
@@ -242,7 +257,7 @@ func (y *YekongaData) initialize() {
 	})
 
 	y.initializerOtherRoutes()
-	runDefaultCloudFunctions()
+
 }
 
 func (y *YekongaData) authHandler(req *Request, res *Response) {
@@ -332,7 +347,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 
 	if helper.IsNotEmpty(refreshToken) {
 		hashedToken := helper.HashRefreshToken(helper.ToString(refreshToken))
-		data = y.ModelQuery("RefreshToken").Where("tokenHash", hashedToken).FindOne(nil)
+		data = y.ModelQuery("RefreshToken").SkipBeforeFind().Where("tokenHash", hashedToken).FindOne(nil)
 
 		if helper.IsNotEmpty(data) {
 			revoked := helper.GetValueOfBoolean(data, "revoked")
@@ -385,7 +400,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 							Client:   req.Client(),
 						}, newAccessToken, newRefreshToken, moduleName)
 
-						y.ModelQuery("RefreshToken").Where("tokenHash", hashedToken).Update(datatype.DataMap{
+						y.ModelQuery("RefreshToken").SkipBeforeFind().Where("tokenHash", hashedToken).Update(datatype.DataMap{
 							"revoked": true,
 						}, nil)
 					} else {

@@ -281,6 +281,10 @@ func UUID() string {
 }
 
 func IsSlice(v interface{}) bool {
+	if IsPointer(v) {
+		return IsSlice(reflect.ValueOf(v).Elem().Interface())
+	}
+
 	return reflect.TypeOf(v).Kind() == reflect.Slice
 }
 
@@ -704,8 +708,14 @@ func Singularize(word string) string {
 	return word
 }
 
+func ReadFile(filename string) string {
+	return LoadFile(filename)
+}
+
 // LoadFile reads a JSON file and converts it to a map
 func LoadFile(filename string) string {
+	filename = GetPath(filename)
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return ""
@@ -1461,20 +1471,6 @@ func GetPublicPath() (string, error) {
 }
 
 func GetPath(relativePath string) string {
-	if filepath.IsAbs(relativePath) {
-		if FileExists(relativePath) {
-			return relativePath
-		}
-	}
-
-	if FileExists(relativePath) {
-		absPath, err := filepath.Abs(relativePath)
-		if err != nil {
-			return relativePath
-		}
-		return absPath
-	}
-
 	// 1. Get the path of the executable
 	ex, err := os.Executable()
 	if err != nil {
@@ -1487,8 +1483,22 @@ func GetPath(relativePath string) string {
 	// 3. Join the executable's directory with the relative path
 	absolutePath := filepath.Join(exPath, relativePath)
 
-	if err != nil {
-		log.Fatalf("Error getting absolute path: %v", err)
+	if FileExists(absolutePath) {
+		return absolutePath
+	}
+
+	if filepath.IsAbs(relativePath) {
+		if FileExists(relativePath) {
+			return relativePath
+		}
+	}
+
+	if FileExists(relativePath) {
+		absPath, err := filepath.Abs(relativePath)
+		if err != nil {
+			return relativePath
+		}
+		return absPath
 	}
 
 	return absolutePath
@@ -1920,6 +1930,7 @@ func Post(url string, headers map[string]string, body interface{}) (status int, 
 func PostRequest(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
 	// Create a new HTTP client
 	client := &http.Client{}
+	// console.Log("PostRequest", url, headers, body)
 
 	// Serialize body to JSON
 	bodyBytes, err := json.Marshal(body)

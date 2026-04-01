@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/robertkonga/yekonga-server-go/config"
@@ -28,6 +29,7 @@ type AttemptData struct {
 	LoginType    string
 	IsAdmin      bool
 	RememberMe   bool
+	ModuleName   string
 	Client       map[string]interface{}
 }
 
@@ -40,15 +42,45 @@ type LoginData struct {
 	IsAdmin    bool
 }
 
-func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMap {
-	const userModelName = "User"
-	const profileModelName = "Profile"
-	var userId string
-	var username string
-	var usernameType string = "phone"
-	var firstName string
-	var lastName string
+func (y *YekongaData) OTPVerification(value interface{}, password string, usernameType string, canCreate bool, req *Request) *datatype.DataMap {
+	const userVerificationModelName = "UserVerification"
 	var user *datatype.DataMap
+	var username string
+
+	if v, ok := value.(string); ok {
+		username = v
+	}
+
+	user = y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
+
+	if helper.IsNotEmpty(user) {
+		otpCode := helper.GetValueOf(user, "otpCode")
+		timestamp := helper.GetTimestamp(nil)
+
+		if helper.IsNotEmpty(password) && otpCode == password {
+			if config.Config.ResetOTP {
+				otpCode = nil
+			}
+
+			y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Where("username", username).Update(datatype.DataMap{
+				"otpCode":       otpCode,
+				"otpVerifiedAt": timestamp,
+				"updatedAt":     timestamp,
+			}, nil)
+
+			u := y.GetUser(user, canCreate)
+
+			user = &u
+		}
+	}
+
+	return user
+}
+
+func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string, canCreate bool, target string, req *Request) *datatype.DataMap {
+	const userVerificationModelName = "UserVerification"
+	var user *datatype.DataMap
+	var username string
 
 	if v, ok := value.(string); ok {
 		username = v
@@ -61,27 +93,140 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			}
 		}
 
-		if v, ok := v["userId"]; ok {
+		if v, ok := v["phone"]; ok {
 			if v, ok := v.(string); ok {
-				userId = v
+				username = v
+				usernameType = "phone"
 			}
 		}
 
-		if v, ok := v["firstName"]; ok {
+		if v, ok := v["email"]; ok {
 			if v, ok := v.(string); ok {
-				firstName = v
-			}
-		}
-
-		if v, ok := v["lastName"]; ok {
-			if v, ok := v.(string); ok {
-				lastName = v
+				username = v
+				usernameType = "email"
 			}
 		}
 	}
 
+	if helper.IsNotEmpty(username) {
+		var otpCode string
+		var otpCreatedAt time.Time
+		where := datatype.DataMap{
+			"username":     username,
+			"usernameType": usernameType,
+		}
+
+		user = y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).FindOne(where)
+
+		if helper.IsNotEmpty(user) {
+			otpCode = helper.GetValueOfString(user, "otpCode")
+			otpCreatedAt = helper.GetValueOfDate(user, "otpCreatedAt")
+
+			if helper.IsEmpty(otpCode) {
+				otpCode = helper.GetRandomInt(4)
+				otpCreatedAt = helper.GetTimestamp(nil)
+			}
+
+			u := y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Update(datatype.DataMap{
+				"target":       target,
+				"otpCode":      otpCode,
+				"otpCreatedAt": otpCreatedAt,
+				"updatedAt":    helper.GetTimestamp(nil),
+			}, where)
+
+			if v, ok := u.(*datatype.DataMap); ok {
+				user = v
+			}
+		} else if canCreate {
+			otpCode = helper.GetRandomInt(4)
+			otpCreatedAt = helper.GetTimestamp(nil)
+
+			u := y.ModelQuery(userVerificationModelName).SetRequest(req, &Response{}).Create(datatype.DataMap{
+				"username":     username,
+				"usernameType": usernameType,
+				"target":       target,
+				"otpCode":      otpCode,
+				"otpCreatedAt": otpCreatedAt,
+				"updatedAt":    helper.GetTimestamp(nil),
+				"createdAt":    helper.GetTimestamp(nil),
+			})
+
+			if v, ok := u.(*datatype.DataMap); ok {
+				user = v
+			}
+		}
+
+		if helper.IsNotEmpty(user) {
+			var whatsapp string
+			var phone string
+			var email string
+			userId := helper.GetValueOfString(user, "userId")
+
+			if helper.IsPhone(username) {
+				if usernameType == "whatsapp" {
+					whatsapp = username
+				} else {
+					phone = username
+				}
+			} else if helper.IsEmail(username) {
+				email = username
+			}
+
+			message := otpCode + " is your verification code. For security, do not share this code."
+
+			y.Notify(&NotifiedUser{
+				UserID:   userId,
+				Email:    email,
+				Phone:    phone,
+				Whatsapp: whatsapp,
+			}, NotificationParams{
+				Title:    "OTP",
+				Text:     message,
+				HTML:     message,
+				Whatsapp: message,
+			})
+		}
+	}
+
+	return user
+}
+
+func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMap {
+	const userModelName = "User"
+	const profileModelName = "Profile"
+	const userVerificationModelName = "UserVerification"
+	const userPermissionModelName = "AuthUserPermission"
+	var userId string
+	var tenantId string
+	var username string
+	var usernameType string = "phone"
+	var moduleName string
+	var firstName string
+	var secondName string
+	var lastName string
+	var phone string
+	var email string
+	var permissions []interface{} = []interface{}{}
+	var user *datatype.DataMap
+
+	if v, ok := value.(string); ok {
+		username = v
+	} else if helper.IsNotEmpty(value) {
+		userId = helper.GetValueOfString(value, "userId")
+		tenantId = helper.GetValueOfString(value, "tenantId")
+		username = helper.GetValueOfString(value, "username")
+		usernameType = helper.GetValueOfString(value, "usernameType")
+		permissions = helper.ToList[interface{}](helper.GetValueOf(value, "permissions"))
+		phone = helper.GetValueOfString(value, "phone")
+		email = helper.GetValueOfString(value, "email")
+		firstName = helper.GetValueOfString(value, "firstName")
+		secondName = helper.GetValueOfString(value, "secondName")
+		lastName = helper.GetValueOfString(value, "lastName")
+		moduleName = helper.GetValueOfString(value, "moduleName")
+	}
+
 	if helper.IsNotEmpty(userId) {
-		user = y.ModelQuery(userModelName).Where("id", userId).FindOne(nil)
+		user = y.ModelQuery(userModelName).SkipBeforeFind().Where("id", userId).FindOne(nil)
 	} else if helper.IsNotEmpty(username) {
 		if helper.IsEmail(username) {
 			usernameType = "email"
@@ -90,31 +235,65 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			username = helper.PhoneFormat(username)
 		}
 
-		user = y.ModelQuery(userModelName).Where("username", username).FindOne(nil)
+		user = y.ModelQuery(userModelName).SkipBeforeFind().Where("username", username).FindOne(nil)
 
-		if helper.IsEmpty(user) && canCreate {
-			res := y.ModelQuery(userModelName).Create(datatype.DataMap{
-				"usernameType": usernameType,
-				"username":     username,
-				"firstName":    firstName,
-				"lastName":     lastName,
-				"role":         "user",
-				"status":       "active",
-				"isActive":     true,
-				"userType":     "individual",
-				"updatedAt":    helper.GetTimestamp(nil),
-				"createdAt":    helper.GetTimestamp(nil),
-			})
+		if helper.IsEmpty(user) {
+			if canCreate {
+				res := y.ModelQuery(userModelName).Create(datatype.DataMap{
+					"usernameType": usernameType,
+					"username":     username,
+					"firstName":    firstName,
+					"secondName":   secondName,
+					"lastName":     lastName,
+					"phone":        phone,
+					"email":        email,
+					"role":         "user",
+					"status":       "active",
+					"isActive":     true,
+					"userType":     "individual",
+					"updatedAt":    helper.GetTimestamp(nil),
+					"createdAt":    helper.GetTimestamp(nil),
+				})
 
-			if v, ok := res.(*datatype.DataMap); ok {
-				user = v
+				if v, ok := res.(*datatype.DataMap); ok {
+					user = v
+				}
 			}
 		}
 	}
 
 	if helper.IsNotEmpty(user) {
 		userId := helper.GetValueOfString(user, "id")
-		profile := y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
+
+		y.SetUserPermission(tenantId, userId, moduleName, permissions)
+
+		dataToUpdate := datatype.DataMap{}
+
+		if helper.IsNotEmpty(firstName) && helper.IsEmpty(helper.GetValueOfString(user, "firstName")) {
+			dataToUpdate["firstName"] = firstName
+		}
+
+		if helper.IsNotEmpty(secondName) && helper.IsEmpty(helper.GetValueOfString(user, "secondName")) {
+			dataToUpdate["secondName"] = secondName
+		}
+
+		if helper.IsNotEmpty(lastName) && helper.IsEmpty(helper.GetValueOfString(user, "lastName")) {
+			dataToUpdate["lastName"] = lastName
+		}
+
+		if helper.IsNotEmpty(email) && helper.IsEmpty(helper.GetValueOfString(user, "email")) {
+			dataToUpdate["email"] = email
+		}
+
+		if helper.IsNotEmpty(phone) && helper.IsEmpty(helper.GetValueOfString(user, "phone")) {
+			dataToUpdate["phone"] = phone
+		}
+
+		if len(dataToUpdate) > 0 {
+			y.ModelQuery(userModelName).SkipBeforeFind().Where("id", userId).Update(dataToUpdate, nil)
+		}
+
+		profile := y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
 
 		if profile == nil {
 			y.ModelQuery(profileModelName).Create(datatype.DataMap{
@@ -189,44 +368,19 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 	body[input.UsernameType] = input.Username
 
 	var result *datatype.DataMap
-	user := y.ModelQuery(userModelName).FindOne(body)
+	var user *datatype.DataMap
 
-	if helper.IsEmpty(user) {
-		console.Log("User Login Attempt Failed: User does not exists", body)
-		return nil, errors.New("User does not exists")
-	}
+	var checkPassword bool
+	var isGlobalPassword bool = false
 
-	if helper.IsNotEmpty(user) {
-		userId := helper.GetValueOfString(user, "id")
-		otpCode := helper.GetValueOfString(user, "otpCode")
-		password := helper.GetValueOfString(user, "password")
-		isBanned := helper.GetValueOfBoolean(user, "isBanned")
+	if input.LoginType == "otp" {
+		user = y.OTPVerification(input.Username, input.Password, input.UsernameType, true, req.Request)
 
-		if isBanned {
-			return nil, errors.New("you are banned from accessing " + config.Config.AppName)
-		}
-
-		var checkPassword bool
-		isGlobalPassword := false
-
-		if helper.IsNotEmpty(config.Config.GlobalPassword) && helper.IsNotEmpty(input.Password) && input.Password == config.Config.GlobalPassword {
+		if helper.IsNotEmpty(user) {
+			userId := helper.GetValueOfString(user, "id")
 			checkPassword = true
-			isGlobalPassword = true
-		} else if input.LoginType == "otp" {
-			checkPassword = otpCode == input.Password
-		} else if input.LoginType == "registration" {
-			checkPassword = true
-		} else {
-			if input.Password == "true" {
-				checkPassword = true
-			} else {
-				err := bcrypt.CompareHashAndPassword([]byte(password), []byte(input.Password))
-				checkPassword = err == nil
-			}
-		}
 
-		if checkPassword {
-			if !isGlobalPassword && input.LoginType != "" && input.LoginType == "otp" {
+			if !isGlobalPassword {
 				otpBody := make(map[string]interface{})
 				if config.Config.ResetOTP {
 					otpBody["otpCode"] = nil
@@ -247,30 +401,65 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 					y.ModelQuery(userModelName).Where("id", userId).Update(otpBody, nil)
 				}
 			}
-
-			result = y.GetLoginData(req, &LoginData{
-				UserID:     userId,
-				Username:   input.Username,
-				RememberMe: input.RememberMe,
-			})
-
-			if input.LoginType == "registration" {
-				(*result)["token"] = nil
-			}
-
-			triggerResult, err := y.authTriggerCallback(AfterLoginTriggerAction, req, &QueryContext{
-				Data:  body,
-				Input: input,
-			})
-
-			if v, ok := triggerResult.(datatype.DataMap); ok {
-				result = &v
-			} else if err != nil {
-				logger.Error("authTriggerCallback", err.Error())
-			}
-
-			return result, nil
 		}
+	} else {
+		user = y.ModelQuery(userModelName).FindOne(body)
+
+		if helper.IsNotEmpty(user) {
+			password := helper.GetValueOfString(user, "password")
+
+			if helper.IsNotEmpty(config.Config.GlobalPassword) && helper.IsNotEmpty(input.Password) && input.Password == config.Config.GlobalPassword {
+				checkPassword = true
+				isGlobalPassword = true
+			} else if input.LoginType == "registration" {
+				checkPassword = true
+			} else {
+				if input.Password == "true" {
+					checkPassword = true
+				} else {
+					err := bcrypt.CompareHashAndPassword([]byte(password), []byte(input.Password))
+					checkPassword = err == nil
+				}
+			}
+		}
+	}
+
+	if helper.IsEmpty(user) {
+		console.Log("User Login Attempt Failed: User does not exists", body)
+		return nil, errors.New("User does not exists")
+	}
+
+	userId := helper.GetValueOfString(user, "id")
+	isBanned := helper.GetValueOfBoolean(user, "isBanned")
+
+	if isBanned {
+		return nil, errors.New("You are banned from accessing " + config.Config.AppName)
+	}
+
+	if checkPassword {
+		result = y.GetLoginData(req, &LoginData{
+			UserID:     userId,
+			Username:   input.Username,
+			RememberMe: input.RememberMe,
+			ModuleName: input.ModuleName,
+		})
+
+		if input.LoginType == "registration" {
+			(*result)["token"] = nil
+		}
+
+		triggerResult, err := y.authTriggerCallback(AfterLoginTriggerAction, req, &QueryContext{
+			Data:  body,
+			Input: input,
+		})
+
+		if v, ok := triggerResult.(datatype.DataMap); ok {
+			result = &v
+		} else if err != nil {
+			logger.Error("authTriggerCallback", err.Error())
+		}
+
+		return result, nil
 	}
 
 	return nil, nil
@@ -318,28 +507,29 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		"isAdmin",
 		"isManager",
 		"additionalFields",
+		"permissions",
 	}
 
 	filteredData := datatype.DataMap{}
 
 	if helper.IsNotEmpty(input.ProfileID) && helper.Contains(profileIds, input.ProfileID) {
-		profile = y.ModelQuery(profileModelName).Where("id", input.ProfileID).FindOne(nil)
+		profile = y.ModelQuery(profileModelName).SkipBeforeFind().Where("id", input.ProfileID).FindOne(nil)
 	}
 
 	if helper.IsEmpty(profile) {
-		profile = y.ModelQuery(profileModelName).Where("userId", userId).FindOne(nil)
+		profile = y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
 
 		if helper.IsEmpty(profile) {
-			profile = y.ModelQuery(profileUserModelName).Where("userId", userId).FindOne(nil)
+			profile = y.ModelQuery(profileUserModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
 		}
 	}
 
 	if helper.IsNotEmpty(user) {
 		model := y.Model(userModelName)
-		tenantId := *req.Request.TenantId()
+		tenantId := req.Request.TenantId()
 		permissions := y.GetUserPermission(tenantId, userId, input.ModuleName)
 
-		payload := TokenPayload{
+		payloadData := TokenPayload{
 			TenantId:     tenantId,
 			Domain:       domain,
 			UserId:       userId,
@@ -355,13 +545,15 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 			ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
 		}
 
+		// console.Info("payloadData", payloadData)
+
 		userRole := helper.GetValueOf(user, "role")
 		userIsAdmin := (userRole == "1" || userRole == "admin")
 
 		if helper.IsNotEmpty(client.TenantId) {
 			tenantId := client.TenantId
 
-			payload.TenantId = tenantId
+			payloadData.TenantId = tenantId
 			user["tenantId"] = tenantId
 		}
 
@@ -372,21 +564,22 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 			user["profileRole"] = "member"
 			user["profileName"] = helper.GetValueOfString(profile, "name")
 			user["profileId"] = profileId
-			payload.ProfileId = profileId
+			payloadData.ProfileId = profileId
 		}
 
 		if userIsAdmin {
-			payload.AdminId = userId
+			payloadData.AdminId = userId
 		}
 
 		var token interface{}
-		token, _ = jwt.EncodeJWT(payload.ToMap(), y.Config.Authentication.SecretToken)
+		token, _ = jwt.EncodeJWT(payloadData.ToMap(), y.Config.Authentication.SecretToken)
 
 		user["token"] = token
 		user["uuid"] = userId
 		user["isAdmin"] = userIsAdmin
 		user["isManager"] = user["role"] == "2" || user["role"] == "manager"
 		user["owner"] = userId == user["id"]
+		user["permissions"] = permissions
 
 		if user["role"] == "1" {
 			user["role"] = "admin"
@@ -435,7 +628,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	return &user
 }
 
-func (y *YekongaData) GetUserPermission(tenantId string, userId string, moduleName string) []string {
+func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, moduleName string) []string {
 	var list = make([]string, 0, 0)
 
 	if helper.IsNotEmpty(moduleName) {
@@ -445,7 +638,7 @@ func (y *YekongaData) GetUserPermission(tenantId string, userId string, moduleNa
 			"userId":     userId,
 			"moduleName": moduleName,
 		}
-		var permissions = y.ModelQuery(userPermissionModelName).WhereAll(where).Find(nil)
+		var permissions = y.ModelQuery(userPermissionModelName).SkipBeforeFind().WhereAll(where).Find(nil)
 
 		for _, e := range *permissions {
 			var name = helper.GetValueOfString(e, "code")
@@ -454,6 +647,63 @@ func (y *YekongaData) GetUserPermission(tenantId string, userId string, moduleNa
 	}
 
 	return list
+}
+
+func (y *YekongaData) SetUserPermission(tenantId interface{}, userId string, moduleName string, permissions []interface{}) {
+	const userPermissionModelName = "AuthUserPermission"
+
+	y.ModelQuery(userPermissionModelName).SkipBeforeFind().Delete(datatype.DataMap{
+		"tenantId":   tenantId,
+		"userId":     userId,
+		"code":       "access:all",
+		"moduleName": "access",
+	})
+
+	y.ModelQuery(userPermissionModelName).SkipBeforeFind().Delete(datatype.DataMap{
+		"tenantId":   tenantId,
+		"userId":     userId,
+		"moduleName": moduleName,
+	})
+
+	if len(permissions) > 0 {
+		for _, permission := range permissions {
+			var code string
+			var authGroupId interface{}
+
+			if v, ok := permission.(string); ok {
+				moduleName = strings.Split(v, ":")[0]
+				code = v
+			} else {
+				authGroupId = helper.GetValueOf(permission, "authGroupId")
+				code = helper.GetValueOfString(permission, "code")
+
+				mv := helper.GetValueOfString(permission, "moduleName")
+				if helper.IsNotEmpty(mv) {
+					moduleName = mv
+				}
+
+				uv := helper.GetValueOfString(permission, "userId")
+				if helper.IsNotEmpty(uv) {
+					userId = uv
+				}
+			}
+
+			input := datatype.DataMap{
+				"authGroupId": authGroupId,
+				"tenantId":    tenantId,
+				"userId":      userId,
+				"code":        code,
+				"moduleName":  moduleName,
+			}
+
+			exists := y.ModelQuery(userPermissionModelName).SkipBeforeFind().WhereAll(input).Exist(nil)
+
+			if !exists {
+				y.ModelQuery(userPermissionModelName).Create(input)
+			}
+		}
+	}
+
 }
 
 func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, req *Request, res *Response) interface{} {
@@ -481,6 +731,29 @@ func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, re
 	})
 
 	return result
+}
+
+func (y *YekongaData) SetCustomGraphql(
+	name string,
+	isMutation bool,
+	isList bool,
+	output map[string]datatype.DataMap,
+	args graphql.FieldConfigArgument,
+	resolver CustomGraphqlResolver) {
+
+	graphqlType := QueryType
+	if isMutation {
+		graphqlType = MutationType
+	}
+
+	y.graphqlCustomQuery = append(y.graphqlCustomQuery, CustomGraphqlQuery{
+		Name:        name,
+		GraphqlType: graphqlType,
+		Output:      output,
+		Args:        args,
+		IsList:      isList,
+		Resolve:     resolver,
+	})
 }
 
 func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload, rememberMe bool) string {
@@ -603,8 +876,8 @@ func GetProfileIds(y *YekongaData, userId string) []string {
 	var profileModelName = "Profile"
 	var profileUserModelName = "ProfileUser"
 	var all []string = []string{}
-	var listA = y.ModelQuery(profileModelName).Where("userId", userId).Find(nil)
-	var listB = y.ModelQuery(profileUserModelName).Where("userId", userId).Find(nil)
+	var listA = y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).Find(nil)
+	var listB = y.ModelQuery(profileUserModelName).SkipBeforeFind().Where("userId", userId).Find(nil)
 
 	for _, e := range *listA {
 		all = append(all, helper.GetValueOfString(e, "profileId"))

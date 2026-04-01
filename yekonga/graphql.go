@@ -21,6 +21,13 @@ const (
 	NullValue EmptyKey = "Null"
 )
 
+type GraphqlQueryType string
+
+const (
+	QueryType    GraphqlQueryType = "Query"
+	MutationType GraphqlQueryType = "Mutation"
+)
+
 // FilterValue represents filter criteria
 type FilterValue struct {
 	In                      []interface{} `json:"in"`
@@ -68,6 +75,17 @@ type GraphqlAutoBuild struct {
 	mut                 sync.RWMutex
 }
 
+type CustomGraphqlResolver func(p graphql.ResolveParams) (interface{}, error)
+
+type CustomGraphqlQuery struct {
+	Name        string
+	GraphqlType GraphqlQueryType
+	IsList      bool
+	Output      map[string]datatype.DataMap
+	Args        graphql.FieldConfigArgument
+	Resolve     CustomGraphqlResolver
+}
+
 func NewGraphqlAutoBuild(yekonga *YekongaData, database map[string]*DataModel) *GraphqlAutoBuild {
 	autoBuild := GraphqlAutoBuild{
 		yekonga:             yekonga,
@@ -84,10 +102,18 @@ func NewGraphqlAutoBuild(yekonga *YekongaData, database map[string]*DataModel) *
 func (g *GraphqlAutoBuild) initialize() {
 	for k, v := range g.Database {
 		g.addModelEnumType(k, v)
+	}
+
+	for k, v := range g.Database {
 		g.addWhereInputType(k, v)
 		g.addOrderByInputType(k, v)
+	}
 
+	for k, v := range g.Database {
 		g.addQueryType(k, v)
+	}
+
+	for k, v := range g.Database {
 		g.addInputType(k, v)
 	}
 
@@ -119,6 +145,10 @@ func (g *GraphqlAutoBuild) initialize() {
 				g.QueryTypes[k].AddFieldConfig(ki, g.getRelativeQueryField(ki, vi.Model.Name, false, foreignKey, targetKey))
 				g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_paginate"), g.getQueryPaginationField(vi.Model.Name, foreignKey, targetKey))
 				g.QueryTypes[k].AddFieldConfig(helper.ToVariable(helper.Singularize(ki)+"_summary"), g.getQuerySummaryField(vi.Model.Name, foreignKey, targetKey))
+
+				g.MutationTypes[helper.ToCamelCase(k+"_input")].AddFieldConfig(helper.ToVariable(helper.Pluralize(ki)), &graphql.InputObjectFieldConfig{
+					Type: graphql.NewList(g.MutationTypes[helper.ToCamelCase(vi.ModelName+"_input")]),
+				})
 
 				g.MutationTypes[helper.ToCamelCase("where_"+k+"_input")].AddFieldConfig(ki, &graphql.InputObjectFieldConfig{
 					Type: g.MutationTypes[helper.ToCamelCase("where_"+vi.ModelName+"_input")],
@@ -170,6 +200,8 @@ func (g *GraphqlAutoBuild) GetQuery() *graphql.Object {
 		fields[helper.ToVariable("download_"+helper.Pluralize(k))] = g.getQueryDownloadField(k, foreignKey, targetKey)
 	}
 
+	g.setCustomQuery(&fields, QueryType)
+
 	var queryType = graphql.NewObject(
 		graphql.ObjectConfig{
 			Name:   "Query",
@@ -194,6 +226,8 @@ func (g *GraphqlAutoBuild) GetMutation() *graphql.Object {
 		fields[helper.ToVariable(k+"_action")] = g.getMutationActionField(k, foreignKey, targetKey)
 	}
 
+	g.setCustomQuery(&fields, MutationType)
+
 	var mutationType = graphql.NewObject(
 		graphql.ObjectConfig{
 			Name:   "Mutation",
@@ -201,6 +235,48 @@ func (g *GraphqlAutoBuild) GetMutation() *graphql.Object {
 		})
 
 	return mutationType
+}
+
+func (g *GraphqlAutoBuild) setCustomQuery(fields *graphql.Fields, kind GraphqlQueryType) {
+	// console.Log("g.yekonga.graphqlCustomQuery", g.yekonga.graphqlCustomQuery)
+
+	for _, v := range g.yekonga.graphqlCustomQuery {
+		if _, ok := (*fields)[v.Name]; ok {
+			console.Error("Custom GraphqlQL " + v.Name + " already exists")
+			return
+		}
+
+		if v.GraphqlType == kind {
+			output := graphql.Fields{}
+
+			for k, o := range v.Output {
+				obj := helper.ToMap[interface{}](o)
+				output[k] = g.getQueryField(k, getDataModelField(k, obj))
+			}
+
+			queryKind := graphql.NewObject(graphql.ObjectConfig{
+				Name:   v.Name,
+				Fields: output,
+			})
+
+			console.Error("queryKind", v.Name)
+
+			if v.IsList {
+				(*fields)[v.Name] = &graphql.Field{
+					Type:    graphql.NewList(queryKind),
+					Args:    v.Args,
+					Resolve: graphql.FieldResolveFn(v.Resolve),
+				}
+			} else {
+				(*fields)[v.Name] = &graphql.Field{
+					Type:    queryKind,
+					Args:    v.Args,
+					Resolve: graphql.FieldResolveFn(v.Resolve),
+				}
+			}
+
+		}
+	}
 }
 
 func (g *GraphqlAutoBuild) getQuerySingleField(collection string, foreignKey string, targetKey string) *graphql.Field {
@@ -400,6 +476,8 @@ func (g *GraphqlAutoBuild) getQueryDownloadField(collection string, foreignKey s
 				if listData == nil {
 					listData = helper.GetMapValue(result, "data.list")
 				}
+
+				// console.Success("download", listData)
 
 				if listData != nil {
 					filename := ""
@@ -925,6 +1003,7 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
@@ -936,6 +1015,33 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			created := model.Create(data)
+
+			for ki, vi := range model.Model.ChildrenFields {
+				var foreignKey string = vi.ForeignKey
+				var targetKey string = vi.PrimaryKey
+				childData := helper.GetValueOf(data, helper.ToVariable(ki))
+
+				if helper.IsNotEmpty(childData) {
+					if helper.IsArray(childData) {
+						childList := helper.ToList[interface{}](childData)
+
+						for i, cd := range childList {
+							if helper.IsMap(cd) {
+								cdMap := helper.ToDataMap(cd)
+								cdMap[foreignKey] = helper.GetValueOf(created, targetKey)
+								childList[i] = cdMap
+							}
+						}
+
+						// console.Info("childList", childList)
+						childModel := vi.Model.Query()
+						if ctx != nil {
+							childModel.SetRequestContext(ctx)
+						}
+						childModel.Import(childList, []string{})
+					}
+				}
+			}
 
 			id := helper.GetValueOf(created, "_id")
 			if id != nil {
@@ -975,6 +1081,7 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var data []interface{} = []interface{}{}
 			var uniqueKeys []string = []string{}
 			var model = g.yekonga.ModelQuery(name)
@@ -989,6 +1096,66 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
 			imported := model.Import(data, uniqueKeys)
+			savedData := helper.GetValueOf(imported, "data")
+
+			if helper.IsArray(savedData) {
+				savedDataList := helper.ToList[interface{}](savedData)
+
+				for _, sd := range savedDataList {
+					if helper.IsMap(sd) {
+						var childData interface{}
+						var childDataRaw interface{}
+						sdMap := helper.ToDataMap(sd)
+
+						for _, v := range data {
+							if helper.IsMap(v) {
+								vMap := helper.ToDataMap(v)
+								match := true
+
+								for _, uk := range uniqueKeys {
+									if helper.GetValueOf(sdMap, uk) != helper.GetValueOf(vMap, uk) {
+										match = false
+										break
+									}
+								}
+
+								if match {
+									childDataRaw = vMap
+									break
+								}
+							}
+
+						}
+
+						for ki, vi := range model.Model.ChildrenFields {
+							var foreignKey string = vi.ForeignKey
+							var targetKey string = vi.PrimaryKey
+							childData = helper.GetValueOf(childDataRaw, helper.ToVariable(ki))
+
+							if helper.IsNotEmpty(childData) {
+								if helper.IsArray(childData) {
+									childList := helper.ToList[interface{}](childData)
+
+									for j, cd := range childList {
+										if helper.IsMap(cd) {
+											cdMap := helper.ToDataMap(cd)
+											cdMap[foreignKey] = helper.GetValueOf(sdMap, targetKey)
+											childList[j] = cdMap
+										}
+									}
+
+									// console.Info("Import.childList", childList)
+									childModel := vi.Model.Query()
+									if ctx != nil {
+										childModel.SetRequestContext(ctx)
+									}
+									childModel.Import(childList, []string{})
+								}
+							}
+						}
+					}
+				}
+			}
 
 			console.Success("imported", imported)
 
@@ -1021,6 +1188,7 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
@@ -1032,7 +1200,35 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 			result["data"] = nil
 
 			updated := model.Update(data, nil)
+			// console.Log("updated", model.where)
+			// console.Log("updated", updated)
 			id := helper.GetValueOf(updated, "_id")
+
+			for ki, vi := range model.Model.ChildrenFields {
+				var foreignKey string = vi.ForeignKey
+				var targetKey string = vi.PrimaryKey
+				childData := helper.GetValueOf(data, helper.ToVariable(ki))
+
+				if helper.IsNotEmpty(childData) {
+					if helper.IsArray(childData) {
+						childList := helper.ToList[interface{}](childData)
+
+						for i, cd := range childList {
+							if helper.IsMap(cd) {
+								cdMap := helper.ToDataMap(cd)
+								cdMap[foreignKey] = helper.GetValueOf(updated, targetKey)
+								childList[i] = cdMap
+							}
+						}
+
+						childModel := vi.Model.Query()
+						if ctx != nil {
+							childModel.SetRequestContext(ctx)
+						}
+						childModel.Import(childList, []string{})
+					}
+				}
+			}
 
 			if id != nil {
 				result["success"] = true
@@ -1195,7 +1391,6 @@ func (g *GraphqlAutoBuild) addQueryType(collection string, model *DataModel) {
 
 	/// Summary
 	var summaryName = helper.ToCamelCase(name + "_summary")
-	// var innerSummaryName = helper.ToCamelCase(name + "_inner_summary")
 	var summaryFields = make(graphql.Fields)
 	summaryFields["count"] = g.getQueryCountField(collection, "", "")
 	summaryFields["sum"] = g.getQuerySumField(collection, "", "")
@@ -1272,8 +1467,9 @@ func (g *GraphqlAutoBuild) addInputType(collection string, model *DataModel) {
 		g.QueryTypes = make(map[string]*graphql.Object)
 	}
 
-	var name = helper.ToCamelCase(model.VariableSingle + "_input")
-	var nameResult = helper.ToCamelCase(model.VariableSingle + "_input_output")
+	var queryName = helper.ToCamelCase(model.VariableSingle)
+	var inputName = helper.ToCamelCase(model.VariableSingle + "_input")
+	// var inputResultName = helper.ToCamelCase(model.VariableSingle + "_input_output")
 	var createResultName = helper.ToCamelCase("create_" + model.VariableSingle + "_input_result_output")
 	var updateResultName = helper.ToCamelCase("update_" + model.VariableSingle + "_input_result_output")
 	var deleteResultName = helper.ToCamelCase("delete_" + model.VariableSingle + "_input_result_output")
@@ -1289,16 +1485,17 @@ func (g *GraphqlAutoBuild) addInputType(collection string, model *DataModel) {
 	}
 
 	object := graphql.NewInputObject(graphql.InputObjectConfig{
-		Name:   name,
+		Name:   inputName,
 		Fields: inputFields,
 	})
 
-	modelFields := graphql.NewObject(graphql.ObjectConfig{
-		Name:   nameResult,
-		Fields: fields,
-	})
+	modelFields := g.QueryTypes[queryName]
+	// modelFields := graphql.NewObject(graphql.ObjectConfig{
+	// 	Name:   inputResultName,
+	// 	Fields: fields,
+	// })
 
-	g.MutationTypes[name] = object
+	g.MutationTypes[inputName] = object
 	g.QueryTypes[createResultName] = graphql.NewObject(graphql.ObjectConfig{
 		Name: createResultName,
 		Fields: graphql.Fields{
@@ -1551,8 +1748,10 @@ func (g *GraphqlAutoBuild) getQueryField(name string, field *DataModelField) *gr
 		scalar = graphql.String
 	case DataModelObject:
 		scalar = ScalarAnyType
-	case DataModelArray:
+	case DataModelAny:
 		scalar = ScalarAnyType
+	case DataModelArray:
+		scalar = ScalarArrayType
 	}
 
 	f := &graphql.Field{
@@ -1596,8 +1795,10 @@ func (g *GraphqlAutoBuild) getInputField(name string, field *DataModelField) *gr
 		scalar = graphql.String
 	case DataModelObject:
 		scalar = ScalarAnyType
-	case DataModelArray:
+	case DataModelAny:
 		scalar = ScalarAnyType
+	case DataModelArray:
+		scalar = ScalarArrayType
 	}
 
 	var f *graphql.InputObjectFieldConfig
@@ -1758,8 +1959,10 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 		scalar = ScalarStringType
 	case DataModelObject:
 		scalar = ScalarAnyType
-	case DataModelArray:
+	case DataModelAny:
 		scalar = ScalarAnyType
+	case DataModelArray:
+		scalar = ScalarArrayType
 	}
 
 	operations := [...]string{

@@ -32,13 +32,11 @@ func _protectSensitiveDataModel(structureType DatabaseStructureType) {
 		k = helper.ToCamelCase(helper.Singularize(k))
 
 		Server.BeforeFind(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
-			// return nil, nil
-			
-			return nil, errors.New("Protected by default cloud function")
+			return false, errors.New("Protected by default cloud function")
 		})
 
 		Server.BeforeDelete(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
-			return nil, errors.New("Protected by default cloud function")
+			return false, errors.New("Protected by default cloud function")
 		})
 	}
 }
