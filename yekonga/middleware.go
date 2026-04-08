@@ -9,6 +9,7 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 )
 
@@ -82,14 +83,14 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 	var tenantId interface{}
 
 	if req.App.Config.HasTenant {
-		tenant := req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+		tenant := req.App.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
 			"domain": host,
 		})
 
 		if helper.IsNotEmpty(tenant) {
 			tenantId = helper.GetValueOfString(tenant, "_id")
 		} else {
-			tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+			tenant = req.App.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
 				"subdomain": host,
 			})
 
@@ -99,10 +100,12 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 		}
 
 		if helper.IsEmpty(tenantId) && req.App.Config.TenantOnly {
-			return http.StatusBadRequest, errors.New("tenant not found for the request")
+			return http.StatusBadRequest, errors.New("Tenant not found for the request")
 		}
 
 		if helper.IsNotEmpty(tenantId) {
+			req.SetTenantId(tenantId)
+
 			tenantConfig := req.App.GetTenantConfig(req)
 
 			if helper.IsNotEmpty(tenantConfig) {
@@ -115,6 +118,20 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 		if err == nil {
 			if helper.IsNotEmpty(tenant) {
 				tenantId = helper.GetValueOf(tenant, "tenantId")
+			}
+		}
+	}
+
+	if req.App.Config.HasTenant || req.App.Config.HasTenantCatch {
+		mainDomain := helper.GetMainDomain(host)
+
+		console.Error("Tenant", "host:", host, "mainDomain:", mainDomain)
+
+		if helper.IsNotEmpty(mainDomain) {
+			if host != *mainDomain {
+				if helper.IsEmpty(tenantId) {
+					return http.StatusNotFound, errors.New("Tenant not found")
+				}
 			}
 		}
 	}
@@ -244,7 +261,7 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 
 			if helper.IsNotEmpty(id) {
 				if req.App.Config.IsAuthorizationServer {
-					userInfo = req.App.ModelQuery(userModelName).FindOne(datatype.DataMap{
+					userInfo = req.App.ModelQuery(userModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 						"_id": helper.ObjectID(id),
 					})
 				} else {
@@ -261,7 +278,7 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 
 	// console.Error("userInfo", userInfo)
 
-	if userInfo != nil {
+	if helper.IsNotEmpty(userInfo) {
 		req.SetContext(string(UserInfoPayloadKey), *userInfo)
 	}
 

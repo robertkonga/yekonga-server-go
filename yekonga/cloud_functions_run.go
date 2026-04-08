@@ -35,8 +35,16 @@ func _protectSensitiveDataModel(structureType DatabaseStructureType) {
 			return false, errors.New("Protected by default cloud function")
 		})
 
-		Server.BeforeDelete(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
-			return false, errors.New("Protected by default cloud function")
-		})
+		// Server.BeforeCreate(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
+		// 	return false, errors.New("Protected by default cloud function")
+		// })
+
+		// Server.BeforeUpdate(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
+		// 	return false, errors.New("Protected by default cloud function")
+		// })
+
+		// Server.BeforeDelete(k, nil, nil, func(rc *RequestContext, qc *QueryContext) (interface{}, error) {
+		// 	return false, errors.New("Protected by default cloud function")
+		// })
 	}
 }

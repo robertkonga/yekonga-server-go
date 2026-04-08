@@ -347,7 +347,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 
 	if helper.IsNotEmpty(refreshToken) {
 		hashedToken := helper.HashRefreshToken(helper.ToString(refreshToken))
-		data = y.ModelQuery("RefreshToken").SkipBeforeFind().Where("tokenHash", hashedToken).FindOne(nil)
+		data = y.ModelQuery("RefreshToken").SkipBeforeCommit().Where("tokenHash", hashedToken).FindOne(nil)
 
 		if helper.IsNotEmpty(data) {
 			revoked := helper.GetValueOfBoolean(data, "revoked")
@@ -400,7 +400,7 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 							Client:   req.Client(),
 						}, newAccessToken, newRefreshToken, moduleName)
 
-						y.ModelQuery("RefreshToken").SkipBeforeFind().Where("tokenHash", hashedToken).Update(datatype.DataMap{
+						y.ModelQuery("RefreshToken").SkipBeforeCommit().Where("tokenHash", hashedToken).Update(datatype.DataMap{
 							"revoked": true,
 						}, nil)
 					} else {

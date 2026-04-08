@@ -481,7 +481,7 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 
 	if helper.IsNotEmpty(domain) {
 		if y.Config.HasTenantCatch {
-			tenant = req.App.ModelQuery(tenantCatchModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+			tenant = req.App.ModelQuery(tenantCatchModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 				"domain": domain,
 			})
 

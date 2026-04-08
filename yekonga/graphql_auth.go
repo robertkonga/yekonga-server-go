@@ -73,7 +73,7 @@ func (g *GraphqlAutoBuild) GetAuthMutation() *graphql.Object {
 func _otp(g *GraphqlAutoBuild) *graphql.Field {
 	// var foreignKey string
 	// var targetKey string
-	var tenantModelName = "Tenant"
+	// var tenantModelName = "Tenant"
 	var tenantUserModelName = "TenantUser"
 
 	return &graphql.Field{
@@ -90,11 +90,12 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			tenantConfig := req.Request.Tenant()
 			var result = ActionResponse{
-				Message: "Fail",
+				Message: "You have no access",
 			}
 			var user datatype.DataMap
 			var data map[string]interface{} = g.getInputData(p.Args)
-			var tenantId = req.Client.TenantId
+			var tenantId = req.Request.TenantId()
+			var tenant = req.Request.Tenant()
 
 			var username = helper.GetValueOfString(data, "username")
 			var usernameType = helper.GetValueOfString(data, "usernameType")
@@ -105,20 +106,18 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 
 			if helper.IsNotEmpty(tenantId) {
 				if helper.IsNotEmpty(username) {
-					user = *g.yekonga.SetOTPVerification(username, usernameType, tenantConfig.PublicCanRegister, "login", req.Request)
-					if helper.IsNotEmpty(user) {
+					u := g.yekonga.SetOTPVerification(username, usernameType, tenantConfig.PublicCanRegister, "login", req.Request)
+					if helper.IsNotEmpty(u) {
+						user = *u
 						userId = helper.GetValueOfString(user, "userId")
 					}
 				}
 
 				if helper.IsNotEmpty(userId) {
-					tenant := req.App.ModelQuery(tenantModelName).Exist(datatype.DataMap{
-						"id":     tenantId,
-						"userId": userId,
-					})
+					tenantUser := (userId == tenant.UserId)
 
-					if !tenant {
-						tenantUser := req.App.ModelQuery(tenantUserModelName).Exist(datatype.DataMap{
+					if !tenantUser {
+						tenantUser = req.App.ModelQuery(tenantUserModelName).Exist(datatype.DataMap{
 							"tenantId": tenantId,
 							"userId":   userId,
 						})
@@ -127,6 +126,8 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 							return nil, errors.New("User does not exist")
 						}
 					}
+				} else {
+					return nil, errors.New("User does not exist")
 				}
 			} else {
 				if helper.IsNotEmpty(username) {
@@ -210,7 +211,11 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 				username = helper.PhoneFormat(username)
 			}
 			if helper.IsNotEmpty(username) {
-				user = g.yekonga.GetUser(username, false)
+				// user = g.yekonga.GetUser(username, false)
+				u := g.yekonga.OTPVerification(username, password, usernameType, true, req.Request)
+				if helper.IsNotEmpty(u) {
+					user = *u
+				}
 			}
 
 			triggerResult, _ := g.yekonga.authTriggerCallback(BeforeLoginTriggerAction, req, &QueryContext{
@@ -358,7 +363,8 @@ func _verifyOtp(g *GraphqlAutoBuild) *graphql.Field {
 				username = helper.PhoneFormat(username)
 			}
 			if helper.IsNotEmpty(username) {
-				user = g.yekonga.GetUser(username, false)
+				// user = g.yekonga.GetUser(username, false)
+				user = *g.yekonga.OTPVerification(username, password, usernameType, false, req.Request)
 			}
 
 			triggerResult, _ := g.yekonga.authTriggerCallback(BeforeLoginTriggerAction, req, &QueryContext{
@@ -706,7 +712,7 @@ func _tenantAvailability(g *GraphqlAutoBuild) *graphql.Field {
 			var id = helper.GetValueOfString(p.Args, "id")
 			var domain = helper.GetValueOfString(p.Args, "domain")
 			var subdomain = helper.GetValueOfString(p.Args, "subdomain")
-			var model = g.yekonga.ModelQuery(tenantModelName).SkipBeforeFind()
+			var model = g.yekonga.ModelQuery(tenantModelName).SkipBeforeCommit()
 			var validQuery = false
 			var tenant *datatype.DataMap
 

@@ -134,7 +134,6 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructureTy
 			if _, ok := models[parentForeign.ModelName]; ok {
 				models[parentForeign.ModelName].ChildrenFields[childName] = childForeign
 			}
-
 		}
 	}
 
@@ -469,7 +468,6 @@ func getDataModelField(name string, field map[string]interface{}) *DataModelFiel
 		ForeignKey:   foreignKey,
 		Options:      options,
 		IsArray:      isArray,
-
-		ID: kind == DataModelID,
+		ID:           kind == DataModelID,
 	}
 }

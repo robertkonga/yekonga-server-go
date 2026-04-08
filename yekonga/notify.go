@@ -59,8 +59,7 @@ func (y *YekongaData) Notify(user *NotifiedUser, params NotificationParams) erro
 	}
 
 	modelName := "Notification"
-
-	console.Warn("user", user, params)
+	console.Warn("user", user, params.Text)
 
 	// Common notification body
 	body := NotificationBody{

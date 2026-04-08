@@ -46,6 +46,7 @@ func LoadThemeFile(filePath string) (*Theme, error) {
 }
 
 type TenantConfig struct {
+	UserId            string     `json:"userId"`
 	TenantId          string     `json:"tenantId"`
 	Domain            string     `json:"domain"`
 	TenantName        string     `json:"tenantName"`

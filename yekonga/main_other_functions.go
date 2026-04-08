@@ -14,12 +14,12 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 	var tenant any
 
 	if req.App.Config.HasTenant {
-		tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+		tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 			"domain": host,
 		})
 
 		if helper.IsEmpty(tenant) {
-			tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+			tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 				"subdomain": host,
 			})
 		}
@@ -29,9 +29,15 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 		tenantConfigModelName := "TenantConfig"
 		tenantId := helper.GetValueOf(tenant, "id")
 
-		tenantConfig := req.App.ModelQuery(tenantConfigModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+		tenantConfig := req.App.ModelQuery(tenantConfigModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
 			"tenantId": tenantId,
 		})
+
+		if helper.IsEmpty(tenantConfig) {
+			tenantConfig = &datatype.DataMap{
+				"tenantId": tenantId,
+			}
+		}
 
 		if helper.IsNotEmpty(tenantConfig) {
 			port := client.Port
@@ -49,6 +55,7 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				"tenantId":          tenantId,
 				"appName":           y.Config.AppName,
 				"baseUrl":           baseUrl,
+				"userId":            helper.GetValueOf(tenant, "userId"),
 				"tenantName":        helper.GetValueOf(tenant, "name"),
 				"description":       helper.GetValueOf(tenant, "description"),
 				"language":          helper.GetValueOf(tenant, "language"),

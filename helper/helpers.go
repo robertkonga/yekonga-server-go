@@ -1443,6 +1443,21 @@ func GetBaseUrl(str string, domain string) string {
 	return "https://" + domain + strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(str, "/")
 }
 
+func GetMainDomain(value string) *string {
+	// Regex pattern (Go uses RE2, no named groups support like JS)
+	reg := regexp.MustCompile(`((.*)[.])?([a-zA-Z0-9-_]{3,}[.]([a-z]{2,3}([.][a-z]{2,})?))`)
+
+	matches := reg.FindStringSubmatch(value)
+
+	// matches[3] corresponds to the "domain" group in your JS regex
+	if len(matches) > 3 && matches[3] != "" {
+		domain := matches[3]
+		return &domain
+	}
+
+	return nil
+}
+
 // GetDirectoryPath returns the absolute path of the specified file or executable
 func GetDirectoryPath() string {
 	// Get the absolute path of the executable
@@ -1730,6 +1745,10 @@ func GetFirst(data interface{}) interface{} {
 	}
 
 	return nil
+}
+
+func TypeOf(data interface{}) string {
+	return fmt.Sprintf("%T", data)
 }
 
 func GetType(data interface{}) string {

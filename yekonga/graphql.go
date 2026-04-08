@@ -120,6 +120,11 @@ func (g *GraphqlAutoBuild) initialize() {
 	for k, v := range g.Database {
 		k = helper.ToCamelCase(helper.Singularize(k))
 
+		if k == "AuthUserPermission" {
+			console.Log(k, v.ParentKeys)
+			console.Log(k, helper.ToJson(v.ParentFields))
+		}
+
 		for ki, vi := range v.ParentFields {
 			var foreignKey string = vi.ForeignKey
 			var targetKey string = vi.PrimaryKey

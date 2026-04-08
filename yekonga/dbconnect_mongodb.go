@@ -31,11 +31,11 @@ func newMongodbInstance(con *mongodbConnection) mongodbConnection {
 		ctx:    con.ctx,
 		client: con.client,
 		query: &DataModelQuery{
-			Model:          con.query.Model,
-			RequestContext: con.query.RequestContext,
-			QueryContext:   con.query.QueryContext,
-			isAdmin:        con.query.isAdmin,
-			skipBeforeFind: con.query.skipBeforeFind,
+			Model:            con.query.Model,
+			RequestContext:   con.query.RequestContext,
+			QueryContext:     con.query.QueryContext,
+			isAdmin:          con.query.isAdmin,
+			skipBeforeCommit: con.query.skipBeforeCommit,
 		},
 	}
 }
@@ -60,8 +60,8 @@ func (con *mongodbConnection) findOne() *datatype.DataMap {
 		opts = opts.SetSort(con.orderBy())
 	}
 
-	// if con.query.Model.Collection == "outlets" {
-	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
+	// if con.query.Model.Collection == "user_verifications" {
+	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", con.where())
 	// }
 
 	res := con.collection().FindOne(context.TODO(), con.where(), opts)
@@ -144,7 +144,7 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 
 	defer cursor.Close(context.TODO())
 
-	// if con.query.Model.Collection == "outlets" {
+	// if con.query.Model.Collection == "user_verifications" {
 	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
 	// }
 
@@ -601,8 +601,13 @@ func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.Dat
 				for ki, vi := range vs {
 					filters[ki] = vi
 				}
-			} else if _, ok := v.(map[string]interface{}); ok {
-				vs := con.extractWhereItem(whr)
+			} else if helper.IsMap(v) {
+				w := helper.ToDataMap(whr)
+				vs := con.extractWhereItem(w)
+
+				// if con.query.Model.Collection == "auth_permissions" {
+				// 	console.Log("mongodbConnection.extractWhereItem", vs, k, v, helper.TypeOf(v))
+				// }
 
 				for ki, vi := range vs {
 					filters[ki] = vi
@@ -629,7 +634,10 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 
 	if whr, ok := where.(datatype.DataMap); ok {
 		for k, v := range whr {
-			if vi, ok := v.(map[string]interface{}); ok {
+
+			if helper.IsMap(v) {
+				vi := helper.ToDataMap(v)
+
 				for ki, vii := range vi {
 					innerFilter := datatype.DataMap{}
 					if inf, ok := filters[k].(datatype.DataMap); ok {
@@ -774,12 +782,13 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 				}
 			} else if !helper.Contains([]string{"AND", "OR", "NOR"}, k) {
 				innerFilter := datatype.DataMap{}
+
 				if inf, ok := filters[k].(datatype.DataMap); ok {
 					innerFilter = inf
 				}
 
-				if vi, ok := v.([]interface{}); ok {
-					innerFilter["$in"] = vi
+				if helper.IsArray(v) {
+					innerFilter["$in"] = v
 				} else {
 					innerFilter["$eq"] = v
 				}

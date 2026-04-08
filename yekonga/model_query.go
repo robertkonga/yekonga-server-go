@@ -44,42 +44,49 @@ type DataModelQuery struct {
 	RequestContext *RequestContext
 	QueryContext   QueryContext
 
-	isAdmin        bool
-	skipBeforeFind bool
-	limit          int
-	page           int
-	skip           int
-	where          datatype.DataMap
-	orderBy        map[string]string
-	selection      []string
-	distinct       []string
-	groupBy        []string
-	groupByRaw     map[string]interface{}
+	isAdmin          bool
+	limit            int
+	page             int
+	skip             int
+	where            datatype.DataMap
+	orderBy          map[string]string
+	selection        []string
+	distinct         []string
+	groupBy          []string
+	groupByRaw       map[string]interface{}
+	skipBeforeCommit bool
+	skipTenant       bool
 }
 
 func NewDataModelQuery(model *DataModel) DataModelQuery {
 
 	return DataModelQuery{
-		Model:          model,
-		limit:          10,
-		isAdmin:        false,
-		skipBeforeFind: false,
+		Model:            model,
+		limit:            10,
+		isAdmin:          false,
+		skipBeforeCommit: false,
 	}
 }
 
 func (m *DataModelQuery) NewInstance() *DataModelQuery {
 	return &DataModelQuery{
-		Model:          m.Model,
-		isAdmin:        false,
-		skipBeforeFind: m.skipBeforeFind,
+		Model:            m.Model,
+		isAdmin:          false,
+		skipBeforeCommit: m.skipBeforeCommit,
 		QueryContext: QueryContext{
 			Params: make(map[string]interface{}),
 		},
 	}
 }
 
-func (m *DataModelQuery) SkipBeforeFind() *DataModelQuery {
-	m.skipBeforeFind = true
+func (m *DataModelQuery) SkipTenant() *DataModelQuery {
+	m.skipTenant = true
+
+	return m
+}
+
+func (m *DataModelQuery) SkipBeforeCommit() *DataModelQuery {
+	m.skipBeforeCommit = true
 
 	return m
 }
@@ -304,26 +311,30 @@ func (m *DataModelQuery) Skip(value int) *DataModelQuery {
 }
 
 func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
-	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
-		tenantId := m.getTenantId()
+	if !m.skipTenant {
+		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
+			tenantId := m.getTenantId()
 
-		if helper.IsNotEmpty(tenantId) {
-			data[TenantIDKey] = helper.ObjectID(tenantId)
+			if helper.IsNotEmpty(tenantId) {
+				data[TenantIDKey] = helper.ObjectID(tenantId)
+			}
 		}
 	}
 
-	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		data = helper.ToDataMap(triggerBefore)
-	}
+	if !m.skipBeforeCommit {
+		triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			data = helper.ToDataMap(triggerBefore)
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		data = helper.ToDataMap(triggerBefore)
+		triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			data = helper.ToDataMap(triggerBefore)
+		}
 	}
 
 	result, err := m.collection().create(*(m.formatInputData(data, CreateInputAction)))
@@ -356,18 +367,20 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	m.WhereAll(where)
 	m.addTenantId()
 
-	triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAllAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		data = helper.ToDataMap(triggerBefore)
-	}
+	if !m.skipBeforeCommit {
+		triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAllAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			data = helper.ToDataMap(triggerBefore)
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeUpdateTriggerAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		data = helper.ToDataMap(triggerBefore)
+		triggerBefore = m.runTriggerAction(BeforeUpdateTriggerAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			data = helper.ToDataMap(triggerBefore)
+		}
 	}
 
 	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
@@ -398,31 +411,35 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 }
 
 func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interface{} {
-	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
-		tenantId := m.getTenantId()
+	if !m.skipTenant {
+		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
+			tenantId := m.getTenantId()
 
-		if helper.IsNotEmpty(tenantId) {
-			for i := range data {
-				d := helper.ToDataMap(data[i])
-				d[TenantIDKey] = helper.ObjectID(tenantId)
+			if helper.IsNotEmpty(tenantId) {
+				for i := range data {
+					d := helper.ToDataMap(data[i])
+					d[TenantIDKey] = helper.ObjectID(tenantId)
 
-				data[i] = d
+					data[i] = d
+				}
 			}
 		}
 	}
 
-	triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if v, ok := triggerBefore.([]interface{}); ok {
-		data = v
-	}
+	if !m.skipBeforeCommit {
+		triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if v, ok := triggerBefore.([]interface{}); ok {
+			data = v
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if v, ok := triggerBefore.([]interface{}); ok {
-		data = v
+		triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if v, ok := triggerBefore.([]interface{}); ok {
+			data = v
+		}
 	}
 
 	uniqueKeys = append(uniqueKeys, "_id")
@@ -555,20 +572,21 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAllAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
-	}
+	if !m.skipBeforeCommit {
+		triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAllAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 
-	triggerBefore = m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
-	if v, ok := triggerBefore.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(triggerBefore) {
-		m.WhereAll(helper.ToDataMap(triggerBefore))
+		triggerBefore = m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
+		if v, ok := triggerBefore.(bool); ok && !v {
+			return nil
+		} else if helper.IsMap(triggerBefore) {
+			m.WhereAll(helper.ToDataMap(triggerBefore))
+		}
 	}
-
 	result, err := m.collection().delete()
 
 	if err != nil {
@@ -617,7 +635,7 @@ func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := triggerBefore.(bool); ok && !v {
 			return nil
@@ -654,7 +672,7 @@ func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := triggerBefore.(bool); ok && !v {
 			vl := make([]datatype.DataMap, 0)
@@ -693,7 +711,7 @@ func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := triggerBefore.(bool); ok && !v {
 			return nil
@@ -730,7 +748,7 @@ func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return nil
@@ -753,7 +771,7 @@ func (m *DataModelQuery) Count(where interface{}) int64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return 0
@@ -776,7 +794,7 @@ func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return 0
@@ -799,7 +817,7 @@ func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return nil
@@ -822,7 +840,7 @@ func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return nil
@@ -845,7 +863,7 @@ func (m *DataModelQuery) Average(target string, where interface{}) float64 {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeFind {
+	if !m.skipBeforeCommit {
 		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := result.(bool); ok && !v {
 			return 0
@@ -1211,34 +1229,38 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 }
 
 func (m *DataModelQuery) addTenantId() {
-	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
-		payload := m.RequestContext.TokenPayload
-		var tenantId interface{}
+	if !m.skipTenant {
+		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
+			payload := m.RequestContext.TokenPayload
+			var tenantId interface{}
 
-		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
-			tenantId = payload.TenantId
-		} else {
-			tenantId = m.RequestContext.Request.TenantId()
+			if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+				tenantId = payload.TenantId
+			} else {
+				tenantId = m.RequestContext.Request.TenantId()
+			}
+
+			if helper.IsEmpty(tenantId) {
+				tenantId = "000000000000000000000000"
+			}
+
+			m.Where(TenantIDKey, helper.ObjectID(tenantId))
 		}
-
-		if helper.IsEmpty(tenantId) {
-			tenantId = "000000000000000000000000"
-		}
-
-		m.Where(TenantIDKey, helper.ObjectID(tenantId))
 	}
 }
 
 func (m *DataModelQuery) getTenantId() interface{} {
 	var tenantId interface{}
 
-	if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
-		payload := m.RequestContext.TokenPayload
+	if !m.skipTenant {
+		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
+			payload := m.RequestContext.TokenPayload
 
-		if payload != nil && helper.IsNotEmpty(payload.TenantId) {
-			tenantId = payload.TenantId
-		} else {
-			tenantId = m.RequestContext.Request.TenantId()
+			if payload != nil && helper.IsNotEmpty(payload.TenantId) {
+				tenantId = payload.TenantId
+			} else {
+				tenantId = m.RequestContext.Request.TenantId()
+			}
 		}
 	}
 

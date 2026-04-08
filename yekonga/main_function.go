@@ -42,16 +42,30 @@ type LoginData struct {
 	IsAdmin    bool
 }
 
-func (y *YekongaData) OTPVerification(value interface{}, password string, usernameType string, canCreate bool, req *Request) *datatype.DataMap {
+func (y *YekongaData) OTPVerification(username interface{}, password string, usernameType string, canCreate bool, req *Request) *datatype.DataMap {
+	const userModelName = "User"
 	const userVerificationModelName = "UserVerification"
 	var user *datatype.DataMap
-	var username string
+	var tenant = req.Tenant()
+	tenantId := req.TenantId()
+	withinTenant := helper.IsNotEmpty(tenantId)
+	var defaultUser = y.ModelQuery(userModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
+	var isOwner = false
 
-	if v, ok := value.(string); ok {
+	if v, ok := username.(string); ok {
 		username = v
 	}
 
-	user = y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
+	if helper.IsNotEmpty(defaultUser) {
+		isOwner = (helper.GetValueOfString(defaultUser, "_id") == tenant.UserId)
+	}
+
+	if withinTenant {
+		user = y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
+	} else {
+		tenantId = helper.ObjectID("000000000000000000000000")
+		user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
+	}
 
 	if helper.IsNotEmpty(user) {
 		otpCode := helper.GetValueOf(user, "otpCode")
@@ -62,13 +76,13 @@ func (y *YekongaData) OTPVerification(value interface{}, password string, userna
 				otpCode = nil
 			}
 
-			y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Where("username", username).Update(datatype.DataMap{
+			y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).Update(datatype.DataMap{
 				"otpCode":       otpCode,
 				"otpVerifiedAt": timestamp,
 				"updatedAt":     timestamp,
 			}, nil)
 
-			u := y.GetUser(user, canCreate)
+			u := y.GetUser(*user, isOwner || canCreate)
 
 			user = &u
 		}
@@ -78,9 +92,11 @@ func (y *YekongaData) OTPVerification(value interface{}, password string, userna
 }
 
 func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string, canCreate bool, target string, req *Request) *datatype.DataMap {
+	const userModelName = "User"
 	const userVerificationModelName = "UserVerification"
 	var user *datatype.DataMap
 	var username string
+	var tenant = req.Tenant()
 
 	if v, ok := value.(string); ok {
 		username = v
@@ -111,37 +127,66 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 	if helper.IsNotEmpty(username) {
 		var otpCode string
 		var otpCreatedAt time.Time
+		var defaultUser = y.ModelQuery(userModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
+		var isOwner = false
+		var userId interface{}
+		tenantId := req.TenantId()
+		withinTenant := helper.IsNotEmpty(tenantId)
 		where := datatype.DataMap{
-			"username":     username,
-			"usernameType": usernameType,
+			"username": username,
 		}
 
-		user = y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).FindOne(where)
+		if !withinTenant {
+			tenantId = helper.ObjectID("000000000000000000000000")
+		}
 
+		if helper.IsNotEmpty(defaultUser) {
+			userId = helper.GetValueOfString(defaultUser, "_id")
+			isOwner = (userId == tenant.UserId)
+		}
+
+		where["tenantId"] = tenantId
+		user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).FindOne(where)
+
+		// console.Error("user.x", user)
+		// console.Error("user.x.isOwner", isOwner)
 		if helper.IsNotEmpty(user) {
+			id := helper.GetValueOf(user, "_id")
 			otpCode = helper.GetValueOfString(user, "otpCode")
 			otpCreatedAt = helper.GetValueOfDate(user, "otpCreatedAt")
+			var u interface{}
 
 			if helper.IsEmpty(otpCode) {
 				otpCode = helper.GetRandomInt(4)
 				otpCreatedAt = helper.GetTimestamp(nil)
 			}
 
-			u := y.ModelQuery(userVerificationModelName).SkipBeforeFind().SetRequest(req, &Response{}).Update(datatype.DataMap{
+			userBody := datatype.DataMap{
+				"userId":       userId,
+				"usernameType": usernameType,
 				"target":       target,
 				"otpCode":      otpCode,
 				"otpCreatedAt": otpCreatedAt,
 				"updatedAt":    helper.GetTimestamp(nil),
-			}, where)
+			}
+
+			if withinTenant {
+				u = y.ModelQuery(userVerificationModelName).Where("id", id).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Update(userBody, nil)
+			} else {
+				userBody["tenantId"] = tenantId
+				u = y.ModelQuery(userVerificationModelName).Where("id", id).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Update(userBody, nil)
+			}
 
 			if v, ok := u.(*datatype.DataMap); ok {
 				user = v
 			}
-		} else if canCreate {
+		} else if isOwner || canCreate || !withinTenant {
 			otpCode = helper.GetRandomInt(4)
 			otpCreatedAt = helper.GetTimestamp(nil)
+			var u interface{}
 
-			u := y.ModelQuery(userVerificationModelName).SetRequest(req, &Response{}).Create(datatype.DataMap{
+			userBody := datatype.DataMap{
+				"userId":       userId,
 				"username":     username,
 				"usernameType": usernameType,
 				"target":       target,
@@ -149,7 +194,15 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 				"otpCreatedAt": otpCreatedAt,
 				"updatedAt":    helper.GetTimestamp(nil),
 				"createdAt":    helper.GetTimestamp(nil),
-			})
+			}
+
+			if withinTenant {
+				u = y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Create(userBody)
+			} else {
+				tenantId = helper.ObjectID("000000000000000000000000")
+				userBody["tenantId"] = tenantId
+				u = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Create(userBody)
+			}
 
 			if v, ok := u.(*datatype.DataMap); ok {
 				user = v
@@ -208,15 +261,24 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 	var email string
 	var permissions []interface{} = []interface{}{}
 	var user *datatype.DataMap
+	var hasPermissions = false
 
 	if v, ok := value.(string); ok {
 		username = v
 	} else if helper.IsNotEmpty(value) {
+		listPermissions := helper.GetValueOf(value, "permissions")
+
+		if helper.IsNotEmpty(listPermissions) {
+			if helper.IsList(listPermissions) {
+				hasPermissions = true
+				permissions = helper.ToList[interface{}](listPermissions)
+			}
+		}
+
 		userId = helper.GetValueOfString(value, "userId")
 		tenantId = helper.GetValueOfString(value, "tenantId")
 		username = helper.GetValueOfString(value, "username")
 		usernameType = helper.GetValueOfString(value, "usernameType")
-		permissions = helper.ToList[interface{}](helper.GetValueOf(value, "permissions"))
 		phone = helper.GetValueOfString(value, "phone")
 		email = helper.GetValueOfString(value, "email")
 		firstName = helper.GetValueOfString(value, "firstName")
@@ -226,7 +288,7 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 	}
 
 	if helper.IsNotEmpty(userId) {
-		user = y.ModelQuery(userModelName).SkipBeforeFind().Where("id", userId).FindOne(nil)
+		user = y.ModelQuery(userModelName).SkipBeforeCommit().Where("id", userId).FindOne(nil)
 	} else if helper.IsNotEmpty(username) {
 		if helper.IsEmail(username) {
 			usernameType = "email"
@@ -235,11 +297,11 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 			username = helper.PhoneFormat(username)
 		}
 
-		user = y.ModelQuery(userModelName).SkipBeforeFind().Where("username", username).FindOne(nil)
+		user = y.ModelQuery(userModelName).SkipBeforeCommit().Where("username", username).FindOne(nil)
 
 		if helper.IsEmpty(user) {
 			if canCreate {
-				res := y.ModelQuery(userModelName).Create(datatype.DataMap{
+				res := y.ModelQuery(userModelName).SkipBeforeCommit().Create(datatype.DataMap{
 					"usernameType": usernameType,
 					"username":     username,
 					"firstName":    firstName,
@@ -265,7 +327,9 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 	if helper.IsNotEmpty(user) {
 		userId := helper.GetValueOfString(user, "id")
 
-		y.SetUserPermission(tenantId, userId, moduleName, permissions)
+		if hasPermissions {
+			y.SetUserPermission(tenantId, userId, moduleName, permissions)
+		}
 
 		dataToUpdate := datatype.DataMap{}
 
@@ -290,13 +354,13 @@ func (y *YekongaData) GetUser(value interface{}, canCreate bool) datatype.DataMa
 		}
 
 		if len(dataToUpdate) > 0 {
-			y.ModelQuery(userModelName).SkipBeforeFind().Where("id", userId).Update(dataToUpdate, nil)
+			y.ModelQuery(userModelName).SkipBeforeCommit().Where("id", userId).Update(dataToUpdate, nil)
 		}
 
-		profile := y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
+		profile := y.ModelQuery(profileModelName).SkipBeforeCommit().Where("userId", userId).FindOne(nil)
 
 		if profile == nil {
-			y.ModelQuery(profileModelName).Create(datatype.DataMap{
+			y.ModelQuery(profileModelName).SkipBeforeCommit().Create(datatype.DataMap{
 				"userId":    userId,
 				"name":      "Private Profile",
 				"updatedAt": helper.GetTimestamp(nil),
@@ -319,7 +383,7 @@ func (y *YekongaData) RecordLoginAttempt(status string, ctx context.Context, inp
 	domain := req.Client.OriginDomain()
 	profileId := input.ProfileID
 
-	y.ModelQuery(loginAttemptModelName).Create(datatype.DataMap{
+	y.ModelQuery(loginAttemptModelName).SkipBeforeCommit().Create(datatype.DataMap{
 		"domain":    domain,
 		"profileId": profileId,
 		"userId":    input.UserID,
@@ -398,12 +462,12 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 				hasUpdate := len(otpBody) > 0
 
 				if hasUpdate {
-					y.ModelQuery(userModelName).Where("id", userId).Update(otpBody, nil)
+					y.ModelQuery(userModelName).SkipBeforeCommit().Where("id", userId).Update(otpBody, nil)
 				}
 			}
 		}
 	} else {
-		user = y.ModelQuery(userModelName).FindOne(body)
+		user = y.ModelQuery(userModelName).SkipBeforeCommit().FindOne(body)
 
 		if helper.IsNotEmpty(user) {
 			password := helper.GetValueOfString(user, "password")
@@ -444,7 +508,7 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 			ModuleName: input.ModuleName,
 		})
 
-		if input.LoginType == "registration" {
+		if input.LoginType == "registration" && helper.IsNotEmpty(result) {
 			(*result)["token"] = nil
 		}
 
@@ -513,14 +577,14 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	filteredData := datatype.DataMap{}
 
 	if helper.IsNotEmpty(input.ProfileID) && helper.Contains(profileIds, input.ProfileID) {
-		profile = y.ModelQuery(profileModelName).SkipBeforeFind().Where("id", input.ProfileID).FindOne(nil)
+		profile = y.ModelQuery(profileModelName).SkipBeforeCommit().Where("id", input.ProfileID).FindOne(nil)
 	}
 
 	if helper.IsEmpty(profile) {
-		profile = y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
+		profile = y.ModelQuery(profileModelName).SkipBeforeCommit().Where("userId", userId).FindOne(nil)
 
 		if helper.IsEmpty(profile) {
-			profile = y.ModelQuery(profileUserModelName).SkipBeforeFind().Where("userId", userId).FindOne(nil)
+			profile = y.ModelQuery(profileUserModelName).SkipBeforeCommit().Where("userId", userId).FindOne(nil)
 		}
 	}
 
@@ -528,6 +592,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		model := y.Model(userModelName)
 		tenantId := req.Request.TenantId()
 		permissions := y.GetUserPermission(tenantId, userId, input.ModuleName)
+		// permissions := make([]string, 0)
 
 		payloadData := TokenPayload{
 			TenantId:     tenantId,
@@ -629,16 +694,35 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 }
 
 func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, moduleName string) []string {
+	const tenantModelName = "Tenant"
+	var permissions *[]datatype.DataMap
 	var list = make([]string, 0, 0)
+	var isAdmin = y.ModelQuery(tenantModelName).SkipBeforeCommit().Exist(datatype.DataMap{
+		"_id":    tenantId,
+		"userId": userId,
+	})
 
 	if helper.IsNotEmpty(moduleName) {
+		const permissionModelName = "AuthPermission"
 		const userPermissionModelName = "AuthUserPermission"
-		var where = datatype.DataMap{
-			"tenantId":   tenantId,
-			"userId":     userId,
-			"moduleName": moduleName,
+
+		if isAdmin {
+			var where = datatype.DataMap{
+				"moduleName": datatype.DataMap{
+					"in": []string{"access", moduleName},
+				},
+			}
+
+			permissions = y.ModelQuery(permissionModelName).SkipBeforeCommit().Find(where)
+		} else {
+			var where = datatype.DataMap{
+				"tenantId":   tenantId,
+				"userId":     userId,
+				"moduleName": moduleName,
+			}
+
+			permissions = y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Find(where)
 		}
-		var permissions = y.ModelQuery(userPermissionModelName).SkipBeforeFind().WhereAll(where).Find(nil)
 
 		for _, e := range *permissions {
 			var name = helper.GetValueOfString(e, "code")
@@ -652,14 +736,14 @@ func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, mod
 func (y *YekongaData) SetUserPermission(tenantId interface{}, userId string, moduleName string, permissions []interface{}) {
 	const userPermissionModelName = "AuthUserPermission"
 
-	y.ModelQuery(userPermissionModelName).SkipBeforeFind().Delete(datatype.DataMap{
+	y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Delete(datatype.DataMap{
 		"tenantId":   tenantId,
 		"userId":     userId,
 		"code":       "access:all",
 		"moduleName": "access",
 	})
 
-	y.ModelQuery(userPermissionModelName).SkipBeforeFind().Delete(datatype.DataMap{
+	y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Delete(datatype.DataMap{
 		"tenantId":   tenantId,
 		"userId":     userId,
 		"moduleName": moduleName,
@@ -696,7 +780,7 @@ func (y *YekongaData) SetUserPermission(tenantId interface{}, userId string, mod
 				"moduleName":  moduleName,
 			}
 
-			exists := y.ModelQuery(userPermissionModelName).SkipBeforeFind().WhereAll(input).Exist(nil)
+			exists := y.ModelQuery(userPermissionModelName).SkipBeforeCommit().WhereAll(input).Exist(nil)
 
 			if !exists {
 				y.ModelQuery(userPermissionModelName).Create(input)
@@ -795,7 +879,7 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		"expiresAt": helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
 	}
 
-	y.ModelQuery("RefreshToken").Create(body)
+	y.ModelQuery("RefreshToken").SkipBeforeCommit().Create(body)
 
 	return token
 }
@@ -876,8 +960,8 @@ func GetProfileIds(y *YekongaData, userId string) []string {
 	var profileModelName = "Profile"
 	var profileUserModelName = "ProfileUser"
 	var all []string = []string{}
-	var listA = y.ModelQuery(profileModelName).SkipBeforeFind().Where("userId", userId).Find(nil)
-	var listB = y.ModelQuery(profileUserModelName).SkipBeforeFind().Where("userId", userId).Find(nil)
+	var listA = y.ModelQuery(profileModelName).SkipBeforeCommit().Where("userId", userId).Find(nil)
+	var listB = y.ModelQuery(profileUserModelName).SkipBeforeCommit().Where("userId", userId).Find(nil)
 
 	for _, e := range *listA {
 		all = append(all, helper.GetValueOfString(e, "profileId"))

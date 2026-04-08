@@ -69,7 +69,7 @@ func (y *YekongaData) GetWebConfig(req *Request) WebConfig {
 
 	listB := make([]datatype.DataMap, 0)
 	if y.Config.IsAuthorizationServer {
-		listB = *(y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale}))
+		listB = *(y.ModelQuery("TranslatorTranslation").SkipBeforeCommit().Find(map[string]any{"locale": locale}))
 	}
 	countB := len(listB)
 
@@ -137,7 +137,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
 
-		list := y.ModelQuery("TranslatorLanguage").SkipBeforeFind().Find(nil)
+		list := y.ModelQuery("TranslatorLanguage").SkipBeforeCommit().Find(nil)
 		count := len(*list)
 
 		for i := 0; i < count; i++ {
@@ -158,7 +158,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 	y.All("/translations/:locale", func(req *Request, res *Response) {
 		locale := req.Param("locale")
 		translations := []map[string]interface{}{}
-		list := y.ModelQuery("TranslatorTranslation").Find(map[string]any{"locale": locale})
+		list := y.ModelQuery("TranslatorTranslation").SkipBeforeCommit().Find(map[string]any{"locale": locale})
 		count := len(*list)
 
 		for i := 0; i < count; i++ {
@@ -238,12 +238,12 @@ func (y *YekongaData) initializerOtherRoutes() {
 		var tenantName any
 
 		if req.App.Config.HasTenant {
-			tenant := req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+			tenant := req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 				"domain": host,
 			})
 
 			if helper.IsEmpty(tenant) {
-				tenant = req.App.ModelQuery(tenantModelName).SkipBeforeFind().FindOne(datatype.DataMap{
+				tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
 					"subdomain": host,
 				})
 			}
