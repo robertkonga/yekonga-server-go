@@ -32,6 +32,7 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 		tenantConfig := req.App.ModelQuery(tenantConfigModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
 			"tenantId": tenantId,
 		})
+		// console.Log("tenantConfig", tenantId, tenantConfig)
 
 		if helper.IsEmpty(tenantConfig) {
 			tenantConfig = &datatype.DataMap{
@@ -48,7 +49,13 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				port = ":" + port
 			}
 
-			baseUrl := client.Proto + "://" + client.Host + port
+			lightTheme := helper.GetValueOfMap(tenantConfig, "lightTheme")
+			darkTheme := helper.GetValueOfMap(tenantConfig, "darkTheme")
+			baseUrl := client.Proto + "://" + host + port
+			logoStr := helper.GetValueOfString(lightTheme, "logo")
+			logoUrl := helper.GetBaseUrl(logoStr, host)
+			faviconStr := helper.GetValueOfString(lightTheme, "favicon")
+			faviconUrl := helper.GetBaseUrl(faviconStr, host)
 
 			data := datatype.DataMap{
 				"domain":            host,
@@ -63,16 +70,18 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				"address":           helper.GetValueOf(tenant, "address"),
 				"email":             helper.GetValueOf(tenant, "email"),
 				"phone":             helper.GetValueOf(tenant, "phone"),
-				"logoUrl":           helper.GetValueOf(tenant, "logoUrl"),
-				"faviconUrl":        helper.GetValueOf(tenant, "faviconUrl"),
+				"logoUrl":           logoUrl,
+				"faviconUrl":        faviconUrl,
 				"smtp":              helper.GetValueOf(tenantConfig, "smtp"),
 				"sms":               helper.GetValueOf(tenantConfig, "sms"),
 				"whatsapp":          helper.GetValueOf(tenantConfig, "whatsapp"),
-				"lightTheme":        helper.GetValueOf(tenantConfig, "lightTheme"),
-				"darkTheme":         helper.GetValueOf(tenantConfig, "darkTheme"),
+				"lightTheme":        lightTheme,
+				"darkTheme":         darkTheme,
 				"hasMembership":     helper.GetValueOf(tenantConfig, "hasMembership"),
 				"publicCanRegister": helper.GetValueOf(tenantConfig, "publicCanRegister"),
 			}
+			// console.Log("TenantConfig.data", data)
+			// console.Log("TenantConfig.tenantConfig", tenantConfig)
 
 			config, err := helper.ConvertTo[config.TenantConfig](data)
 			if err != nil {

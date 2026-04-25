@@ -420,7 +420,6 @@ func runCustomCSS(y *YekongaData) Handler {
 
 		custom, err := y.CustomCSS(req, res)
 		if err == nil && helper.IsNotEmpty(custom) {
-
 			if str, ok := custom.(string); ok {
 				content += str
 			}

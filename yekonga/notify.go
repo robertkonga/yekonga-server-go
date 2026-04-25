@@ -27,6 +27,8 @@ type NotificationParams struct {
 	Link          *string
 	Filename      *string
 	ProfileID     *string
+	TenantID      *string
+	ModuleName    string
 	ReferenceID   *string
 	ReferenceName *string
 }

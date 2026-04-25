@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"cmp"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"io"
 	"log"
 	"math/rand"
@@ -24,81 +28,82 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/nfnt/resize"
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 	"github.com/robertkonga/yekonga-server-go/plugins/uuid"
+	"github.com/skip2/go-qrcode"
+	"golang.org/x/image/draw"
 )
 
 func IsMap(data interface{}) bool {
-	// Type assertion to check if data is a map[string]interface{}
-	if _, ok := data.(map[string]interface{}); ok {
-		return true
-	} else if _, ok := data.(datatype.Record); ok {
-		return true
-	} else if _, ok := data.(datatype.DataMap); ok {
-		return true
-	} else if _, ok := data.(datatype.Context); ok {
-		return true
-	} else if _, ok := data.(datatype.ContextObject); ok {
-		return true
-	} else if _, ok := data.(datatype.JsonObject); ok {
-		return true
-	} else if _, ok := data.(bson.M); ok {
-		return true
+	if IsNotEmpty(data) {
+
+		ok := reflect.TypeOf(data).Kind() == reflect.Map
+
+		// Type assertion to check if data is a map[string]interface{}
+		if ok {
+			return true
+		} else if _, ok := data.(datatype.Record); ok {
+			return true
+		} else if _, ok := data.(datatype.DataMap); ok {
+			return true
+		} else if _, ok := data.(datatype.Context); ok {
+			return true
+		} else if _, ok := data.(datatype.ContextObject); ok {
+			return true
+		} else if _, ok := data.(datatype.JsonObject); ok {
+			return true
+		} else if _, ok := data.(bson.M); ok {
+			return true
+		}
 	}
 
 	return false
 }
 
 func IsMapList(data interface{}) bool {
-	// Type assertion to check if data is a map[string]interface{}
-	if _, ok := data.([]map[string]interface{}); ok {
-		return true
-	} else if _, ok := data.([]datatype.Record); ok {
-		return true
-	} else if _, ok := data.([]datatype.DataMap); ok {
-		return true
-	} else if _, ok := data.([]datatype.Context); ok {
-		return true
-	} else if _, ok := data.([]datatype.ContextObject); ok {
-		return true
-	} else if _, ok := data.([]datatype.JsonObject); ok {
-		return true
-	} else if _, ok := data.([]bson.M); ok {
-		return true
+	if IsNotEmpty(data) {
+		ok := reflect.TypeOf(data).Kind() == reflect.Array || reflect.TypeOf(data).Kind() == reflect.Slice
+
+		// Type assertion to check if data is a map[string]interface{}
+		if ok {
+			return true
+		} else if _, ok := data.([]datatype.Record); ok {
+			return true
+		} else if _, ok := data.([]datatype.DataMap); ok {
+			return true
+		} else if _, ok := data.([]datatype.Context); ok {
+			return true
+		} else if _, ok := data.([]datatype.ContextObject); ok {
+			return true
+		} else if _, ok := data.([]datatype.JsonObject); ok {
+			return true
+		} else if _, ok := data.([]bson.M); ok {
+			return true
+		}
 	}
 
 	return false
 }
 
-func ToDataMap(data interface{}) datatype.DataMap {
-	switch v := data.(type) {
-	case map[string]interface{}:
-		return datatype.DataMap(v)
-	case datatype.Record:
-		return datatype.DataMap(map[string]interface{}(v))
-	case datatype.DataMap:
-		return v
-	case datatype.Context:
-		return datatype.DataMap(map[string]interface{}(v))
-	case datatype.ContextObject:
-		newMap := make(map[string]interface{}, len(v))
-		for key, val := range v {
-			newMap[key] = val
-		}
-		return datatype.DataMap(newMap)
-	case datatype.JsonObject:
-		return datatype.DataMap(map[string]interface{}(v))
-	case bson.M:
-		return datatype.DataMap(map[string]interface{}(v))
+func ToDataMap(input interface{}) datatype.DataMap {
+	result := make(map[string]interface{})
 
-	default:
-		// You could also initialize an empty map here: make(DataMap)
-		return nil
+	value := reflect.ValueOf(input)
+
+	if value.Kind() != reflect.Map {
+		console.Error("input must be a map")
 	}
+
+	for _, key := range value.MapKeys() {
+		result[fmt.Sprintf("%v", key.Interface())] = value.MapIndex(key).Interface()
+	}
+
+	return result
 }
 
 func ToDataMapList(data interface{}) []datatype.DataMap {
@@ -112,14 +117,7 @@ func ToDataMapList(data interface{}) []datatype.DataMap {
 		item := val.Index(i).Interface()
 
 		// Use a simple type switch for the individual items
-		switch m := item.(type) {
-		case datatype.DataMap:
-			result[i] = m
-		case map[string]interface{}:
-			result[i] = datatype.DataMap(m)
-		case datatype.Record: // and so on...
-			result[i] = datatype.DataMap(map[string]interface{}(m))
-		}
+		result[i] = ToDataMap(item)
 	}
 	return result
 }
@@ -285,7 +283,15 @@ func IsSlice(v interface{}) bool {
 		return IsSlice(reflect.ValueOf(v).Elem().Interface())
 	}
 
-	return reflect.TypeOf(v).Kind() == reflect.Slice
+	t := reflect.TypeOf(v)
+
+	// Exclude MongoDB ObjectID
+	if t == reflect.TypeOf(bson.ObjectID{}) {
+		return false
+	}
+
+	kind := t.Kind()
+	return kind == reflect.Array || kind == reflect.Slice
 }
 
 func IsList(v interface{}) bool {
@@ -940,6 +946,7 @@ func FileExists(filename string) bool {
 
 	if err != nil {
 		// console.Error("FileExists", err)
+		return false
 	}
 
 	return !os.IsNotExist(err)
@@ -1440,7 +1447,7 @@ func GetBaseUrl(str string, domain string) string {
 		return str
 	}
 
-	return "https://" + domain + strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(str, "/")
+	return "https://" + domain + strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(strings.TrimSuffix(str, "/"), "/")
 }
 
 func GetMainDomain(value string) *string {
@@ -1538,22 +1545,29 @@ func GetValueOfInt(data interface{}, key string) int {
 }
 
 func GetMapInt(data interface{}, key string) int {
-	if value, ok := GetMapValue(data, key).(int); ok {
+	v := GetMapValue(data, key)
+
+	if value, ok := v.(int); ok {
 		return value
+	} else if IsNumeric(v) {
+		return ToInt(v)
 	}
 
 	return 0
 }
 
-func GetValueOfFloat(data interface{}, key string) int {
-	return GetMapInt(data, key)
+func GetValueOfFloat(data interface{}, key string) float64 {
+	return GetMapFloat(data, key)
 }
 
 func GetMapFloat(data interface{}, key string) float64 {
-	if value, ok := GetMapValue(data, key).(int); ok {
+	v := GetMapValue(data, key)
+	if value, ok := v.(int); ok {
 		return ToFloat(value)
-	} else if value, ok := GetMapValue(data, key).(float64); ok {
+	} else if value, ok := v.(float64); ok {
 		return value
+	} else if IsNumeric(v) {
+		return ToFloat64(v)
 	}
 
 	return 0
@@ -1588,8 +1602,10 @@ func GetValueOfMap(data interface{}, key string) map[string]interface{} {
 }
 
 func GetMap(data interface{}, key string) map[string]interface{} {
-	if value, ok := GetMapValue(data, key).(map[string]interface{}); ok {
-		return value
+	v := GetMapValue(data, key)
+
+	if IsNotEmpty(v) {
+		return ToMap[interface{}](v)
 	}
 
 	return nil
@@ -1637,60 +1653,14 @@ func GetMapValue(data interface{}, key string) interface{} {
 	}
 
 	if IsMap(localData) {
+		v := ToDataMap(localData)
 
-		if v, ok := localData.(map[string]interface{}); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
-			}
-		} else if v, ok := localData.(datatype.DataMap); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
-			}
-		} else if v, ok := localData.(datatype.Context); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
-			}
-		} else if v, ok := localData.(datatype.ContextObject); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
-			}
-		} else if v, ok := localData.(datatype.JsonObject); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
-			}
-		} else if v, ok := localData.(bson.M); ok {
-			if vi, oki := v[first]; oki {
-				if len(keys[1:]) == 0 {
-					return vi
-				} else {
-					last := strings.Join(keys[1:], ".")
-					return GetMapValue(vi, last)
-				}
+		if vi, oki := v[first]; oki {
+			if len(keys[1:]) == 0 {
+				return vi
+			} else {
+				last := strings.Join(keys[1:], ".")
+				return GetMapValue(vi, last)
 			}
 		}
 	} else if v, ok := localData.([]interface{}); ok {
@@ -2352,4 +2322,127 @@ func IsProduction() bool {
 
 func IsDevelopment() bool {
 	return !IsProduction()
+}
+
+func GenerateQR(content string, outputPath interface{}) error {
+	return GenerateQRWithIcon(content, "", outputPath)
+}
+
+func GenerateQRWithIcon(content string, iconPath string, outputPath interface{}) error {
+	size := 512
+	padding := 10
+	// 1. Generate QR Code
+	// Use High recovery level (qrcode.High) because the icon will obstruct part of the data.
+	qr, err := qrcode.New(content, qrcode.High)
+	if err != nil {
+		return err
+	}
+	// Remove default border
+	qr.DisableBorder = true
+
+	// Create the QR image (e.g., 512x512)
+	qrImg := qr.Image(size)
+
+	// 3. Create the Final Canvas
+	// finalImg := image.NewRGBA(qrImg.Bounds())
+	// draw.Draw(finalImg, qrImg.Bounds(), qrImg, image.Point{}, draw.Src)
+
+	// Custom padding
+
+	// New image with padding
+	newSize := size + (padding * 2)
+	finalImg := image.NewRGBA(image.Rect(0, 0, newSize, newSize))
+
+	// White background
+	draw.Draw(finalImg, finalImg.Bounds(), &image.Uniform{color.White}, image.Point{}, draw.Src)
+
+	// Draw QR code with padding offset
+	draw.Draw(
+		finalImg,
+		image.Rect(padding, padding, padding+size, padding+size),
+		qrImg,
+		image.Point{},
+		draw.Over,
+	)
+
+	if IsNotEmpty(iconPath) {
+		// 2. Resize Icon (Icon should be ~15-20% of the QR code size)
+		iconSize := uint(qrImg.Bounds().Dx() / 5)
+
+		// Calculate center position
+		offset := image.Pt(
+			(finalImg.Bounds().Dx()-int(iconSize))/2,
+			(finalImg.Bounds().Dy()-int(iconSize))/2,
+		)
+
+		// 4. Open the Favicon/Icon
+		file, err := os.Open(iconPath)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		iconImg, _, err := image.Decode(file)
+		if err != nil {
+			return err
+		}
+		// Draw a white background for the icon
+		whiteRect := image.Rect(0, 0, int(iconSize)+16, int(iconSize)+16)
+		whiteImg := image.NewUniform(image.White)
+		whiteOffset := offset.Sub(image.Pt(8, 8))
+		draw.Draw(finalImg, whiteRect.Add(whiteOffset), whiteImg, image.Point{}, draw.Src)
+
+		// Using nfnt/resize for high-quality scaling; or use stdlib image.Draw
+		scaledIcon := resize.Resize(iconSize, iconSize, iconImg, resize.Lanczos3)
+		// 5. Overlay Icon
+		draw.Draw(finalImg, scaledIcon.Bounds().Add(offset), scaledIcon, image.Point{}, draw.Over)
+	}
+
+	if IsEmpty(outputPath) {
+		outputPath = GetPath("./" + UUID() + ".png")
+	}
+
+	output := ToString(outputPath)
+	os.MkdirAll(filepath.Dir(output), os.ModePerm)
+
+	// 6. Save to file
+	out, err := os.Create(output)
+	if err != nil {
+		console.Warn("Create", output, err.Error())
+		return err
+	}
+	defer out.Close()
+
+	return png.Encode(out, finalImg)
+}
+
+func ToBase64Image(filePath string) string {
+	// Read file
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+
+	// Detect mime type from extension
+	ext := filepath.Ext(filePath)
+
+	mimeType := "image/png"
+	switch ext {
+	case ".jpg", ".jpeg":
+		mimeType = "image/jpeg"
+	case ".gif":
+		mimeType = "image/gif"
+	case ".svg":
+		mimeType = "image/svg+xml"
+	case ".webp":
+		mimeType = "image/webp"
+	}
+
+	// Convert to base64
+	base64Data := base64.StdEncoding.EncodeToString(data)
+
+	// Create data URL
+	dataURL := fmt.Sprintf("data:%s;base64,%s", mimeType, base64Data)
+
+	return dataURL
 }

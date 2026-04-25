@@ -1,5 +1,7 @@
 package config
 
+import "time"
+
 type DatabaseType string
 
 const (
@@ -57,60 +59,61 @@ type Branding struct { // Branding configuration for the application
 }
 
 type YekongaConfig struct {
-	AppName                 string   `json:"appName"`                 // Name of the application
-	Version                 string   `json:"version"`                 // Version of the application
-	Description             string   `json:"description"`             // Description of the application
-	AppKey                  string   `json:"appKey"`                  // Key for the application
-	MasterKey               string   `json:"masterKey"`               // Master key for the application
-	EnableAppKey            bool     `json:"enableAppKey"`            // Enable or disable app key usage
-	ConnectionID            string   `json:"connectionID"`            // Connection ID
-	UserIdentifiers         []string `json:"userIdentifiers"`         // List of user identifiers
-	Domain                  string   `json:"domain"`                  // Application domain
-	Protocol                string   `json:"protocol"`                // Protocol (e.g., http, https)
-	DomainAlias             []string `json:"domainAlias"`             // List of domain aliases
-	Address                 string   `json:"address"`                 // Application address
-	BaseUrl                 string   `json:"baseURL"`                 // Base URL of the application
-	RestApi                 string   `json:"restAPI"`                 // REST API endpoint
-	RestAuthApi             string   `json:"restAuthAPI"`             // REST authentication API endpoint
-	TokenKey                string   `json:"tokenKey"`                // Key for generating tokens
-	PdfInstances            int      `json:"pdfInstances"`            // Number of PDF instances
-	TokenExpireTime         int      `json:"tokenExpireTime"`         // Token expiration time in minutes
-	SecureOnly              bool     `json:"secureOnly"`              // Enforce secure connections only
-	Debug                   bool     `json:"debug"`                   // Enable or disable debug mode
-	Cors                    bool     `json:"cors"`                    // Enable or disable CORS
-	ResetOTP                bool     `json:"resetOTP"`                // Enable or disable OTP reset
-	Environment             string   `json:"environment"`             // Application environment (e.g., development, production)
-	HasTenant               bool     `json:"hasTenant"`               // Enable multi-tenancy
-	TenantOnly              bool     `json:"tenantOnly"`              // Restrict access to tenants only
-	HasTenantBilling        bool     `json:"hasTenantBilling"`        // Enable tenant billing features
-	HasTenantCatch          bool     `json:"hasTenantCatch"`          // Enable tenant catch for domain-based tenant resolution
-	SecureAuthentication    bool     `json:"secureAuthentication"`    // Enable or disable secure authentication
-	IsAuthorizationServer   bool     `json:"isAuthorizationServer"`   // Designate as an authorization server
-	AuthorizeTenantUserOnly bool     `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
-	AuthorizedOnly          bool     `json:"authorizedOnly"`          // Require authorization for all requests
-	HasCronjob              bool     `json:"hasCronjob"`              // Require authorization for all requests
-	RegisterUserOnOtp       bool     `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
-	SendOtpToSmsAndWhatsapp bool     `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp
-	EndToEndEncryption      bool     `json:"endToEndEncryption"`      // Enable end-to-end encryption
-	AuthPlaygroundEnable    bool     `json:"authPlaygroundEnable"`    // Enable authentication playground
-	ApiPlaygroundEnable     bool     `json:"apiPlaygroundEnable"`     // Enable API playground
-	EnableDashboard         bool     `json:"enableDashboard"`         // Enable admin dashboard
-	AllowCreateFrontend     bool     `json:"allowCreateFrontend"`     // Allow frontend creation
-	NamingConvention        string   `json:"namingConvention"`        // Naming convention for database tables and fields
-	ColumnNamingConvention  string   `json:"columnNamingConvention"`  // Naming convention for database columns
-	NamingConventionOptions []string `json:"namingConventionOptions"` // Options for naming conventions
-	Public                  []string `json:"public"`                  // List of public routes/endpoints
-	Cloud                   string   `json:"cloud"`                   // Cloud provider configuration
-	LogFile                 string   `json:"logFile"`                 // Path to the log file
-	IndexTemplate           string   `json:"indexTemplate"`           // Path to the index HTML template
-	EmailTemplate           string   `json:"emailTemplate"`           // Path to the email HTML template
-	GoogleApiKey            string   `json:"googleApiKey"`            // Google API key
-	GoogleApiKeyAlt         string   `json:"googleApiKeyAlt"`         // Alternative Google API key
-	GoogleClientId          string   `json:"googleClientId"`          // Google OAuth client ID
-	GoogleClientSecret      string   `json:"googleClientSecret"`      // Google OAuth client secret
-	GlobalPassword          string   `json:"globalPassword"`          // Global password for certain operations
-	Branding                Branding `json:"branding"`                // Branding configuration
-	Permissions             struct { // Permissions configuration
+	AppName                 string        `json:"appName"`                 // Name of the application
+	Version                 string        `json:"version"`                 // Version of the application
+	Description             string        `json:"description"`             // Description of the application
+	AppKey                  string        `json:"appKey"`                  // Key for the application
+	MasterKey               string        `json:"masterKey"`               // Master key for the application
+	EnableAppKey            bool          `json:"enableAppKey"`            // Enable or disable app key usage
+	ConnectionID            string        `json:"connectionID"`            // Connection ID
+	UserIdentifiers         []string      `json:"userIdentifiers"`         // List of user identifiers
+	Domain                  string        `json:"domain"`                  // Application domain
+	Protocol                string        `json:"protocol"`                // Protocol (e.g., http, https)
+	DomainAlias             []string      `json:"domainAlias"`             // List of domain aliases
+	Address                 string        `json:"address"`                 // Application address
+	BaseUrl                 string        `json:"baseURL"`                 // Base URL of the application
+	RestApi                 string        `json:"restAPI"`                 // REST API endpoint
+	RestAuthApi             string        `json:"restAuthAPI"`             // REST authentication API endpoint
+	TokenKey                string        `json:"tokenKey"`                // Key for generating tokens
+	PdfInstances            int           `json:"pdfInstances"`            // Number of PDF instances
+	AccessTokenExpireTime   time.Duration `json:"accessTokenExpireTime"`   // Access token expiration time in minutes
+	RefreshTokenExpireTime  time.Duration `json:"refreshTokenExpireTime"`  // Refresh token expiration time in minutes
+	SecureOnly              bool          `json:"secureOnly"`              // Enforce secure connections only
+	Debug                   bool          `json:"debug"`                   // Enable or disable debug mode
+	Cors                    bool          `json:"cors"`                    // Enable or disable CORS
+	ResetOTP                bool          `json:"resetOTP"`                // Enable or disable OTP reset
+	Environment             string        `json:"environment"`             // Application environment (e.g., development, production)
+	HasTenant               bool          `json:"hasTenant"`               // Enable multi-tenancy
+	TenantOnly              bool          `json:"tenantOnly"`              // Restrict access to tenants only
+	HasTenantBilling        bool          `json:"hasTenantBilling"`        // Enable tenant billing features
+	HasTenantCatch          bool          `json:"hasTenantCatch"`          // Enable tenant catch for domain-based tenant resolution
+	SecureAuthentication    bool          `json:"secureAuthentication"`    // Enable or disable secure authentication
+	IsAuthorizationServer   bool          `json:"isAuthorizationServer"`   // Designate as an authorization server
+	AuthorizeTenantUserOnly bool          `json:"authorizeTenantUserOnly"` // Restrict authorization to tenant users only
+	AuthorizedOnly          bool          `json:"authorizedOnly"`          // Require authorization for all requests
+	HasCronjob              bool          `json:"hasCronjob"`              // Require authorization for all requests
+	RegisterUserOnOtp       bool          `json:"registerUserOnOtp"`       // Register user automatically on OTP verification
+	SendOtpToSmsAndWhatsapp bool          `json:"sendOtpToSmsAndWhatsapp"` // Send OTP via SMS and WhatsApp
+	EndToEndEncryption      bool          `json:"endToEndEncryption"`      // Enable end-to-end encryption
+	AuthPlaygroundEnable    bool          `json:"authPlaygroundEnable"`    // Enable authentication playground
+	ApiPlaygroundEnable     bool          `json:"apiPlaygroundEnable"`     // Enable API playground
+	EnableDashboard         bool          `json:"enableDashboard"`         // Enable admin dashboard
+	AllowCreateFrontend     bool          `json:"allowCreateFrontend"`     // Allow frontend creation
+	NamingConvention        string        `json:"namingConvention"`        // Naming convention for database tables and fields
+	ColumnNamingConvention  string        `json:"columnNamingConvention"`  // Naming convention for database columns
+	NamingConventionOptions []string      `json:"namingConventionOptions"` // Options for naming conventions
+	Public                  []string      `json:"public"`                  // List of public routes/endpoints
+	Cloud                   string        `json:"cloud"`                   // Cloud provider configuration
+	LogFile                 string        `json:"logFile"`                 // Path to the log file
+	IndexTemplate           string        `json:"indexTemplate"`           // Path to the index HTML template
+	EmailTemplate           string        `json:"emailTemplate"`           // Path to the email HTML template
+	GoogleApiKey            string        `json:"googleApiKey"`            // Google API key
+	GoogleApiKeyAlt         string        `json:"googleApiKeyAlt"`         // Alternative Google API key
+	GoogleClientId          string        `json:"googleClientId"`          // Google OAuth client ID
+	GoogleClientSecret      string        `json:"googleClientSecret"`      // Google OAuth client secret
+	GlobalPassword          string        `json:"globalPassword"`          // Global password for certain operations
+	Branding                Branding      `json:"branding"`                // Branding configuration
+	Permissions             struct {      // Permissions configuration
 		AuthActions  []string `json:"authActions"`  // List of actions requiring authentication
 		GuestActions []string `json:"guestActions"` // List of actions accessible to guests
 	}

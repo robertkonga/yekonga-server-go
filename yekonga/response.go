@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 //go:embed static/*
@@ -99,7 +100,7 @@ func (res *Response) Abort(code int, message string) {
 		contentUrl = "static/500.html"
 	}
 
-	// console.Error("Abort:", code, message)
+	console.Error("Abort:", code, message)
 	res.Status(code)
 
 	if isJson {
@@ -109,13 +110,23 @@ func (res *Response) Abort(code int, message string) {
 		})
 		return
 	} else if helper.IsNotEmpty(contentUrl) {
-		content, err := StaticFS.ReadFile(contentUrl)
-		if err != nil {
-			res.Text(message)
+		if code == http.StatusTemporaryRedirect || code == http.StatusPermanentRedirect {
+			res.Redirect(message)
 		} else {
-			res.Html(string(content))
+			content, err := StaticFS.ReadFile(contentUrl)
+			if err != nil {
+				res.Text(message)
+			} else {
+				res.Html(string(content))
+			}
 		}
+
 		return
+	} else {
+		if code == http.StatusTemporaryRedirect || code == http.StatusPermanentRedirect {
+			res.Redirect(message)
+			return
+		}
 	}
 
 	res.Text(message)
@@ -156,6 +167,8 @@ func (res *Response) Write(data []byte) (int, error) {
 		}
 		// initGzip failed — fall through to uncompressed (headers not yet set)
 	}
+
+	(*res.httpResponseWriter).WriteHeader(res.statusCode)
 	return (*res.httpResponseWriter).Write(data)
 }
 
@@ -195,32 +208,55 @@ func (res *Response) Json(data interface{}) {
 	res.Write([]byte(helper.ToJson(data)))
 }
 
-func (res *Response) File(file string) {
+func (res *Response) Redirect(url string) {
+	console.Success("redirect", res.statusCode, url)
+
+	http.Redirect(*res.httpResponseWriter, res.request.HttpRequest, url, res.statusCode)
+}
+
+func (res *Response) File(filePath string) {
 	count := len(res.staticConfig)
 
-	if helper.FileExists(file) {
-		// Set cache headers
+	if helper.FileExists(filePath) {
+		// // Set cache headers
 		res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", 1))
 		res.ResetHeaders()
 
-		// Serve the file
-		http.ServeFile(res, res.request.HttpRequest, file)
+		file, err := os.Open(filePath)
+		if err != nil {
+			http.Error(res, "File not found", 404)
+			return
+		}
+		defer file.Close()
+
+		stat, _ := file.Stat()
+		// ServeContent handles Range requests and Content-Length perfectly
+		http.ServeContent(*res.httpResponseWriter, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
 		return
 	} else {
 		for i := 0; i < count; i++ {
 			static := res.staticConfig[i]
 
 			if static != nil {
-				filePath := helper.GetPath(filepath.Join(static.Directory, file))
+				filePath := helper.GetPath(filepath.Join(static.Directory, filePath))
 				// console.Log("File", filePath)
 				// console.Log("File", helper.GetPath(filePath))
 
 				if helper.FileExists(filePath) {
-					// Set cache headers
+					// // Set cache headers
 					res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", static.CacheMaxAge))
 					res.ResetHeaders()
-					// Serve the file
-					http.ServeFile((*res.httpResponseWriter), res.request.HttpRequest, filePath)
+
+					file, err := os.Open(filePath)
+					if err != nil {
+						http.Error(res, "File not found", 404)
+						return
+					}
+					defer file.Close()
+
+					stat, _ := file.Stat()
+					// ServeContent handles Range requests and Content-Length perfectly
+					http.ServeContent(*res.httpResponseWriter, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
 					return
 				}
 			}

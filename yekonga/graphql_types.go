@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql/language/ast"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
@@ -136,7 +135,7 @@ var ScalarArrayType = graphql.NewScalar(graphql.ScalarConfig{
 	Name:        "Array",
 	Description: "Custom scalar type for Array",
 	Serialize: func(value interface{}) interface{} {
-		logger.Success("Array.Serialize", value)
+		// logger.Success("Array.Serialize", value)
 
 		if helper.IsArray(value) {
 			return helper.ToList[interface{}](value)
@@ -145,12 +144,12 @@ var ScalarArrayType = graphql.NewScalar(graphql.ScalarConfig{
 		return []interface{}{}
 	},
 	ParseValue: func(value interface{}) interface{} {
-		logger.Success("Array.ParseValue", value)
+		// logger.Success("Array.ParseValue", value)
 
 		return value
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
-		logger.Success("Array.ParseLiteral", valueAST)
+		// logger.Success("Array.ParseLiteral", valueAST)
 
 		return valueAST.GetValue()
 	},

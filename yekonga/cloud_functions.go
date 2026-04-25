@@ -339,6 +339,11 @@ func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxReq
 			console.Error("Error:triggerCallback", model, action, actionAccess, err.Error())
 		}
 		return result, err
+	} else {
+		if helper.IsNotEmpty(actionAccess) {
+			logger.Warn("cloud function %s -> %v -> %v not exists", model, action, actionAccess)
+			return false, fmt.Errorf("%v -> %v -> %v action not exists", model, action, actionAccess)
+		}
 	}
 
 	return nil, errors.New("not exists")

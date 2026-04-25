@@ -350,7 +350,8 @@ func (y *YekongaData) AppendBaseUrl(pattern string) string {
 		}
 	}
 
-	return pattern
+	pattern = strings.TrimSuffix(pattern, "/")
+	return "/" + strings.TrimPrefix(pattern, "/")
 }
 
 func (y *YekongaData) findRoute(method, path string) (*Route, map[string]string) {

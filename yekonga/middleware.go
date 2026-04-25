@@ -9,7 +9,6 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 )
 
@@ -107,10 +106,12 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 			req.SetTenantId(tenantId)
 
 			tenantConfig := req.App.GetTenantConfig(req)
+			// console.Log("tenantConfig", tenantConfig)
 
 			if helper.IsNotEmpty(tenantConfig) {
 				req.SetTenant(*tenantConfig)
 			}
+
 		}
 	} else if req.App.Config.HasTenantCatch {
 		tenant, err := req.App.FetchTenantByDomain(host, req, res)
@@ -124,8 +125,7 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 
 	if req.App.Config.HasTenant || req.App.Config.HasTenantCatch {
 		mainDomain := helper.GetMainDomain(host)
-
-		console.Error("Tenant", "host:", host, "mainDomain:", mainDomain)
+		// console.Error("Tenant", "host:", host, "mainDomain:", mainDomain)
 
 		if helper.IsNotEmpty(mainDomain) {
 			if host != *mainDomain {
@@ -151,8 +151,40 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	app := req.App
 	config := req.App.Config
 	clientPayload := req.Client()
-	domain := clientPayload.OriginDomain()
+	moduleName := req.Param("moduleName")
 	masterKey := req.GetContext(string(MasterKey))
+	domain := clientPayload.OriginDomain()
+	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
+
+	if !isJson {
+		isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
+	}
+
+	currentPath := req.HttpRequest.URL.Path
+	ignorePaths := []string{
+		app.AppendBaseUrl("me"),
+		app.AppendBaseUrl("logout"),
+		app.AppendBaseUrl("refresh"),
+		app.AppendBaseUrl("languages"),
+		app.AppendBaseUrl("upload"),
+		app.AppendBaseUrl("upload-files"),
+		app.AppendBaseUrl("config/data"),
+		app.AppendBaseUrl("config/report"),
+		app.AppendBaseUrl("permissions"),
+		app.AppendBaseUrl("config"),
+		app.AppendBaseUrl("tenant"),
+		app.AppendBaseUrl("tenant-config"),
+		app.AppendBaseUrl("theme.css"),
+		app.AppendBaseUrl("custom-style.css"),
+		app.AppendBaseUrl(config.RestApi),
+		app.AppendBaseUrl(config.RestAuthApi),
+		app.AppendBaseUrl(config.Graphql.ApiRoute),
+		app.AppendBaseUrl(config.Graphql.ApiAuthRoute),
+	}
+	mandatoryValidToken := (!helper.Contains(ignorePaths, currentPath) &&
+		!strings.HasPrefix(currentPath, app.AppendBaseUrl("me/")) &&
+		!strings.HasPrefix(currentPath, app.AppendBaseUrl("download/")) &&
+		!strings.HasPrefix(currentPath, app.AppendBaseUrl("translations/")))
 
 	var isValid bool
 	var accessToken string
@@ -178,37 +210,40 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		}
 	}
 
+	logoutUrl := "logout"
+	if helper.IsNotEmpty(moduleName) {
+		logoutUrl = "logout/" + moduleName
+	}
+
 	if helper.IsNotEmpty(accessToken) {
 		isValid, tokenPayloadMap = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
 
 		if !isValid || helper.IsEmpty(tokenPayloadMap) {
-			requestContext := &RequestContext{
-				App:      req.App,
-				Auth:     req.Auth(),
-				Client:   req.Client(),
-				Request:  req,
-				Response: res,
-			}
-			req.App.clearAuthCookies(requestContext, domain)
+			if mandatoryValidToken {
+				if !isJson {
+					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl(logoutUrl, domain))
+				}
 
-			return http.StatusUnauthorized, errors.New("Access token invalid")
+				return http.StatusTemporaryRedirect, errors.New("Access token invalid")
+			}
 		}
 
 		json.Unmarshal([]byte(helper.ToJson(tokenPayloadMap)), &tokenPayload)
 
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
-			return http.StatusUnauthorized, errors.New("Token expired")
+			if mandatoryValidToken {
+				if !isJson {
+					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh", domain))
+				}
+
+				return http.StatusUnauthorized, errors.New("Token expired")
+			}
 		}
 
-		if domain != tokenPayload.Domain {
-			requestContext := &RequestContext{
-				App:      req.App,
-				Auth:     req.Auth(),
-				Client:   req.Client(),
-				Request:  req,
-				Response: res,
+		if domain != tokenPayload.Domain && helper.IsNotEmpty(tokenPayload.Domain) {
+			if !isJson {
+				return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl(logoutUrl, domain))
 			}
-			req.App.clearAuthCookies(requestContext, tokenPayload.Domain)
 
 			return http.StatusUnauthorized, errors.New("Domain mismatch expired")
 		}
@@ -232,15 +267,10 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	}
 
 	if config.AuthorizedOnly {
-		paths := []string{
-			app.AppendBaseUrl("/me"),
-			app.AppendBaseUrl(config.RestApi),
-			app.AppendBaseUrl(config.Graphql.ApiRoute),
-		}
-		currentPath := req.HttpRequest.URL.Path
-
-		if !(helper.IsNotEmpty(masterKey) && masterKey == config.MasterKey) && (helper.Contains(paths, currentPath) && helper.IsEmpty(accessToken)) {
-			return http.StatusUnauthorized, errors.New("Must be authorized/login")
+		if !(helper.IsNotEmpty(masterKey) && masterKey == config.MasterKey) && (mandatoryValidToken && helper.IsEmpty(accessToken)) {
+			if isJson {
+				return http.StatusUnauthorized, errors.New("Must be authorized/login")
+			}
 		}
 	}
 

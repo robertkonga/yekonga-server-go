@@ -96,6 +96,7 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			var data map[string]interface{} = g.getInputData(p.Args)
 			var tenantId = req.Request.TenantId()
 			var tenant = req.Request.Tenant()
+			// console.Log("tenant", tenant)
 
 			var username = helper.GetValueOfString(data, "username")
 			var usernameType = helper.GetValueOfString(data, "usernameType")
@@ -107,17 +108,19 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 			if helper.IsNotEmpty(tenantId) {
 				if helper.IsNotEmpty(username) {
 					u := g.yekonga.SetOTPVerification(username, usernameType, tenantConfig.PublicCanRegister, "login", req.Request)
+
 					if helper.IsNotEmpty(u) {
 						user = *u
 						userId = helper.GetValueOfString(user, "userId")
 					}
 				}
 
+				// console.Log("user", user)
 				if helper.IsNotEmpty(userId) {
 					tenantUser := (userId == tenant.UserId)
 
 					if !tenantUser {
-						tenantUser = req.App.ModelQuery(tenantUserModelName).Exist(datatype.DataMap{
+						tenantUser = req.App.ModelQuery(tenantUserModelName).SkipTenant().SkipBeforeCommit().Exist(datatype.DataMap{
 							"tenantId": tenantId,
 							"userId":   userId,
 						})
@@ -126,8 +129,8 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 							return nil, errors.New("User does not exist")
 						}
 					}
-				} else {
-					return nil, errors.New("User does not exist")
+				} else if !tenantConfig.PublicCanRegister {
+					return nil, errors.New("User does not exist at all")
 				}
 			} else {
 				if helper.IsNotEmpty(username) {
@@ -247,6 +250,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 
 					attemptData.UserID = userId
 					attemptData.ProfileID = helper.GetValueOfString(user, "profileId")
+					// console.Info(user)
 
 					g.yekonga.RecordLoginAttempt("success", p.Context, attemptData)
 					g.yekonga.authTriggerCallback(AfterLoginTriggerAction, req, &QueryContext{
@@ -260,6 +264,10 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 						tenantId := helper.GetValueOfString(user, "tenantId")
 						adminId := helper.GetValueOfString(user, "adminId")
 						permissions := g.yekonga.GetUserPermission(tenantId, userId, moduleName)
+						accessTokenExpireTime := req.App.Config.AccessTokenExpireTime
+						if accessTokenExpireTime <= 0 {
+							accessTokenExpireTime = 15 // default 15 minutes
+						}
 
 						refreshTokenData := TokenPayload{
 							Domain:       req.Client.OriginDomain(),
@@ -275,12 +283,10 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							ModuleName:   moduleName,
 							Roles:        make([]string, 0), // ["admin", "finance"],
 							Permissions:  permissions,       // ["payroll.read", "asset.write"],
-							// ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
-							ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
+							ExpiresAt:    helper.GetTimestamp(nil).Add(time.Minute * accessTokenExpireTime),
 						}
 
 						// console.Info("refreshTokenData", refreshTokenData)
-
 						refreshToken := g.yekonga.getRefreshToken(*req.Client, refreshTokenData, rememberMe)
 
 						if helper.IsEmpty(cookieEnabled) {
@@ -408,6 +414,10 @@ func _verifyOtp(g *GraphqlAutoBuild) *graphql.Field {
 						tenantId := helper.GetValueOfString(user, "tenantId")
 						adminId := helper.GetValueOfString(user, "adminId")
 						permissions := g.yekonga.GetUserPermission(tenantId, userId, moduleName)
+						accessTokenExpireTime := req.App.Config.AccessTokenExpireTime
+						if accessTokenExpireTime <= 0 {
+							accessTokenExpireTime = 15 // default 15 minutes
+						}
 
 						refreshTokenData := TokenPayload{
 							Domain:       req.Client.OriginDomain(),
@@ -423,8 +433,7 @@ func _verifyOtp(g *GraphqlAutoBuild) *graphql.Field {
 							ModuleName:   moduleName,
 							Roles:        make([]string, 0), // ["admin", "finance"],
 							Permissions:  permissions,       // ["payroll.read", "asset.write"],
-							// ExpiresAt:   helper.GetTimestamp(nil).Add(time.Minute * 15),
-							ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
+							ExpiresAt:    helper.GetTimestamp(nil).Add(time.Minute * accessTokenExpireTime),
 						}
 
 						// console.Info("refreshTokenData", refreshTokenData)
@@ -735,8 +744,8 @@ func _tenantAvailability(g *GraphqlAutoBuild) *graphql.Field {
 				tenant = model.FindOne(nil)
 			}
 
-			console.Error(id, domain, subdomain)
-			console.Log(tenant)
+			// console.Error(id, domain, subdomain)
+			// console.Log(tenant)
 
 			if helper.IsNotEmpty(tenant) {
 				return true, nil

@@ -120,10 +120,10 @@ func (g *GraphqlAutoBuild) initialize() {
 	for k, v := range g.Database {
 		k = helper.ToCamelCase(helper.Singularize(k))
 
-		if k == "AuthUserPermission" {
-			console.Log(k, v.ParentKeys)
-			console.Log(k, helper.ToJson(v.ParentFields))
-		}
+		// if k == "AuthUserPermission" {
+		// 	console.Log(k, v.ParentKeys)
+		// 	console.Log(k, helper.ToJson(v.ParentFields))
+		// }
 
 		for ki, vi := range v.ParentFields {
 			var foreignKey string = vi.ForeignKey
@@ -322,8 +322,11 @@ func (g *GraphqlAutoBuild) getQuerySingleField(collection string, foreignKey str
 
 			data := model.FindOne(nil)
 
-			if data != nil && *data != nil {
-				return g.formateOutputData(model, *data, foreignKey, targetKey), nil
+			if helper.IsNotEmpty(data) {
+				dataMap := g.formateOutputData(model, *data, foreignKey, targetKey)
+				dataMap["_params"] = p.Args
+
+				return dataMap, nil
 			}
 
 			return nil, nil
@@ -2072,7 +2075,26 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 				model.Where(targetKey, localParent[foreignKey])
 			}
 		}
-	} else {
+	} else if helper.IsMap(parent) {
+		parentParams := helper.GetValueOf(parent, "_params")
+
+		if helper.IsMap(parentParams) {
+			accessRole = helper.GetValueOfString(parentParams, "accessRole")
+			route = helper.GetValueOfString(parentParams, "route")
+
+			if _, ok := p.Args["accessRole"]; !ok && helper.IsNotEmpty(accessRole) {
+				(*p).Args["accessRole"] = accessRole
+			}
+			if _, ok := p.Args["route"]; !ok && helper.IsNotEmpty(route) {
+				(*p).Args["route"] = route
+			}
+		}
+	}
+
+	if p.Args != nil {
+		for k, v := range p.Args {
+			model.QueryContext.Params[k] = v
+		}
 	}
 
 	filters := g.getWhereField(p.Args)
@@ -2080,12 +2102,6 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	model.QueryContext.AccessRole = g.getAccessRoleField(p.Args, accessRole)
 	model.QueryContext.Route = g.getRouteField(p.Args, route)
 	model.QueryContext.Filters = &filters
-
-	if p.Args != nil {
-		for k, v := range p.Args {
-			model.QueryContext.Params[k] = v
-		}
-	}
 
 	if ctx != nil {
 		model.SetRequestContext(ctx)
@@ -2097,13 +2113,6 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 	}
 
 	if helper.IsMap(parent) {
-		// if model.Model.Name == "Location" {
-		// 	console.Warn("setModelParams.targetKey", targetKey)
-		// 	console.Warn("setModelParams.foreignKey", foreignKey)
-		// 	console.Error("setModelParams.ParentKeys", model.Model.ParentKeys)
-		// 	console.Error("setModelParams.parent", parent)
-		// }
-
 		localParent := helper.ToDataMap(parent)
 
 		model.QueryContext.Parent = &p
@@ -2174,11 +2183,14 @@ func (g *GraphqlAutoBuild) loadRelatedData(data *[]datatype.DataMap, model *Data
 	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 
 	for i, d := range *data {
-		(*data)[i] = g.formateOutputData(model, d, foreignKey, targetKey)
+		dataMap := g.formateOutputData(model, d, foreignKey, targetKey)
+		dataMap["_params"] = p.Args
+		(*data)[i] = dataMap
 	}
 
 	for level, keys := range ctx.QuerySelectors {
-		console.Log("level: %v, len(keys): %v", level, len(keys))
+		fmt.Sprintf("level: %v, len(keys): %v, == %v", level, len(keys), keys)
+		// console.Log("level: %v, len(keys): %v, == %v", level, len(keys), keys)
 
 		// 	if len(keys) > 0 {
 		// 		selects := []string{}

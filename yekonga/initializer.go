@@ -61,8 +61,8 @@ func (y *YekongaData) initialize() {
 		y.Get("/me/:moduleName?", y.authHandler)
 		y.Post("/me/:moduleName?", y.authHandler)
 
-		y.Get("/logout", y.logoutHandler)
-		y.Post("/logout", y.logoutHandler)
+		y.Get("/logout/:moduleName?", y.logoutHandler)
+		y.Post("/logout/:moduleName?", y.logoutHandler)
 
 		y.Get("/refresh/:moduleName?", y.refreshHandler)
 		y.Post("/refresh/:moduleName?", y.refreshHandler)
@@ -101,10 +101,10 @@ func (y *YekongaData) initialize() {
 			})
 
 			if err != nil {
-				logger.Error("Failed to configure static file serving:", err)
+				logger.Error("Failed to configure static file serving", err)
 			} else {
-				// logger.Info("Static file serving configured for directory:", public)
-				logger.Info("Access static files at:", y.AppendBaseUrl("/"))
+				// logger.Info("Static file serving configured for directory", public)
+				logger.Info("Access static files at", y.AppendBaseUrl("/"))
 			}
 		} else {
 			logger.Error("Failed", "Public directory not exist", public)
@@ -152,19 +152,16 @@ func (y *YekongaData) initialize() {
 							{"message": "Introspection is disabled"},
 						},
 					})
+
 					return
 				}
 			}
 
-			// requestStringMap := helper.ToMap(graphql.Parser(requestString))
-			// querySelectors := helper.ExtractGraphqlQuery(requestStringMap, 0)
+			// requestQueryMap := helper.ToMap[interface{}](graphql.Parser(requestQuery))
+			// querySelectors := helper.ExtractGraphqlQuery(requestQueryMap, 0)
 			// graphqlContext.QuerySelectors = querySelectors
 			currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
 
-			// helper.SaveToFile(graphql.Parser(requestString), "graphql.data.json")
-			// logger.Error(querySelectors)
-
-			// start := time.Now()
 			result := graphql.Do(graphql.Params{
 				Schema:         y.graphqlBuild.AuthSchema,
 				RequestString:  requestQuery,
@@ -177,10 +174,7 @@ func (y *YekongaData) initialize() {
 				result.Errors = formatErrors(result.Errors)
 			}
 
-			// helper.TrackTime(&start, "Graphql query execute")
 			res.Json(result)
-			// helper.TrackTime(&start, "Json encode")
-			// logger.Error("===== end ======")
 		})
 	}
 
@@ -224,17 +218,15 @@ func (y *YekongaData) initialize() {
 						{"message": "Introspection is disabled"},
 					},
 				})
+
 				return
 			}
 		}
 
-		// requestStringMap := helper.ToMap(graphql.Parser(requestString))
-		// querySelectors := helper.ExtractGraphqlQuery(requestStringMap, 0)
-		// graphqlContext.QuerySelectors = querySelectors
+		requestQueryMap := helper.ToMap[interface{}](graphql.Parser(requestQuery))
+		querySelectors := helper.ExtractGraphqlQuery(requestQueryMap, 0)
+		graphqlContext.QuerySelectors = querySelectors
 		currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
-
-		// helper.SaveToFile(graphql.Parser(requestString), "graphql.data.json")
-		// logger.Error(querySelectors)
 
 		// start := time.Now()
 		result := graphql.Do(graphql.Params{
@@ -253,7 +245,6 @@ func (y *YekongaData) initialize() {
 		// helper.TrackTime(&start, "Graphql query execute")
 		res.Json(result)
 		// helper.TrackTime(&start, "Json encode")
-		// logger.Error("===== end ======")
 	})
 
 	y.initializerOtherRoutes()
@@ -295,14 +286,28 @@ func (y *YekongaData) authHandler(req *Request, res *Response) {
 }
 
 func (y *YekongaData) logoutHandler(req *Request, res *Response) {
+	client := req.Client()
+	moduleName := req.Param("moduleName")
+	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
+
+	if !isJson {
+		isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
+	}
+
 	requestContext := &RequestContext{
 		App:      y,
 		Auth:     req.Auth(),
-		Client:   req.Client(),
+		Client:   client,
 		Request:  req,
 		Response: res,
 	}
-	y.clearAuthCookies(requestContext, req.Client().OriginDomain())
+	y.clearAuthCookies(requestContext, client.OriginDomain(), moduleName)
+
+	if !isJson {
+		res.Status(http.StatusTemporaryRedirect)
+		res.Redirect(helper.GetBaseUrl("/", client.OriginDomain()))
+		return
+	}
 
 	res.Status(http.StatusOK)
 	res.Json(datatype.DataMap{
@@ -311,11 +316,22 @@ func (y *YekongaData) logoutHandler(req *Request, res *Response) {
 }
 
 func (y *YekongaData) refreshHandler(req *Request, res *Response) {
+	client := req.Client()
 	moduleName := req.Param("moduleName")
+	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
+	if !isJson {
+		isJson = (strings.Contains(res.request.GetHeader("accept"), "json"))
+	}
 	result, status := y.refreshTokenProcess(req, res, nil, moduleName)
 
 	if !y.Config.SecureAuthentication {
 		result["token"] = nil
+	}
+
+	if !isJson {
+		res.Status(http.StatusTemporaryRedirect)
+		res.Redirect(client.Origin)
+		return
 	}
 
 	res.Status(status)
@@ -368,16 +384,26 @@ func (y *YekongaData) refreshTokenProcess(req *Request, res *Response, refreshTo
 					permissions := y.GetUserPermission(tenantId, userId, moduleName)
 
 					if tokenDomain == domain {
+						accessTokenExpireTime := y.Config.AccessTokenExpireTime
+						if accessTokenExpireTime <= 0 {
+							accessTokenExpireTime = 15 // default 15 minutes
+						}
+
 						payload := TokenPayload{
-							Domain:      domain,
-							TenantId:    tenantId,
-							ProfileId:   profileId,
-							UserId:      userId,
-							AdminId:     adminId,
-							ModuleName:  moduleName,
-							Roles:       make([]string, 0),
-							Permissions: permissions,
-							ExpiresAt:   today.Add(time.Minute * 15),
+							Domain:       domain,
+							TenantId:     tenantId,
+							ProfileId:    profileId,
+							UserId:       userId,
+							AdminId:      adminId,
+							Username:     helper.GetValueOfString(data, "username"),
+							UsernameType: helper.GetValueOfString(data, "usernameType"),
+							Phone:        helper.GetValueOfString(data, "phone"),
+							Email:        helper.GetValueOfString(data, "email"),
+							Whatsapp:     helper.GetValueOfString(data, "whatsapp"),
+							ModuleName:   moduleName,
+							Roles:        make([]string, 0),
+							Permissions:  permissions,
+							ExpiresAt:    today.Add(time.Minute * accessTokenExpireTime),
 						}
 
 						newAccessToken, _ := jwt.EncodeJWT(payload.ToMap(), y.Config.Authentication.SecretToken)

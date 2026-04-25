@@ -60,7 +60,7 @@ func (con *mongodbConnection) findOne() *datatype.DataMap {
 		opts = opts.SetSort(con.orderBy())
 	}
 
-	// if con.query.Model.Collection == "user_verifications" {
+	// if con.query.Model.Collection == "tenant_configs" {
 	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", con.where())
 	// }
 
@@ -591,10 +591,11 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 
 func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.DataMap {
 	var filters = datatype.DataMap{}
-	// var localFilter = helper.ToMap(where)
+	// var localFilter = helper.ToDataMap(where)
 
 	if whr, ok := where.(datatype.DataMap); ok {
 		for k, v := range whr {
+
 			if helper.Contains([]string{"AND", "OR", "NOR"}, k) {
 				vs := con.extractWhere(whr)
 
@@ -604,6 +605,11 @@ func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.Dat
 			} else if helper.IsMap(v) {
 				w := helper.ToDataMap(whr)
 				vs := con.extractWhereItem(w)
+
+				// if con.query.Model.Collection == "tenant_configs" {
+				// 	console.Log("mongodbConnection", w)
+				// 	console.Log("mongodbConnection", vs)
+				// }
 
 				// if con.query.Model.Collection == "auth_permissions" {
 				// 	console.Log("mongodbConnection.extractWhereItem", vs, k, v, helper.TypeOf(v))

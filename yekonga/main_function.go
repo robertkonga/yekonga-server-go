@@ -46,9 +46,10 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 	const userModelName = "User"
 	const userVerificationModelName = "UserVerification"
 	var user *datatype.DataMap
+	var userId interface{}
 	var tenant = req.Tenant()
 	tenantId := req.TenantId()
-	withinTenant := helper.IsNotEmpty(tenantId)
+	notTenant := helper.IsEmpty(tenantId)
 	var defaultUser = y.ModelQuery(userModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
 	var isOwner = false
 
@@ -57,15 +58,15 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 	}
 
 	if helper.IsNotEmpty(defaultUser) {
-		isOwner = (helper.GetValueOfString(defaultUser, "_id") == tenant.UserId)
+		userId = helper.GetValueOfString(defaultUser, "_id")
+		isOwner = (userId == tenant.UserId)
 	}
 
-	if withinTenant {
-		user = y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
-	} else {
+	if notTenant {
 		tenantId = helper.ObjectID("000000000000000000000000")
-		user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
 	}
+
+	user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
 
 	if helper.IsNotEmpty(user) {
 		otpCode := helper.GetValueOf(user, "otpCode")
@@ -93,6 +94,7 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 
 func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string, canCreate bool, target string, req *Request) *datatype.DataMap {
 	const userModelName = "User"
+	const tenantUserModelName = "TenantUser"
 	const userVerificationModelName = "UserVerification"
 	var user *datatype.DataMap
 	var username string
@@ -125,18 +127,19 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 	}
 
 	if helper.IsNotEmpty(username) {
+		var userId interface{}
 		var otpCode string
 		var otpCreatedAt time.Time
 		var defaultUser = y.ModelQuery(userModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).FindOne(nil)
 		var isOwner = false
-		var userId interface{}
+		var isTenantUser = false
 		tenantId := req.TenantId()
-		withinTenant := helper.IsNotEmpty(tenantId)
+		notTenant := helper.IsEmpty(tenantId)
 		where := datatype.DataMap{
 			"username": username,
 		}
 
-		if !withinTenant {
+		if notTenant {
 			tenantId = helper.ObjectID("000000000000000000000000")
 		}
 
@@ -147,9 +150,11 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 
 		where["tenantId"] = tenantId
 		user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).FindOne(where)
+		isTenantUser = y.ModelQuery(tenantUserModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Exist(datatype.DataMap{
+			"tenantId": tenantId,
+			"userId":   userId,
+		})
 
-		// console.Error("user.x", user)
-		// console.Error("user.x.isOwner", isOwner)
 		if helper.IsNotEmpty(user) {
 			id := helper.GetValueOf(user, "_id")
 			otpCode = helper.GetValueOfString(user, "otpCode")
@@ -170,7 +175,7 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 				"updatedAt":    helper.GetTimestamp(nil),
 			}
 
-			if withinTenant {
+			if notTenant {
 				u = y.ModelQuery(userVerificationModelName).Where("id", id).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Update(userBody, nil)
 			} else {
 				userBody["tenantId"] = tenantId
@@ -180,12 +185,13 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 			if v, ok := u.(*datatype.DataMap); ok {
 				user = v
 			}
-		} else if isOwner || canCreate || !withinTenant {
+		} else if isOwner || isTenantUser || canCreate || notTenant {
 			otpCode = helper.GetRandomInt(4)
 			otpCreatedAt = helper.GetTimestamp(nil)
 			var u interface{}
 
 			userBody := datatype.DataMap{
+				"tenantId":     tenantId,
 				"userId":       userId,
 				"username":     username,
 				"usernameType": usernameType,
@@ -196,13 +202,13 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 				"createdAt":    helper.GetTimestamp(nil),
 			}
 
-			if withinTenant {
+			if notTenant {
 				u = y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Create(userBody)
 			} else {
-				tenantId = helper.ObjectID("000000000000000000000000")
-				userBody["tenantId"] = tenantId
 				u = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Create(userBody)
 			}
+
+			userBody["tenantId"] = tenantId
 
 			if v, ok := u.(*datatype.DataMap); ok {
 				user = v
@@ -592,7 +598,11 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		model := y.Model(userModelName)
 		tenantId := req.Request.TenantId()
 		permissions := y.GetUserPermission(tenantId, userId, input.ModuleName)
-		// permissions := make([]string, 0)
+
+		accessTokenExpireTime := y.Config.AccessTokenExpireTime
+		if accessTokenExpireTime <= 0 {
+			accessTokenExpireTime = 15 // default 30 days
+		}
 
 		payloadData := TokenPayload{
 			TenantId:     tenantId,
@@ -606,8 +616,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 			ModuleName:   input.ModuleName,
 			Roles:        make([]string, 0), // ["admin", "finance"],
 			Permissions:  permissions,       // ["payroll.read", "asset.write"],
-			// ExpiresAt:    time.Now().Add(time.Minute * 15),
-			ExpiresAt: helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
+			ExpiresAt:    time.Now().Add(time.Minute * accessTokenExpireTime),
 		}
 
 		// console.Info("payloadData", payloadData)
@@ -674,7 +683,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 		}
 
 		for _, key := range publicKeys {
-			if helper.Contains(model.Protected, key) {
+			if helper.Contains(model.Protected, key) && key != "token" {
 				continue
 			}
 
@@ -696,7 +705,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, moduleName string) []string {
 	const tenantModelName = "Tenant"
 	var permissions *[]datatype.DataMap
-	var list = make([]string, 0, 0)
+	var list = make([]string, 0)
 	var isAdmin = y.ModelQuery(tenantModelName).SkipBeforeCommit().Exist(datatype.DataMap{
 		"_id":    tenantId,
 		"userId": userId,
@@ -716,9 +725,11 @@ func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, mod
 			permissions = y.ModelQuery(permissionModelName).SkipBeforeCommit().Find(where)
 		} else {
 			var where = datatype.DataMap{
-				"tenantId":   tenantId,
-				"userId":     userId,
-				"moduleName": moduleName,
+				"tenantId": tenantId,
+				"userId":   userId,
+				"moduleName": datatype.DataMap{
+					"in": []string{"access", moduleName},
+				},
 			}
 
 			permissions = y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Find(where)
@@ -736,17 +747,16 @@ func (y *YekongaData) GetUserPermission(tenantId interface{}, userId string, mod
 func (y *YekongaData) SetUserPermission(tenantId interface{}, userId string, moduleName string, permissions []interface{}) {
 	const userPermissionModelName = "AuthUserPermission"
 
-	y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Delete(datatype.DataMap{
+	y.ModelQuery(userPermissionModelName).SkipTenant().SkipBeforeCommit().Delete(datatype.DataMap{
 		"tenantId":   tenantId,
 		"userId":     userId,
 		"code":       "access:all",
 		"moduleName": "access",
 	})
 
-	y.ModelQuery(userPermissionModelName).SkipBeforeCommit().Delete(datatype.DataMap{
-		"tenantId":   tenantId,
-		"userId":     userId,
-		"moduleName": moduleName,
+	y.ModelQuery(userPermissionModelName).SkipTenant().SkipBeforeCommit().Delete(datatype.DataMap{
+		"tenantId": tenantId,
+		"userId":   userId,
 	})
 
 	if len(permissions) > 0 {
@@ -773,21 +783,24 @@ func (y *YekongaData) SetUserPermission(tenantId interface{}, userId string, mod
 			}
 
 			input := datatype.DataMap{
-				"authGroupId": authGroupId,
-				"tenantId":    tenantId,
-				"userId":      userId,
-				"code":        code,
-				"moduleName":  moduleName,
+				"tenantId":   tenantId,
+				"userId":     userId,
+				"code":       code,
+				"moduleName": moduleName,
 			}
 
-			exists := y.ModelQuery(userPermissionModelName).SkipBeforeCommit().WhereAll(input).Exist(nil)
+			if helper.IsNotEmpty(authGroupId) {
+				input["authGroupId"] = authGroupId
+			}
+
+			exists := y.ModelQuery(userPermissionModelName).SkipTenant().SkipBeforeCommit().Exist(input)
+			// console.Log("info \ninput: %v \ncode: %v \nexists: %v\n\n\n", helper.ToJson(input), code, exists)
 
 			if !exists {
 				y.ModelQuery(userPermissionModelName).Create(input)
 			}
 		}
 	}
-
 }
 
 func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, req *Request, res *Response) interface{} {
@@ -860,10 +873,15 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		userId = nil
 	}
 
-	// var days time.Duration = 7
-	// if rememberMe {
-	// 	days = 30
-	// }
+	refreshTokenExpireTime := y.Config.RefreshTokenExpireTime
+	if refreshTokenExpireTime <= 0 {
+		refreshTokenExpireTime = 7 // default 30 days
+	}
+
+	var days time.Duration = refreshTokenExpireTime
+	if rememberMe {
+		days = 30
+	}
 
 	body := datatype.DataMap{
 		"domain":    payload.Domain,
@@ -875,8 +893,7 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 		"userAgent": client.UserAgent,
 		"ipAddress": client.IpAddress,
 		"revoked":   false,
-		// "expiresAt": time.Now().Add(time.Hour * 24 * days),
-		"expiresAt": helper.GetTimestamp(nil).Add(time.Hour * 24 * 30),
+		"expiresAt": time.Now().Add(time.Hour * 24 * days),
 	}
 
 	y.ModelQuery("RefreshToken").SkipBeforeCommit().Create(body)
@@ -888,57 +905,79 @@ func (y *YekongaData) setAuthCookies(req *RequestContext, accessToken string, re
 	w := req.Response.httpResponseWriter
 	domain := req.Client.OriginDomain()
 	accessPath := "/"
-	if helper.IsNotEmpty(moduleName) {
-		accessPath = "/" + moduleName
+
+	if helper.IsNotEmpty(accessToken) && helper.IsNotEmpty(refreshToken) {
+		accessTokenExpireTime := req.App.Config.AccessTokenExpireTime
+		if accessTokenExpireTime <= 0 {
+			accessTokenExpireTime = 15 // default 15 minutes
+		}
+
+		accessTokenCookieA := http.Cookie{
+			Name:     string(AccessTokenKey),
+			Value:    accessToken,
+			Path:     accessPath,
+			Domain:   domain,
+			HttpOnly: true,
+			Secure:   y.Config.SecureOnly,
+			SameSite: http.SameSiteDefaultMode,
+			MaxAge:   helper.ToInt(accessTokenExpireTime) * 60, // 15 minutes
+		}
+
+		accessTokenCookieB := accessTokenCookieA
+		accessTokenCookieB.Path = y.AppendBaseUrl(accessPath)
+
+		http.SetCookie(*w, &accessTokenCookieA)
+		http.SetCookie(*w, &accessTokenCookieB)
+
+		refreshTokenExpireTime := req.App.Config.RefreshTokenExpireTime
+		if refreshTokenExpireTime <= 0 {
+			refreshTokenExpireTime = 7 // default 7 days
+		}
+
+		refreshTokenCookieA := http.Cookie{
+			Name:     string(RefreshTokenKey),
+			Value:    refreshToken,
+			Path:     y.AppendBaseUrl("/refresh"),
+			Domain:   domain,
+			HttpOnly: true,
+			Secure:   y.Config.SecureOnly,
+			SameSite: http.SameSiteDefaultMode,
+			MaxAge:   helper.ToInt(refreshTokenExpireTime) * 24 * 60 * 60, // 30 days
+		}
+
+		refreshTokenCookieB := refreshTokenCookieA
+		refreshTokenCookieB.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
+
+		http.SetCookie(*w, &refreshTokenCookieA)
+		http.SetCookie(*w, &refreshTokenCookieB)
 	}
-
-	http.SetCookie(*w, &http.Cookie{
-		Name:     string(AccessTokenKey),
-		Value:    accessToken,
-		Path:     accessPath,
-		Domain:   domain,
-		HttpOnly: true,
-		Secure:   y.Config.SecureOnly,
-		SameSite: http.SameSiteDefaultMode,
-		MaxAge:   15 * 60, // 15 minutes
-	})
-
-	refreshTokenCookie1 := http.Cookie{
-		Name:     string(RefreshTokenKey),
-		Value:    refreshToken,
-		Path:     y.AppendBaseUrl("/refresh"),
-		Domain:   domain,
-		HttpOnly: true,
-		Secure:   y.Config.SecureOnly,
-		SameSite: http.SameSiteDefaultMode,
-		MaxAge:   30 * 24 * 60 * 60, // 30 days
-	}
-
-	refreshTokenCookie2 := refreshTokenCookie1
-	refreshTokenCookie2.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
-
-	http.SetCookie(*w, &refreshTokenCookie1)
-	http.SetCookie(*w, &refreshTokenCookie2)
 }
 
-func (y *YekongaData) clearAuthCookies(req *RequestContext, domain string) {
+func (y *YekongaData) clearAuthCookies(req *RequestContext, domain string, moduleName string) {
 	w := req.Response.httpResponseWriter
 	if helper.IsEmpty(domain) {
 		domain = req.Client.OriginDomain()
 	}
 
-	http.SetCookie(*w, &http.Cookie{
+	accessPath := "/"
+	accessTokenCookieA := http.Cookie{
 		Name:     string(AccessTokenKey),
 		Value:    "",
-		Path:     "/",
+		Path:     accessPath,
 		Domain:   domain,
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteDefaultMode,
 		MaxAge:   -1,
-	})
+	}
 
-	refreshTokenCookie1 := http.Cookie{
+	accessTokenCookieB := accessTokenCookieA
+	accessTokenCookieB.Path = y.AppendBaseUrl(accessPath)
+
+	http.SetCookie(*w, &accessTokenCookieA)
+	http.SetCookie(*w, &accessTokenCookieB)
+
+	refreshTokenCookieA := http.Cookie{
 		Name:     string(RefreshTokenKey),
 		Value:    "",
 		Path:     y.AppendBaseUrl("/refresh"),
@@ -949,11 +988,11 @@ func (y *YekongaData) clearAuthCookies(req *RequestContext, domain string) {
 		MaxAge:   -1,
 	}
 
-	refreshTokenCookie2 := refreshTokenCookie1
-	refreshTokenCookie2.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
+	refreshTokenCookieB := refreshTokenCookieA
+	refreshTokenCookieB.Path = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
 
-	http.SetCookie(*w, &refreshTokenCookie1)
-	http.SetCookie(*w, &refreshTokenCookie2)
+	http.SetCookie(*w, &refreshTokenCookieA)
+	http.SetCookie(*w, &refreshTokenCookieB)
 }
 
 func GetProfileIds(y *YekongaData, userId string) []string {

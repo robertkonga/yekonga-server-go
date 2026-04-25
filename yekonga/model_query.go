@@ -108,8 +108,8 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 	if m.where == nil {
 		m.where = make(datatype.DataMap)
 	}
-	// console.Log("Where", 1, name, newValue)
-	if helper.Contains(m.Model.RelativeKeys, name) || helper.Contains(m.Model.IDKeys, name) || name == "id" || name == "_id" {
+
+	if helper.Contains(m.Model.IDKeys, name) || name == "id" || name == "_id" {
 		if name == "id" || name == "_id" {
 			name = "_id"
 		}
@@ -140,7 +140,8 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 				}
 
 				newValue = vpi
-			} else if v, ok := value.(map[string]interface{}); ok {
+			} else if helper.IsMap(value) {
+				v := helper.ToDataMap(value)
 				vp := make(map[string]interface{})
 
 				for ki, vi := range v {
@@ -183,7 +184,6 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 			}
 		}
 	}
-	// console.Log("Where", 2, name, newValue)
 
 	if w, ok := m.where[name]; ok {
 		if w != nil && newValue != nil {
@@ -203,7 +203,6 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 	} else {
 		m.where[name] = newValue
 	}
-	// console.Log("Where", 3, name, newValue)
 
 	return m
 }
@@ -627,6 +626,24 @@ func (m *DataModelQuery) Value(key string) interface{} {
 	return nil
 }
 
+func (m *DataModelQuery) List(key string) []interface{} {
+	return m.Values(key)
+}
+
+func (m *DataModelQuery) Values(key string) []interface{} {
+	result := m.Find(nil)
+
+	if helper.IsNotEmpty(result) {
+		var values []interface{}
+		for _, v := range *result {
+			values = append(values, v[key])
+		}
+		return values
+	}
+
+	return nil
+}
+
 func (m *DataModelQuery) First(where interface{}) *datatype.DataMap {
 	return m.FindOne(where)
 }
@@ -897,7 +914,7 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 	}
 
 	if pp, ok := p.Source.(graphql.ResolveParams); ok {
-		localWhere := helper.ToMap[interface{}](pp.Args["where"])
+		localWhere := helper.ToDataMap(pp.Args["where"])
 		if localWhere != nil {
 			m.WhereAll(localWhere)
 		}
@@ -933,7 +950,7 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		m.QueryContext.Parent = &p
 	}
 
-	localWhere := helper.ToMap[interface{}](p.Args["where"])
+	localWhere := helper.ToDataMap(p.Args["where"])
 	if localWhere != nil {
 		m.WhereAll(localWhere)
 	}
@@ -977,7 +994,7 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		var vMap map[string]interface{}
 
 		if helper.IsMap(v) {
-			vMap = helper.ToMap[interface{}](v)
+			vMap = helper.ToDataMap(v)
 			for _, op := range filterOps {
 				if _, ok := vMap[op]; ok {
 					isFilter = true
@@ -1043,7 +1060,7 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		return err
 	}
 
-	return helper.ToMap[interface{}](chartData)
+	return helper.ToDataMap(chartData)
 }
 
 func (m *DataModelQuery) Download(where interface{}, fileType string) interface{} {

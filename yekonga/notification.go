@@ -47,7 +47,8 @@ func (y *YekongaData) setNotification() {
 }
 
 func runNotificationSMS(note datatype.DataMap, app *YekongaData) {
-	console.Success("notification SMS", note)
+	// console.Success("notification SMS", note)
+
 	message := setting.SendParams{}
 	phone := ""
 	text := ""
@@ -73,7 +74,7 @@ func runNotificationSMS(note datatype.DataMap, app *YekongaData) {
 }
 
 func runNotificationMail(note datatype.DataMap, app *YekongaData) {
-	console.Success("notification EMAIL", note)
+	// console.Success("notification EMAIL", note)
 
 	valid := false
 	to := []string{}
@@ -151,7 +152,8 @@ func runNotificationMail(note datatype.DataMap, app *YekongaData) {
 }
 
 func runNotificationWhatsapp(note datatype.DataMap, app *YekongaData) {
-	console.Success("notification WHATSAPP", note)
+	// console.Success("notification WHATSAPP", note)
+
 	message := setting.SendParams{}
 	phone := ""
 	text := ""
