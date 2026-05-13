@@ -25,6 +25,9 @@ const (
 	BeforeLoginTriggerAction TriggerAction = "BeforeLogin"
 	AfterLoginTriggerAction  TriggerAction = "AfterLogin"
 
+	BeforeRegisterTriggerAction TriggerAction = "BeforeRegister"
+	AfterRegisterTriggerAction  TriggerAction = "AfterRegister"
+
 	// Before ALL
 	BeforeFindTriggerAllAction TriggerAction = "AllBeforeFind"
 	AfterFindTriggerAllAction  TriggerAction = "AllAfterFind"
@@ -197,6 +200,14 @@ func (y *YekongaData) BeforeLogin(fn TriggerFunction) interface{} {
 
 func (y *YekongaData) AfterLogin(fn TriggerFunction) interface{} {
 	return y.setAuthTrigger(AfterLoginTriggerAction, fn)
+}
+
+func (y *YekongaData) BeforeRegister(fn TriggerFunction) interface{} {
+	return y.setAuthTrigger(BeforeRegisterTriggerAction, fn)
+}
+
+func (y *YekongaData) AfterRegister(fn TriggerFunction) interface{} {
+	return y.setAuthTrigger(AfterRegisterTriggerAction, fn)
 }
 
 func (y *YekongaData) BeforeFindAll(fn TriggerAllFunction) interface{} {

@@ -429,15 +429,15 @@ func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interfa
 		triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
 		if v, ok := triggerBefore.(bool); ok && !v {
 			return nil
-		} else if v, ok := triggerBefore.([]interface{}); ok {
-			data = v
+		} else if helper.IsList(triggerBefore) {
+			data = helper.ToList[any](triggerBefore)
 		}
 
 		triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
 		if v, ok := triggerBefore.(bool); ok && !v {
 			return nil
-		} else if v, ok := triggerBefore.([]interface{}); ok {
-			data = v
+		} else if helper.IsList(triggerBefore) {
+			data = helper.ToList[any](triggerBefore)
 		}
 	}
 
@@ -1208,9 +1208,7 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 	case AfterFindTriggerAction, AfterFindTriggerAllAction:
 		m.QueryContext.Data = data
 	case BeforeCreateTriggerAction, BeforeCreateTriggerAllAction:
-		if v, ok := data.(datatype.DataMap); ok {
-			m.QueryContext.Input = &v
-		}
+		m.QueryContext.Input = data
 	case AfterCreateTriggerAction, AfterCreateTriggerAllAction:
 		m.QueryContext.Data = data
 	case BeforeUpdateTriggerAction, BeforeUpdateTriggerAllAction:

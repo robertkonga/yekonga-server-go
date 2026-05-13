@@ -82,6 +82,7 @@ type YekongaData struct {
 
 	Config   *config.YekongaConfig
 	RootPath string
+	IsDev    bool
 }
 
 // NewYekonga creates a new instance of Yekonga server
@@ -95,6 +96,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 	resolverChartGroupData := SetDataGroups(systemModels)
 	exPath := "./"
 
+	IsDev := os.Getenv("APP_ENV") == "development"
 	ex, err := os.Executable()
 	if err == nil {
 		exPath = filepath.Dir(ex)
@@ -103,6 +105,7 @@ func ServerConfig(configFile string, databaseFile string) *YekongaData {
 	Server = &YekongaData{
 		Config:   config,
 		RootPath: exPath,
+		IsDev:    IsDev,
 
 		dbConnect:              dbConnect,
 		models:                 systemModels,

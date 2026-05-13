@@ -24,7 +24,7 @@ func (g *GraphqlAutoBuild) GetAuthQuery() *graphql.Object {
 	fields["profile"] = &graphql.Field{
 		Type: UserProfileType,
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -93,7 +93,7 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 				Message: "You have no access",
 			}
 			var user datatype.DataMap
-			var data map[string]interface{} = g.getInputData(p.Args)
+			var data = helper.ToDataMap(g.getInputData(p.Args))
 			var tenantId = req.Request.TenantId()
 			var tenant = req.Request.Tenant()
 			// console.Log("tenant", tenant)
@@ -133,6 +133,15 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 					return nil, errors.New("User does not exist at all")
 				}
 			} else {
+				triggerResult, _ := g.yekonga.authTriggerCallback(BeforeOtpTriggerAction, req, &QueryContext{
+					Data:  data,
+					Input: data,
+				})
+
+				if v, ok := triggerResult.(bool); ok && !v {
+					return nil, errors.New("Rejected by BeforeOtpTriggerAction")
+				}
+
 				if helper.IsNotEmpty(username) {
 					user = *g.yekonga.SetOTPVerification(username, usernameType, true, "login", req.Request)
 				}
@@ -143,15 +152,6 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 				UserID:   userId,
 				Username: username,
 			})
-
-			triggerResult, _ := g.yekonga.authTriggerCallback(BeforeOtpTriggerAction, req, &QueryContext{
-				Data:  data,
-				Input: data,
-			})
-
-			if v, ok := triggerResult.(bool); ok && !v {
-				return nil, errors.New("Rejected by BeforeOtpTriggerAction")
-			}
 
 			if helper.IsNotEmpty(user) {
 				result.Status = true
@@ -195,7 +195,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var user datatype.DataMap
 			var username = helper.GetValueOfString(input, "username")
 			var usernameType = helper.GetValueOfString(input, "usernameType")
@@ -350,7 +350,7 @@ func _verifyOtp(g *GraphqlAutoBuild) *graphql.Field {
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var user datatype.DataMap
 			var username = helper.GetValueOfString(input, "username")
 			var usernameType = helper.GetValueOfString(input, "usernameType")
@@ -521,7 +521,7 @@ func _socialLogin(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input map[string]interface{} = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 
 			googleClientID := g.yekonga.Config.GoogleClientId
@@ -592,7 +592,7 @@ func _contactOTP(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			// var type = g.getParamValue(p.Args, "type")
 			var model = g.yekonga.ModelQuery(name)
 
@@ -621,7 +621,7 @@ func _contactVerify(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			// var type = g.getParamValue(p.Args, "type")
 			var model = g.yekonga.ModelQuery(name)
 
@@ -648,7 +648,7 @@ func _registration(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var ctx, _ = p.Context.Value(RequestContextKey).(*RequestContext)
 			var auth = ctx.Auth
 
@@ -665,7 +665,27 @@ func _registration(g *GraphqlAutoBuild) *graphql.Field {
 					input["status"] = "active"
 				}
 
+				triggerResult, _ := g.yekonga.authTriggerCallback(BeforeRegisterTriggerAction, ctx, &QueryContext{
+					Data:  input,
+					Input: input,
+				})
+
+				if v, ok := triggerResult.(bool); ok && !v {
+					return nil, errors.New("Rejected by before BeforeRegisterTriggerAction")
+				} else if v, ok := triggerResult.(datatype.DataMap); ok {
+					input = v
+				}
+
 				tenant := model.Create(input)
+
+				triggerResult, _ = g.yekonga.authTriggerCallback(AfterRegisterTriggerAction, ctx, &QueryContext{
+					Data:  tenant,
+					Input: input,
+				})
+
+				if v, ok := triggerResult.(datatype.DataMap); ok {
+					tenant = v
+				}
 
 				if helper.IsNotEmpty(tenant) {
 					g.yekonga.ModelQuery(userModelName).Update(datatype.DataMap{
@@ -716,36 +736,67 @@ func _tenantAvailability(g *GraphqlAutoBuild) *graphql.Field {
 			"subdomain": &graphql.ArgumentConfig{
 				Type: graphql.String,
 			},
+			"customDomain": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
+			"customSubdomain": &graphql.ArgumentConfig{
+				Type: graphql.String,
+			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var id = helper.GetValueOfString(p.Args, "id")
 			var domain = helper.GetValueOfString(p.Args, "domain")
 			var subdomain = helper.GetValueOfString(p.Args, "subdomain")
+			var customDomain = helper.GetValueOfString(p.Args, "customDomain")
+			var customSubdomain = helper.GetValueOfString(p.Args, "customSubdomain")
 			var model = g.yekonga.ModelQuery(tenantModelName).SkipBeforeCommit()
 			var validQuery = false
 			var tenant *datatype.DataMap
 
+			var where = []datatype.DataMap{}
 			if helper.IsNotEmpty(id) {
 				model.Where("id", id)
 				validQuery = true
 			}
 
 			if helper.IsNotEmpty(domain) {
-				model.Where("domain", domain)
+				where = append(where, datatype.DataMap{
+					"domain": datatype.DataMap{"equalTo": domain},
+				})
+
 				validQuery = true
 			}
 
 			if helper.IsNotEmpty(subdomain) {
-				model.Where("subdomain", subdomain)
+				where = append(where, datatype.DataMap{
+					"subdomain": datatype.DataMap{"equalTo": subdomain},
+				})
+
+				validQuery = true
+			}
+
+			if helper.IsNotEmpty(customDomain) {
+				where = append(where, datatype.DataMap{
+					"customDomain": datatype.DataMap{"equalTo": customDomain},
+				})
+
+				validQuery = true
+			}
+
+			if helper.IsNotEmpty(customSubdomain) {
+				where = append(where, datatype.DataMap{
+					"customSubdomain": datatype.DataMap{"equalTo": customSubdomain},
+				})
+
 				validQuery = true
 			}
 
 			if validQuery {
+				model.WhereAll(datatype.DataMap{
+					"OR": where,
+				})
 				tenant = model.FindOne(nil)
 			}
-
-			// console.Error(id, domain, subdomain)
-			// console.Log(tenant)
 
 			if helper.IsNotEmpty(tenant) {
 				return true, nil
@@ -770,7 +821,7 @@ func _resetPassword(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var data map[string]interface{} = g.getInputData(p.Args)
+			var data = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -795,7 +846,7 @@ func _confirmToken(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -820,7 +871,7 @@ func _changePassword(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var input map[string]interface{} = g.getInputData(p.Args)
+			var input = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -879,7 +930,7 @@ func _switchAccount(g *GraphqlAutoBuild) *graphql.Field {
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-			var data map[string]interface{} = g.getInputData(p.Args)
+			var data = helper.ToDataMap(g.getInputData(p.Args))
 			var profileId = g.getParamValue(p.Args, "profileId")
 			var userId = g.getParamValue(p.Args, "userId")
 			var token = g.getParamValue(p.Args, "token")

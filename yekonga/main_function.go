@@ -216,6 +216,7 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 		}
 
 		if helper.IsNotEmpty(user) {
+			var message = otpCode
 			var whatsapp string
 			var phone string
 			var email string
@@ -224,14 +225,17 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 			if helper.IsPhone(username) {
 				if usernameType == "whatsapp" {
 					whatsapp = username
+					message = helper.GetWhatsappContent("otp", *user)
 				} else {
 					phone = username
+
+					message = helper.GetTextContent("otp", *user)
+
 				}
 			} else if helper.IsEmail(username) {
 				email = username
+				message = helper.GetEmailContent("", "otp", *user)
 			}
-
-			message := otpCode + " is your verification code. For security, do not share this code."
 
 			y.Notify(&NotifiedUser{
 				UserID:   userId,

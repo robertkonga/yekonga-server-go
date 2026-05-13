@@ -15,14 +15,14 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 
 	if req.App.Config.HasTenant {
 		tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-			"domain": host,
+			"OR": []datatype.DataMap{
+				{"domain": host},
+				{"subdomain": host},
+				{"customDomain": host},
+				{"customSubdomain": host},
+			},
 		})
 
-		if helper.IsEmpty(tenant) {
-			tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-				"subdomain": host,
-			})
-		}
 	}
 
 	if helper.IsNotEmpty(tenant) {

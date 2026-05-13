@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
@@ -274,6 +276,124 @@ func ConvertJSONArrayToExcel(jsonData interface{}, headingColumns []string, file
 	}
 
 	return fileSaved, nil
+}
+
+// ConvertExcelToCSV converts an Excel file to CSV
+// func ConvertExcelToCSV(excelPath string) (string, error) {
+// 	// Open Excel file
+// 	f, err := excelize.OpenFile(excelPath)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer f.Close()
+
+// 	// Get first sheet
+// 	sheets := f.GetSheetList()
+// 	if len(sheets) == 0 {
+// 		return "", fmt.Errorf("no sheets found")
+// 	}
+
+// 	sheetName := sheets[0]
+
+// 	// Read rows
+// 	rows, err := f.GetRows(sheetName)
+// 	if err != nil {
+// 		return "", err
+// 	}
+
+// 	// Output CSV path
+// 	csvPath := filepath.Join(
+// 		filepath.Dir(excelPath),
+// 		filepath.Base(excelPath[:len(excelPath)-len(filepath.Ext(excelPath))])+".csv",
+// 	)
+
+// 	// Create CSV file
+// 	csvFile, err := os.Create(csvPath)
+// 	if err != nil {
+// 		return "", err
+// 	}
+// 	defer csvFile.Close()
+
+// 	writer := csv.NewWriter(csvFile)
+// 	defer writer.Flush()
+
+// 	// Write rows
+// 	for _, row := range rows {
+// 		if err := writer.Write(row); err != nil {
+// 			return "", err
+// 		}
+// 	}
+
+// 	return csvPath, nil
+// }
+
+func ConvertExcelToCSV(excelPath string) (string, error) {
+	f, err := excelize.OpenFile(excelPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	sheet := f.GetSheetList()[0]
+
+	// Get all rows
+	rows, err := f.GetRows(sheet)
+	if err != nil {
+		return "", err
+	}
+
+	csvPath := filepath.Join(
+		filepath.Dir(excelPath),
+		"output.csv",
+	)
+
+	file, err := os.Create(csvPath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	for i, row := range rows {
+		var record []string
+
+		for j := range row {
+			cell, _ := excelize.CoordinatesToCellName(j+1, i+1)
+
+			// ✅ This returns formatted value (not scientific)
+			val, err := f.GetCellValue(sheet, cell, excelize.Options{
+				RawCellValue: true,
+			})
+
+			if err != nil {
+				val = row[j]
+			}
+
+			// console.Error(val)
+			if strings.HasSuffix(val, "E+11") {
+				val, _ = ScientificToString(val)
+			}
+
+			record = append(record, val)
+		}
+
+		writer.Write(record)
+	}
+
+	return csvPath, nil
+}
+
+// Convert scientific notation to full number string
+func ScientificToString(value string) (string, error) {
+	f, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return "", err
+	}
+
+	// Remove scientific notation
+	return strconv.FormatFloat(f, 'f', 0, 64), nil
 }
 
 func cellLocation(row uint, col uint) string {

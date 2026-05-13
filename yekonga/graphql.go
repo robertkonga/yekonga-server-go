@@ -1012,7 +1012,7 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var data map[string]interface{} = g.getInputData(p.Args)
+			var data = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
 
@@ -1090,16 +1090,12 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var data []interface{} = []interface{}{}
+			var data = helper.ToList[interface{}](g.getInputData(p.Args))
 			var uniqueKeys []string = []string{}
 			var model = g.yekonga.ModelQuery(name)
 
 			if p.Args["uniqueKeys"] != nil && helper.IsArray(p.Args["uniqueKeys"]) {
 				uniqueKeys = helper.ToList[string](p.Args["uniqueKeys"])
-			}
-
-			if p.Args["input"] != nil && helper.IsArray(p.Args["input"]) {
-				data = helper.ToList[interface{}](p.Args["input"])
 			}
 
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -1197,7 +1193,7 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-			var data map[string]interface{} = g.getInputData(p.Args)
+			var data = helper.ToDataMap(g.getInputData(p.Args))
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
@@ -1331,7 +1327,7 @@ func (g *GraphqlAutoBuild) getMutationActionField(collection string, foreignKey 
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
-			var data datatype.DataMap = datatype.DataMap(g.getInputData(p.Args))
+			var data interface{} = g.getInputData(p.Args)
 
 			ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 
@@ -1919,27 +1915,15 @@ func (g *GraphqlAutoBuild) getParamValue(params map[string]interface{}, key stri
 	return value
 }
 
-func (g *GraphqlAutoBuild) getInputData(params map[string]interface{}) map[string]interface{} {
-	var input map[string]interface{}
+func (g *GraphqlAutoBuild) getInputData(params map[string]interface{}) interface{} {
+	var input interface{}
 
 	if d, ok := params["input"]; ok {
-		if di, _ := d.(map[string]interface{}); helper.IsMap(d) {
-			input = di
-		} else {
-			input = map[string]interface{}{}
-		}
+		input = d
 	} else if d, ok := params["inputData"]; ok {
-		if di, _ := d.(map[string]interface{}); helper.IsMap(d) {
-			input = di
-		} else {
-			input = map[string]interface{}{}
-		}
+		input = d
 	} else if d, ok := params["inputRaw"]; ok {
-		if di, _ := d.(map[string]interface{}); helper.IsMap(d) {
-			input = di
-		} else {
-			input = map[string]interface{}{}
-		}
+		input = d
 	}
 
 	return input

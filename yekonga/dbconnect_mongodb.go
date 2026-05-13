@@ -51,20 +51,19 @@ func (con *mongodbConnection) collection() *mongo.Collection {
 }
 
 func (con *mongodbConnection) findOne() *datatype.DataMap {
-
 	var result datatype.DataMap
 
 	opts := options.FindOne()
-
 	if con.hasOrderBy() {
 		opts = opts.SetSort(con.orderBy())
 	}
+	localWhere := con.where()
 
-	// if con.query.Model.Collection == "tenant_configs" {
-	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", con.where())
+	// if con.query.Model.Name == "Certificate" {
+	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", localWhere)
 	// }
 
-	res := con.collection().FindOne(context.TODO(), con.where(), opts)
+	res := con.collection().FindOne(context.TODO(), localWhere, opts)
 	err := res.Decode(&result)
 	if err != nil {
 		// logger.Error("mongodbConnection.findOne", err.Error())
@@ -323,14 +322,14 @@ func (con *mongodbConnection) max(key string) interface{} {
 		case string:
 			parsedTime, err := time.Parse(time.RFC3339, v) // Convert string to time.Time
 			if err != nil {
-				return nil
+				return v
 			}
 			return parsedTime
 		case bson.DateTime:
 			return v.Time() // Convert BSON DateTime to Go time.Time
 		default:
 			logger.Error(fmt.Errorf("unexpected type: %s", reflect.TypeOf(result.AggregateValue)))
-			return nil
+			return v
 		}
 	} else {
 		fmt.Println("No data found")
@@ -371,14 +370,14 @@ func (con *mongodbConnection) min(key string) interface{} {
 		case string:
 			parsedTime, err := time.Parse(time.RFC3339, v) // Convert string to time.Time
 			if err != nil {
-				return nil
+				return v
 			}
 			return parsedTime
 		case bson.DateTime:
 			return v.Time() // Convert BSON DateTime to Go time.Time
 		default:
 			logger.Error(fmt.Errorf("unexpected type: %s", reflect.TypeOf(result.AggregateValue)))
-			return nil
+			return v
 		}
 	} else {
 		fmt.Println("No data found")
@@ -540,7 +539,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 			switch k {
 			case "AND":
 				var newValue = []interface{}{}
-				var vi = helper.ToList[datatype.DataMap](v)
+				var vi = helper.ToDataMapList(v)
 
 				for ii := range vi {
 					newValue = append(newValue, con.extractWhereObject(vi[ii]))
@@ -551,7 +550,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 				}
 			case "OR":
 				var newValue = []interface{}{}
-				var vi = helper.ToList[datatype.DataMap](v)
+				var vi = helper.ToDataMapList(v)
 
 				for ii := range vi {
 					newValue = append(newValue, con.extractWhereObject(vi[ii]))
@@ -562,7 +561,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 				}
 			case "NOR":
 				var newValue = []interface{}{}
-				var vi = helper.ToList[datatype.DataMap](v)
+				var vi = helper.ToDataMapList(v)
 
 				for ii := range vi {
 					newValue = append(newValue, con.extractWhereObject(vi[ii]))
@@ -573,7 +572,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 				}
 			default:
 				var newValue = []interface{}{}
-				var vi = helper.ToList[datatype.DataMap](v)
+				var vi = helper.ToDataMapList(v)
 
 				for ii := range vi {
 					newValue = append(newValue, con.extractWhereObject(vi[ii]))
@@ -605,15 +604,6 @@ func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.Dat
 			} else if helper.IsMap(v) {
 				w := helper.ToDataMap(whr)
 				vs := con.extractWhereItem(w)
-
-				// if con.query.Model.Collection == "tenant_configs" {
-				// 	console.Log("mongodbConnection", w)
-				// 	console.Log("mongodbConnection", vs)
-				// }
-
-				// if con.query.Model.Collection == "auth_permissions" {
-				// 	console.Log("mongodbConnection.extractWhereItem", vs, k, v, helper.TypeOf(v))
-				// }
 
 				for ki, vi := range vs {
 					filters[ki] = vi
@@ -650,6 +640,10 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 						innerFilter = inf
 					}
 
+					if k == "id" || k == "_id" {
+						k = "_id"
+					}
+
 					if helper.Contains(graphqlOperations[:], ki) ||
 						helper.Contains(graphqlArrayOperations[:], ki) ||
 						helper.Contains(graphqlBooleanOperations[:], ki) ||
@@ -662,6 +656,22 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 							vii = nil
 						case string(nullValue):
 							vii = nil
+						}
+
+						if helper.Contains(con.query.Model.IDKeys, k) || k == "id" || k == "_id" {
+							if helper.IsNotEmpty(vii) {
+								if helper.IsArray(vii) {
+									viii := helper.ToList[any](vii)
+									count := len(viii)
+									for i := 0; i < count; i++ {
+										viii[i] = helper.ObjectID(viii[i])
+									}
+
+									vii = viii
+								} else {
+									vii = helper.ObjectID(vii)
+								}
+							}
 						}
 
 						switch ki {

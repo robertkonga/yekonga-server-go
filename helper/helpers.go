@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -40,24 +41,32 @@ import (
 )
 
 func IsMap(data interface{}) bool {
-	if IsNotEmpty(data) {
+	val := reflect.ValueOf(data)
 
-		ok := reflect.TypeOf(data).Kind() == reflect.Map
+	// Dereference pointers to check the underlying value
+	if val.Kind() == reflect.Ptr {
+		if !val.IsNil() {
+			val = val.Elem()
+		}
+	}
+
+	if IsNotEmpty(data) {
+		ok := val.Kind() == reflect.Map
 
 		// Type assertion to check if data is a map[string]interface{}
 		if ok {
 			return true
-		} else if _, ok := data.(datatype.Record); ok {
+		} else if _, ok := val.Interface().(datatype.Record); ok {
 			return true
-		} else if _, ok := data.(datatype.DataMap); ok {
+		} else if _, ok := val.Interface().(datatype.DataMap); ok {
 			return true
-		} else if _, ok := data.(datatype.Context); ok {
+		} else if _, ok := val.Interface().(datatype.Context); ok {
 			return true
-		} else if _, ok := data.(datatype.ContextObject); ok {
+		} else if _, ok := val.Interface().(datatype.ContextObject); ok {
 			return true
-		} else if _, ok := data.(datatype.JsonObject); ok {
+		} else if _, ok := val.Interface().(datatype.JsonObject); ok {
 			return true
-		} else if _, ok := data.(bson.M); ok {
+		} else if _, ok := val.Interface().(bson.M); ok {
 			return true
 		}
 	}
@@ -66,23 +75,32 @@ func IsMap(data interface{}) bool {
 }
 
 func IsMapList(data interface{}) bool {
+	val := reflect.ValueOf(data)
+
+	// Dereference pointers to check the underlying value
+	if val.Kind() == reflect.Ptr {
+		if !val.IsNil() {
+			val = val.Elem()
+		}
+	}
+
 	if IsNotEmpty(data) {
-		ok := reflect.TypeOf(data).Kind() == reflect.Array || reflect.TypeOf(data).Kind() == reflect.Slice
+		ok := val.Kind() == reflect.Array || val.Kind() == reflect.Slice
 
 		// Type assertion to check if data is a map[string]interface{}
 		if ok {
 			return true
-		} else if _, ok := data.([]datatype.Record); ok {
+		} else if _, ok := val.Interface().([]datatype.Record); ok {
 			return true
-		} else if _, ok := data.([]datatype.DataMap); ok {
+		} else if _, ok := val.Interface().([]datatype.DataMap); ok {
 			return true
-		} else if _, ok := data.([]datatype.Context); ok {
+		} else if _, ok := val.Interface().([]datatype.Context); ok {
 			return true
-		} else if _, ok := data.([]datatype.ContextObject); ok {
+		} else if _, ok := val.Interface().([]datatype.ContextObject); ok {
 			return true
-		} else if _, ok := data.([]datatype.JsonObject); ok {
+		} else if _, ok := val.Interface().([]datatype.JsonObject); ok {
 			return true
-		} else if _, ok := data.([]bson.M); ok {
+		} else if _, ok := val.Interface().([]bson.M); ok {
 			return true
 		}
 	}
@@ -96,7 +114,13 @@ func ToDataMap(input interface{}) datatype.DataMap {
 	value := reflect.ValueOf(input)
 
 	if value.Kind() != reflect.Map {
-		console.Error("input must be a map")
+		if value.Kind() == reflect.Ptr {
+			if !value.IsNil() {
+				value = value.Elem()
+			}
+		} else {
+			console.Error("input must be a map")
+		}
 	}
 
 	for _, key := range value.MapKeys() {
@@ -279,6 +303,10 @@ func UUID() string {
 }
 
 func IsSlice(v interface{}) bool {
+	if v == nil {
+		return false
+	}
+
 	if IsPointer(v) {
 		return IsSlice(reflect.ValueOf(v).Elem().Interface())
 	}
@@ -2071,232 +2099,6 @@ func HashRefreshToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-// GetNestedValue returns the value at the dot-separated path or nil if not found
-func GetNestedValue(data map[string]interface{}, path string) interface{} {
-	parts := strings.Split(path, ".")
-	current := interface{}(data)
-
-	for _, part := range parts {
-		if current == nil {
-			return nil
-		}
-		m, ok := current.(map[string]interface{})
-		if !ok {
-			return nil
-		}
-		current, ok = m[part]
-		if !ok {
-			return nil
-		}
-	}
-	return current
-}
-
-// TextTemplate replaces {{key}} and {{nested.key}} placeholders
-// Uses the safer FindAllStringSubmatchIndex approach to avoid infinite loops
-func TextTemplate(templateString string, data map[string]interface{}, customPattern *regexp.Regexp) string {
-	if customPattern == nil {
-		// Supports: {{ name }}, {{ user.name }}, {{ items.0.price }}, spaces around name
-		customPattern = regexp.MustCompile(`{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}`)
-	}
-
-	result := []byte(templateString)
-	var buf strings.Builder
-
-	lastIndex := 0
-
-	for _, match := range customPattern.FindAllStringSubmatchIndex(string(result), -1) {
-		// match[0] = start of whole match
-		// match[1] = start of capture group (the key)
-		// match[2] = end   of capture group
-
-		keyStart, keyEnd := match[2], match[3]
-		key := string(result[keyStart:keyEnd])
-
-		// Write text before this placeholder
-		buf.Write(result[lastIndex:match[0]])
-
-		// Get value and convert to string
-		value := GetNestedValue(data, key)
-		if value != nil {
-			buf.WriteString(fmt.Sprintf("%v", value))
-		} // else → leave empty (you can also write "MISSING" or similar)
-
-		lastIndex = match[1] // end of this match
-	}
-
-	// Write remaining text after last match
-	buf.Write(result[lastIndex:])
-
-	return buf.String()
-}
-
-// getTextContent reads a template file and processes it with data
-func GetTextContent(template string, data map[string]interface{}) string {
-	dirname := GetDirectoryPath()
-	content := ""
-	templatePath := ""
-	// Check if file exists in Dirname
-	if _, err := os.Stat(filepath.Join(dirname, template)); err == nil {
-		templatePath = filepath.Join(dirname, template)
-	} else if _, err := os.Stat(filepath.Join(dirname, template)); err == nil {
-		// Check if file exists in Src
-		templatePath = filepath.Join(dirname, template)
-	}
-
-	if templatePath != "" {
-		text, err := os.ReadFile(templatePath)
-		if err != nil {
-			// Log error (replace with proper logging if needed)
-			println("Error reading file:", err.Error())
-			return content
-		}
-		content = TextTemplate(string(text), data, nil)
-		// Assuming clearSpecialCharacters is defined elsewhere
-		content = ClearSpecialCharacters(content)
-	}
-
-	return content
-}
-
-// clearSpecialCharacters cleans the input string by replacing curly apostrophes,
-// removing HTML tags, and keeping only allowed characters.
-func ClearSpecialCharacters(val string) string {
-	// If val is empty, return an empty string
-	if val == "" {
-		return ""
-	}
-
-	// Replace curly apostrophes (’) with straight apostrophes (')
-	val = strings.ReplaceAll(val, "’", "'")
-
-	// Remove HTML tags (e.g., <p>, <div>, etc.)
-	reHTML := regexp.MustCompile(`<[^>]+>`)
-	val = reHTML.ReplaceAllString(val, "")
-
-	// Keep only allowed characters: a-z, A-Z, 0-9, '"?!.,;:-_&()+\s
-	reAllowed := regexp.MustCompile(`[^a-zA-Z0-9'"?!.,;:-_&()+\s]`)
-	val = reAllowed.ReplaceAllString(val, "")
-
-	return val
-}
-
-// getWhatsappContent processes template content and attempts to parse it as JSON
-func GetWhatsappContent(template string, data map[string]interface{}) interface{} {
-	content := GetTextContent(template, data)
-
-	var result interface{}
-	if err := json.Unmarshal([]byte(content), &result); err != nil {
-		// Ignore JSON parse error, return content as-is
-		return content
-	}
-
-	return result
-}
-
-// getEmailContent reads a template file, processes it, and wraps it in a layout
-func GetEmailContent(layout, template string, data map[string]interface{}) string {
-	dirname := GetDirectoryPath()
-	content := ""
-	templatePath := ""
-	// Check if file exists in Dirname
-	if _, err := os.Stat(filepath.Join(dirname, template)); err == nil {
-		templatePath = filepath.Join(dirname, template)
-	} else if _, err := os.Stat(filepath.Join(dirname, template)); err == nil {
-		// Check if file exists in Src
-		templatePath = filepath.Join(dirname, template)
-	}
-
-	if templatePath != "" {
-		html, err := os.ReadFile(templatePath)
-		if err != nil {
-			// Log error (replace with proper logging if needed)
-			println("Error reading file:", err.Error())
-			return content
-		}
-		content = TextTemplate(string(html), data, nil)
-	}
-
-	// Assuming getEmailLayout is defined elsewhere
-	return getEmailLayout(layout, content, data)
-}
-
-// getEmailLayout processes an email layout template with content and server.Configuration data
-func getEmailLayout(layout, content string, data map[string]interface{}) string {
-	dirname := GetDirectoryPath()
-	temp := ""
-	domain := ""
-	if v, ok := data["domain"].(string); ok {
-		domain = v
-	}
-	website := GetBaseUrl("", domain) // Assuming getBaseUrl is defined elsewhere
-	logo := website + "/img/mail/@notificationId/logo.png"
-	appName := config.Config.AppName
-	year := ToTimestampString(nil, "2006") // Go uses "2006" for YYYY
-	primaryColor := "#306da7"
-	secondaryColor := "#306da7"
-	darkBackgroundColor := "#033360"
-
-	if IsNotEmpty(config.Config.Branding) {
-		if IsNotEmpty(config.Config.Branding.PrimaryColor) {
-			primaryColor = config.Config.Branding.PrimaryColor
-		}
-
-		if IsNotEmpty(config.Config.Branding.SecondaryColor) {
-			secondaryColor = config.Config.Branding.SecondaryColor
-		}
-
-		if IsNotEmpty(config.Config.Branding.DarkBackgroundColor) {
-			darkBackgroundColor = config.Config.Branding.DarkBackgroundColor
-		}
-	}
-
-	if layout != "" {
-		filePath := filepath.Join(dirname, layout)
-		if data, err := os.ReadFile(filePath); err == nil {
-			temp = string(data)
-		} else {
-			// Log error (replace with proper logging if needed)
-			println("Error reading layout file:", err.Error())
-		}
-	}
-
-	if temp == "" || strings.TrimSpace(temp) == "" {
-		if config.Config.EmailTemplate != "" {
-			filePath := filepath.Join(dirname, config.Config.EmailTemplate)
-			if data, err := os.ReadFile(filePath); err == nil {
-				temp = string(data)
-			} else {
-				// Log error (replace with proper logging if needed)
-				println("Error reading email template file:", err.Error())
-			}
-		}
-	}
-
-	if temp == "" || strings.TrimSpace(temp) == "" {
-		filePath := filepath.Join(dirname, "assets/mail/email.html")
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			// Log error (replace with proper logging if needed)
-			println("Error reading default email template:", err.Error())
-			return ""
-		}
-		temp = string(data)
-	}
-
-	htmlContent := TextTemplate(temp, map[string]interface{}{
-		"content":             content,
-		"logo":                logo,
-		"website":             website,
-		"appName":             appName,
-		"year":                year,
-		"primaryColor":        primaryColor,
-		"secondaryColor":      secondaryColor,
-		"darkBackgroundColor": darkBackgroundColor,
-	}, nil)
-
-	return htmlContent
-}
 
 // ExtractDomain extracts the domain from a URL string
 func ExtractDomain(input string) string {
@@ -2312,6 +2114,14 @@ func ExtractDomain(input string) string {
 	}
 
 	return u.Host
+}
+
+func RemoveFile(filePath string) {
+	err := os.Remove(filePath)
+
+	if err != nil {
+		console.Error("Error.removeFile", err.Error())
+	}
 }
 
 func IsProduction() bool {
@@ -2417,6 +2227,14 @@ func GenerateQRWithIcon(content string, iconPath string, outputPath interface{})
 }
 
 func ToBase64Image(filePath string) string {
+	if strings.HasPrefix(filePath, "http://") || strings.HasPrefix(filePath, "https://") {
+		fileDist := GetPath("./tmp/" + UUID() + path.Ext(filePath))
+		DownloadFile(filePath, fileDist, func(downloaded int64, total int64) {})
+		defer RemoveFile(fileDist)
+
+		filePath = fileDist
+	}
+
 	// Read file
 	data, err := os.ReadFile(filePath)
 	if err != nil {

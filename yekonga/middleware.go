@@ -83,19 +83,16 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 
 	if req.App.Config.HasTenant {
 		tenant := req.App.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
-			"domain": host,
+			"OR": []datatype.DataMap{
+				{"domain": host},
+				{"subdomain": host},
+				{"customDomain": host},
+				{"customSubdomain": host},
+			},
 		})
 
 		if helper.IsNotEmpty(tenant) {
 			tenantId = helper.GetValueOfString(tenant, "_id")
-		} else {
-			tenant = req.App.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
-				"subdomain": host,
-			})
-
-			if helper.IsNotEmpty(tenant) {
-				tenantId = helper.GetValueOfString(tenant, "_id")
-			}
 		}
 
 		if helper.IsEmpty(tenantId) && req.App.Config.TenantOnly {
@@ -183,6 +180,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	}
 	mandatoryValidToken := (!helper.Contains(ignorePaths, currentPath) &&
 		!strings.HasPrefix(currentPath, app.AppendBaseUrl("me/")) &&
+		!strings.HasPrefix(currentPath, app.AppendBaseUrl("refresh/")) &&
 		!strings.HasPrefix(currentPath, app.AppendBaseUrl("download/")) &&
 		!strings.HasPrefix(currentPath, app.AppendBaseUrl("translations/")))
 
@@ -233,7 +231,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
 			if mandatoryValidToken {
 				if !isJson {
-					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh", domain))
+					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh?redirect="+req.HttpRequest.URL.RawPath, domain))
 				}
 
 				return http.StatusUnauthorized, errors.New("Token expired")

@@ -134,6 +134,10 @@ func (y *YekongaData) initializerOtherRoutes() {
 		uploadMultipleFileHandler(*res.httpResponseWriter, req.HttpRequest)
 	})
 
+	y.All("/excel-to-csv", func(req *Request, res *Response) {
+		uploadExcelFileHandler(*res.httpResponseWriter, req.HttpRequest)
+	})
+
 	y.All("/languages", func(req *Request, res *Response) {
 		languages := []map[string]interface{}{}
 
@@ -431,6 +435,80 @@ func runCustomCSS(y *YekongaData) Handler {
 	}
 }
 
+func uploadExcelFileHandler(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/form-data") {
+		http.Error(w, "Expected multipart/form-data", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	// to account for form headers and boundaries.
+	maxUploadSize := int64(310 << 20) // ~310 MB
+	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
+
+	// 1. Parse the multipart form (max 32MB in memory)
+	err := r.ParseMultipartForm(32 << 20)
+
+	if err != nil {
+		console.Error(err.Error())
+		http.Error(w, "Form too large", http.StatusBadRequest)
+		return
+	}
+
+	// 2. Retrieve the file from form data
+	file, handler, err := r.FormFile("file")
+
+	if err != nil {
+		console.Error(err.Error())
+		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// 3. Create the destination directory if it doesn't exist
+	uploadDir := filepath.Join(helper.GetPath("public"), "uploads")
+	os.MkdirAll(uploadDir, os.ModePerm)
+
+	fileExt := filepath.Ext(handler.Filename)
+	// 4. Create a local file to save the uploaded data
+	savedFile := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
+	dst, err := os.Create(savedFile)
+	if err != nil {
+		http.Error(w, "Error saving the file", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	// 5. Copy the uploaded file to the destination
+	if _, err := io.Copy(dst, file); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fileDataPath, _ := helper.ConvertExcelToCSV(savedFile)
+	fileData := helper.ReadFile(fileDataPath)
+
+	defer helper.RemoveFile(fileDataPath)
+	defer helper.RemoveFile(savedFile)
+
+	// 1. Set the header so the client (Vue/Postman) knows it's JSON
+	w.Header().Set("Content-Type", "application/json")
+
+	// 2. Prepare your data
+	data := map[string]interface{}{
+		"status": "success",
+		"csv":    fileData,
+	}
+
+	// 4. Encode directly to the response writer
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		// If encoding fails, we can't change the header anymore,
+		// but we can log the error.
+		fmt.Println("Error encoding JSON:", err)
+		fmt.Fprintf(w, err.Error())
+	}
+}
+
 func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(contentType, "multipart/form-data") {
@@ -509,7 +587,6 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("Error encoding JSON:", err)
 		fmt.Fprintf(w, err.Error())
 	}
-
 }
 
 func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
