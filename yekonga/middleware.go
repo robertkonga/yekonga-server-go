@@ -163,6 +163,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		app.AppendBaseUrl("logout"),
 		app.AppendBaseUrl("refresh"),
 		app.AppendBaseUrl("languages"),
+		app.AppendBaseUrl("excel-to-csv"),
 		app.AppendBaseUrl("upload"),
 		app.AppendBaseUrl("upload-files"),
 		app.AppendBaseUrl("config/data"),
@@ -231,7 +232,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
 			if mandatoryValidToken {
 				if !isJson {
-					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh?redirect="+req.HttpRequest.URL.RawPath, domain))
+					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh", domain))
 				}
 
 				return http.StatusUnauthorized, errors.New("Token expired")

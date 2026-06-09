@@ -21,7 +21,7 @@ import (
 // Allowed file extensions
 var DefaultExtensions = [...]string{
 	// Web Files
-	".html", ".css", ".js",
+	".html", ".css", ".js", ".webmanifest", ".htm", ".json", ".xml", ".map",
 
 	// Image Files
 	".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
@@ -33,6 +33,17 @@ var DefaultExtensions = [...]string{
 	// documents
 	".xlsx", ".pdf", ".doc", ".text", ".txt", ".csv",
 	".docx", ".odt", ".rtf", ".md", ".xls", ".ods",
+
+	// Video Files
+	".mp4", ".webm", ".ogg", ".avi", ".mov",
+	".wmv", ".flv", ".mkv",
+
+	// Audio Files
+	".mp3", ".wav", ".ogg", ".aac", ".flac",
+	".opus", ".m4a",
+
+	// Archive Files
+	".zip", ".rar", ".tar.gz", ".7z",
 }
 
 func (y *YekongaData) initialize() {

@@ -60,6 +60,22 @@ func Logo() {
 	Info("GO \n")
 }
 
+func LogoHash() {
+	banner := `
+                                         
+   ##     ##     ##                             
+    ##   ##      ##         
+     ## ## ####  ##  ##  ###  ####   ###   ####
+      ### ##  ## ####   ## ## ## ## ## ## ## ##
+      ###  ####  ##  ##  ###  ## ##  ####  ####
+	                                  ##    `
+
+	Warn(banner, "no-line-break")
+	Info("SERVER", "no-line-break")
+	Warn(".", "no-line-break")
+	Info("GO \n")
+}
+
 func printColor(color string, args []any) {
 	count := len(args)
 	hasFormat := false

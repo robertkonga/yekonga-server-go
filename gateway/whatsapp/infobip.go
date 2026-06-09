@@ -45,17 +45,17 @@ func (i *InfobipProvider) Send(params setting.SendParams, config *config.Whatsap
 	msgType := "text"
 
 	if params.Content != nil {
-		if params.Content.Type != "" {
+		if helper.IsNotEmpty(params.Content.Type) {
 			msgType = params.Content.Type
-		} else if params.Content.Template != "" || params.Content.TemplateName != "" {
+		} else if helper.IsNotEmpty(params.Content.Content) {
 			msgType = "template"
 		}
 
 		// Build content body
-		if params.Content.Content != nil {
-			contentBody = params.Content.Content
-		} else if params.Content.TemplateName != "" {
+		if helper.IsNotEmpty(params.Content.TemplateName) {
 			contentBody = params.Content
+		} else if helper.IsNotEmpty(params.Content.Content) {
+			contentBody = params.Content.Content
 		} else if msgType == "template" {
 			placeholders := params.Content.Placeholders
 			if placeholders == nil {
@@ -118,6 +118,7 @@ func (i *InfobipProvider) Send(params setting.SendParams, config *config.Whatsap
 
 	// Make request
 	apiResponse, err := i.postJSON(url, body, apiKey)
+
 	if err != nil {
 		return &setting.SendResponse{
 			Status:  "FAILED",

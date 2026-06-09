@@ -1941,10 +1941,22 @@ func GetRequest(url string, headers map[string]string) (status int, responseBody
 }
 
 func Post(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
-	return PostRequest(url, headers, body)
+	return Request("POST", url, headers, body)
 }
 
-func PostRequest(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
+func Put(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
+	return Request("PUT", url, headers, body)
+}
+
+func Patch(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
+	return Request("PATCH", url, headers, body)
+}
+
+func Delete(url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
+	return Request("DELETE", url, headers, body)
+}
+
+func Request(method string, url string, headers map[string]string, body interface{}) (status int, responseBody string, err error) {
 	// Create a new HTTP client
 	client := &http.Client{}
 	// console.Log("PostRequest", url, headers, body)
@@ -1956,7 +1968,7 @@ func PostRequest(url string, headers map[string]string, body interface{}) (statu
 	}
 
 	// Create the request with the serialized body
-	req, err := http.NewRequest("POST", url, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequest(strings.ToUpper(method), url, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return 0, "", fmt.Errorf("error creating request: %v", err)
 	}
@@ -2098,7 +2110,6 @@ func HashRefreshToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
-
 
 // ExtractDomain extracts the domain from a URL string
 func ExtractDomain(input string) string {

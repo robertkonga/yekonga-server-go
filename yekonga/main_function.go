@@ -228,9 +228,7 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 					message = helper.GetWhatsappContent("otp", *user)
 				} else {
 					phone = username
-
 					message = helper.GetTextContent("otp", *user)
-
 				}
 			} else if helper.IsEmail(username) {
 				email = username

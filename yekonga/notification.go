@@ -171,8 +171,16 @@ func runNotificationWhatsapp(note datatype.DataMap, app *YekongaData) {
 	if helper.IsNotEmpty(phone) {
 		message.Phone = phone
 	}
+
 	if helper.IsNotEmpty(text) {
 		message.Text = text
+	}
+
+	content := helper.ToMap[any](text)
+	if helper.IsNotEmpty(content) {
+		message.Content = &setting.Content{
+			Content: content,
+		}
 	}
 
 	app.SendWhatsapp(message, nil)

@@ -58,8 +58,8 @@ func TextTemplate(templateString string, data map[string]interface{}, customPatt
 // getTextContent reads a template file and processes it with data
 func GetTextContent(templateName string, data map[string]interface{}) string {
 	content := contentFile(templateName, "text", ".text")
-
 	content = TextTemplate(content, data, nil)
+
 	// Assuming clearSpecialCharacters is defined elsewhere
 	content = ClearSpecialCharacters(content)
 
@@ -69,6 +69,7 @@ func GetTextContent(templateName string, data map[string]interface{}) string {
 // getWhatsappContent processes template content and attempts to parse it as JSON
 func GetWhatsappContent(templateName string, data map[string]interface{}) string {
 	content := contentFile(templateName, "whatsapp", ".text")
+	content = TextTemplate(content, data, nil)
 
 	var result string
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
@@ -82,7 +83,6 @@ func GetWhatsappContent(templateName string, data map[string]interface{}) string
 // getEmailContent reads a template file, processes it, and wraps it in a layout
 func GetEmailContent(layout, templateName string, data map[string]interface{}) string {
 	content := contentFile(templateName, "mail", ".html")
-
 	content = TextTemplate(content, data, nil)
 
 	if IsEmpty(layout) {
@@ -175,22 +175,21 @@ func GetEmailLayout(layout, content string, data map[string]interface{}) string 
 }
 
 func contentFile(templateName string, category string, ext string) string {
-	templateByte, err := StaticFS.ReadFile(templateName)
+	var staticPath = path.Join("static", category, templateName+ext)
+	templateByte, err := StaticFS.ReadFile(staticPath)
 
 	if err != nil {
-		// Log error (replace with proper logging if needed)
-		templateByte, err = StaticFS.ReadFile(path.Join(category, templateName, ext))
-
-		if err != nil {
-			if _, err := os.Stat(templateName); err == nil {
-				templateByte = []byte(ReadFile(GetPath(templateName)))
+		if _, err := os.Stat(templateName); err == nil {
+			// is the <templateName> is actually file path
+			templateByte = []byte(ReadFile(GetPath(templateName)))
+		} else {
+			dirname := GetDirectoryPath()
+			if _, err := os.Stat(filepath.Join(dirname, templateName)); err == nil {
+				// is the <templateName> is relative file path
+				templateByte = []byte(ReadFile(filepath.Join(dirname, templateName)))
 			} else {
-				dirname := GetDirectoryPath()
-				if _, err := os.Stat(filepath.Join(dirname, templateName)); err == nil {
-					templateByte = []byte(ReadFile(filepath.Join(dirname, templateName)))
-				} else {
-					templateByte = []byte{}
-				}
+				// the <templateName> is actually content it self
+				templateByte = []byte(templateName)
 			}
 		}
 	}

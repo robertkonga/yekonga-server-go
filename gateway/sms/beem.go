@@ -67,6 +67,7 @@ func (s *BeemProvider) Send(params setting.SendParams, config *config.SMSGateway
 
 	// Make HTTP request
 	apiResponse, err := s.postJSON(url, body, apiKey, secretKey)
+
 	if err != nil {
 		return &setting.SendResponse{
 			Status:  "FAILED",
