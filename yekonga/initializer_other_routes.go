@@ -348,10 +348,15 @@ func (y *YekongaData) initializerOtherRoutes() {
 
 			apiRoute := y.AppendBaseUrl(y.Config.Graphql.ApiRoute)
 			baseUrl := y.AppendBaseUrl("")
+			if baseUrl == "/" {
+				baseUrl = ""
+			}
+
 			data := map[string]interface{}{
 				"apiRoute": apiRoute,
 				"baseUrl":  baseUrl,
 			}
+			console.Log("data", y.Config.BaseUrl, data)
 			html = helper.TextTemplate(html, data, nil)
 
 			res.Html(html)
