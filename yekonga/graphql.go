@@ -599,9 +599,9 @@ func (g *GraphqlAutoBuild) getQueryDownloadField(collection string, foreignKey s
 					listData = helper.GetMapValue(result, "data.list")
 				}
 
-				// keysOrder := []string{}
-				keysOrder, _ := helper.ExtractKeysInOrder(downloadQuery)
-				// console.Success("keysOrder", keysOrder)
+				keysOrder := []string{}
+				// keysOrder, _ := helper.ExtractKeysInOrder(downloadQuery)
+				// console.Success("flatKeys", flatKeys)
 
 				if listData != nil {
 					filename := ""

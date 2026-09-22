@@ -62,6 +62,8 @@ func ConvertJSONArrayToDataArray(jsonData interface{}, headingColumns []string, 
 		flatKeys = append(flatKeys, "customFormValues")
 	}
 
+	// console.Log("=== flatKeys", flatKeys)
+
 	dataSize := len(records)
 	headingColumnsNames := []string{}
 	result := make([][]string, 0, dataSize)

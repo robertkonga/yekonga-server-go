@@ -119,34 +119,30 @@ func ConvertJSONArrayToListDataArray(records []datatype.DataMap, headingColumns 
 func FlattenSpecialKeys(record datatype.DataMap, extraOnly bool, flatKeys []string) datatype.DataMap {
 	var flat datatype.DataMap
 
-	if extraOnly {
-		flat = make(datatype.DataMap, 0)
-	} else {
-		flat = make(datatype.DataMap, len(record))
+	flat = make(datatype.DataMap, len(record))
 
-		// Copy so we don't mutate the original record
-		for k, v := range record {
-			items, ok := v.([]interface{})
-			isCustomForm := false
+	// Copy so we don't mutate the original record
+	for k, v := range record {
+		items, ok := v.([]interface{})
+		isCustomForm := false
 
-			if ok {
-				if len(items) > 0 {
-					for _, item := range items {
-						label := GetValueOfString(item, "customForm.label")
-						value := GetValueOf(item, "value")
+		if ok && Contains(flatKeys, k) {
+			if len(items) > 0 {
+				for _, item := range items {
+					label := GetValueOfString(item, "customForm.label")
+					value := GetValueOf(item, "value")
 
-						if label == "" {
-							continue
-						}
-
-						flat[fmt.Sprintf("%s.%s", k, label)] = value
-						isCustomForm = true
+					if label == "" {
+						continue
 					}
+
+					flat[fmt.Sprintf("%s.%s", k, label)] = value
+					isCustomForm = true
 				}
 			}
-			if !isCustomForm {
-				flat[k] = v
-			}
+		}
+		if !isCustomForm && !extraOnly {
+			flat[k] = v
 		}
 	}
 
