@@ -10,7 +10,6 @@ import (
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 type RequestContext struct {
@@ -91,134 +90,15 @@ func (a *AuthPayload) ToJson() string {
 	return string(result)
 }
 
-type AuditTrailChanges struct {
+// AuditTrailChange is one recorded data change (create/update/delete),
+// collected on the request and flushed in a single batch once the request ends.
+type AuditTrailChange struct {
 	Action     string
-	DocumentId string
 	Collection string
 	Model      string
-	NewValues  map[string]interface{}
-	OldValues  map[string]interface{}
-}
-
-func NewDataAuditTrail(request *RequestContext) *DataAuditTrails {
-	return &DataAuditTrails{
-		App:       request.App,
-		TenantId:  request.Request.TenantId(),
-		UserId:    request.TokenPayload.UserId,
-		ProfileId: request.TokenPayload.UserId,
-		AdminId:   request.TokenPayload.AdminId,
-		Changes:   make(map[string]AuditTrailChanges),
-	}
-}
-
-type DataAuditTrails struct {
-	App       *YekongaData
-	TenantId  interface{}
-	UserId    string
-	ProfileId string
-	AdminId   string
-
-	UsernameType string
-	Username     string
-
-	ClientOrigin    string
-	ClientHost      string
-	ClientPort      string
-	ClientProto     string
-	ClientPath      string
-	ClientMethod    string
-	ClientBrowser   string
-	ClientUserAgent string
-	ClientIpAddress string
-
-	Changes   map[string]AuditTrailChanges
-	Timestamp time.Time
-}
-
-func (a *DataAuditTrails) ToMap() map[string]interface{} {
-	result := map[string]interface{}{
-		"tenantId":        a.TenantId,
-		"userId":          a.UserId,
-		"profileId":       a.ProfileId,
-		"adminId":         a.AdminId,
-		"usernameType":    a.UsernameType,
-		"username":        a.Username,
-		"clientOrigin":    a.ClientOrigin,
-		"clientHost":      a.ClientHost,
-		"clientPort":      a.ClientPort,
-		"clientProto":     a.ClientProto,
-		"clientPath":      a.ClientPath,
-		"clientMethod":    a.ClientMethod,
-		"clientBrowser":   a.ClientBrowser,
-		"clientUserAgent": a.ClientUserAgent,
-		"clientIpAddress": a.ClientIpAddress,
-		"changes":         a.Changes,
-		"timestamp":       a.Timestamp,
-	}
-
-	return result
-}
-
-func (a *DataAuditTrails) Append(model *DataModel, action string, documentId string, newValues map[string]interface{}) {
-	// Implement logging logic here, e.g., save to database or write to a file
-
-	for model, value := range a.Changes {
-		a.App.ModelQuery("AuditTrail").Create(datatype.DataMap{
-			"tenantId":        a.TenantId,
-			"userId":          a.UserId,
-			"profileId":       a.ProfileId,
-			"adminId":         a.AdminId,
-			"usernameType":    a.UsernameType,
-			"username":        a.Username,
-			"model":           model,
-			"action":          value.Action,
-			"documentId":      value.DocumentId,
-			"oldValues":       value.OldValues,
-			"newValues":       value.NewValues,
-			"clientOrigin":    a.ClientOrigin,
-			"clientHost":      a.ClientHost,
-			"clientPort":      a.ClientPort,
-			"clientProto":     a.ClientProto,
-			"clientPath":      a.ClientPath,
-			"clientMethod":    a.ClientMethod,
-			"clientBrowser":   a.ClientBrowser,
-			"clientUserAgent": a.ClientUserAgent,
-			"clientIpAddress": a.ClientIpAddress,
-		})
-	}
-
-}
-
-func (a *DataAuditTrails) Log() {
-	// Implement logging logic here, e.g., save to database or write to a file
-	console.Log("DataAuditTrails", "Audit Trail: %v", a.ToMap())
-
-	for model, value := range a.Changes {
-		a.App.ModelQuery("AuditTrail").Create(datatype.DataMap{
-			"tenantId":        a.TenantId,
-			"userId":          a.UserId,
-			"profileId":       a.ProfileId,
-			"adminId":         a.AdminId,
-			"usernameType":    a.UsernameType,
-			"username":        a.Username,
-			"model":           model,
-			"collection":      value.Collection,
-			"action":          value.Action,
-			"documentId":      value.DocumentId,
-			"oldValues":       value.OldValues,
-			"newValues":       value.NewValues,
-			"clientOrigin":    a.ClientOrigin,
-			"clientHost":      a.ClientHost,
-			"clientPort":      a.ClientPort,
-			"clientProto":     a.ClientProto,
-			"clientPath":      a.ClientPath,
-			"clientMethod":    a.ClientMethod,
-			"clientBrowser":   a.ClientBrowser,
-			"clientUserAgent": a.ClientUserAgent,
-			"clientIpAddress": a.ClientIpAddress,
-			"timestamp":       a.Timestamp,
-		})
-	}
+	DocumentId string
+	OldValues  datatype.DataMap
+	NewValues  datatype.DataMap
 }
 
 type TokenPayload struct {
@@ -315,6 +195,7 @@ type Request struct {
 	next          func(Request, Response)
 	mut           sync.RWMutex
 	App           *YekongaData
+	auditChanges  []AuditTrailChange
 }
 
 // Request methods
@@ -336,6 +217,26 @@ func (r *Request) GetContext(key string) interface{} {
 	}
 
 	return r.Context[key]
+}
+
+// AddAuditChange records one data change made during this request, to be
+// flushed as a single batch to the AuditTrail collection once the request ends.
+func (r *Request) AddAuditChange(change AuditTrailChange) {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+
+	r.auditChanges = append(r.auditChanges, change)
+}
+
+// AuditChanges returns a copy of the data changes collected so far on this request.
+func (r *Request) AuditChanges() []AuditTrailChange {
+	r.mut.RLock()
+	defer r.mut.RUnlock()
+
+	changes := make([]AuditTrailChange, len(r.auditChanges))
+	copy(changes, r.auditChanges)
+
+	return changes
 }
 
 // Request methods

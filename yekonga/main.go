@@ -173,6 +173,55 @@ func (y *YekongaData) ModelQuery(name string) *DataModelQuery {
 	return nil
 }
 
+// flushAuditTrail persists every data change collected on this request as a
+// single batch, once the request has finished. It runs off the request's
+// goroutine so it never delays the response.
+func (y *YekongaData) flushAuditTrail(req *Request) {
+	if !y.Config.AuditTrail.Enabled {
+		return
+	}
+
+	changes := req.AuditChanges()
+	if len(changes) == 0 {
+		return
+	}
+
+	auth := req.Auth()
+	client := req.Client()
+
+	go func() {
+		auditModel := y.ModelQuery("AuditTrail")
+		if auditModel == nil {
+			return
+		}
+
+		for _, change := range changes {
+			data := datatype.DataMap{
+				"action":     change.Action,
+				"collection": change.Collection,
+				"model":      change.Model,
+				"documentId": change.DocumentId,
+				"oldValues":  change.OldValues,
+				"newValues":  change.NewValues,
+			}
+
+			if auth != nil {
+				data["tenantId"] = auth.TenantID
+				data["profileId"] = auth.ProfileID
+				data["userId"] = auth.UserId
+			}
+
+			if client != nil {
+				data["ipAddress"] = client.IpAddress
+				data["userAgent"] = client.UserAgent
+				data["browser"] = client.UserAgent
+			}
+
+			auditModel.SkipBeforeCommit().Create(data)
+		}
+	}()
+}
+
 func (y *YekongaData) HomeDirectory() string {
 	return helper.HomeDirectory(helper.ToSlug(y.Config.AppName))
 }
@@ -665,6 +714,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("connection", "keep-alive")
 
 	defer res.Close()
+	defer y.flushAuditTrail(&req)
 
 	// Apply middlewares
 	status, err = MasterKeyMiddleware(&req, &res)

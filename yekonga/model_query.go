@@ -354,6 +354,10 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		result = &v
 	}
 
+	if result != nil {
+		m.recordAuditChange("create", m.auditDocumentId(*result), nil, *result)
+	}
+
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
 		"action": "create",
 		"model":  m.Model.Name,
@@ -382,6 +386,11 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		}
 	}
 
+	var auditOldValue *datatype.DataMap
+	if m.auditEnabled() {
+		auditOldValue = m.collection().findOne()
+	}
+
 	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
 
 	if err != nil {
@@ -399,6 +408,14 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	if helper.IsMap(triggerAfter) {
 		v := helper.ToDataMap(triggerAfter)
 		result = &v
+	}
+
+	if result != nil {
+		var oldValues datatype.DataMap
+		if auditOldValue != nil {
+			oldValues = *auditOldValue
+		}
+		m.recordAuditChange("update", m.auditDocumentId(*result), oldValues, *result)
 	}
 
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
@@ -429,6 +446,11 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 		}
 	}
 
+	var auditOldValues *[]datatype.DataMap
+	if m.auditEnabled() {
+		auditOldValues = m.collection().find()
+	}
+
 	result, err := m.collection().updateMany(*(m.formatInputData(data, UpdateInputAction)))
 
 	if err != nil {
@@ -446,6 +468,20 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 	if helper.IsArray(triggerAfter) {
 		v := helper.ToDataMapList(triggerAfter)
 		result = &v
+	}
+
+	if result != nil {
+		oldValuesById := make(map[string]datatype.DataMap)
+		if auditOldValues != nil {
+			for _, old := range *auditOldValues {
+				oldValuesById[m.auditDocumentId(old)] = old
+			}
+		}
+
+		for _, doc := range *result {
+			id := m.auditDocumentId(doc)
+			m.recordAuditChange("update", id, oldValuesById[id], doc)
+		}
 	}
 
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
@@ -633,6 +669,11 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 			m.WhereAll(helper.ToDataMap(triggerBefore))
 		}
 	}
+	var auditOldValues *[]datatype.DataMap
+	if m.auditEnabled() {
+		auditOldValues = m.collection().find()
+	}
+
 	result, err := m.collection().delete()
 
 	if err != nil {
@@ -647,6 +688,12 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	triggerAfter = m.runTriggerAction(AfterDeleteTriggerAction, result)
 	if helper.IsMap(triggerAfter) {
 		result = helper.ToDataMap(triggerAfter)
+	}
+
+	if auditOldValues != nil {
+		for _, old := range *auditOldValues {
+			m.recordAuditChange("delete", m.auditDocumentId(old), old, nil)
+		}
 	}
 
 	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
@@ -1328,6 +1375,56 @@ func (m *DataModelQuery) getTenantId() interface{} {
 	}
 
 	return tenantId
+}
+
+// auditEnabled reports whether this write should be recorded on the audit trail:
+// audit trail must be enabled, the query must run within a request, and the
+// AuditTrail model itself is always excluded to avoid auditing its own writes.
+func (m *DataModelQuery) auditEnabled() bool {
+	if m.RequestContext == nil || m.RequestContext.Request == nil {
+		return false
+	}
+
+	if !m.Model.App.Config.AuditTrail.Enabled || m.Model.Name == "AuditTrail" {
+		return false
+	}
+
+	for _, excluded := range m.Model.App.Config.AuditTrail.ExcludeModels {
+		if excluded == m.Model.Name {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (m *DataModelQuery) auditDocumentId(data datatype.DataMap) string {
+	if data == nil {
+		return ""
+	}
+
+	if id := data[m.Model.PrimaryName]; helper.IsNotEmpty(id) {
+		return helper.ToString(id)
+	}
+
+	return helper.ToString(data["id"])
+}
+
+// recordAuditChange buffers one data change on the current request; it is
+// flushed as a single batch to the AuditTrail collection once the request ends.
+func (m *DataModelQuery) recordAuditChange(action string, documentId string, oldValues, newValues datatype.DataMap) {
+	if !m.auditEnabled() {
+		return
+	}
+
+	m.RequestContext.Request.AddAuditChange(AuditTrailChange{
+		Action:     action,
+		Collection: m.Model.Collection,
+		Model:      m.Model.Name,
+		DocumentId: documentId,
+		OldValues:  oldValues,
+		NewValues:  newValues,
+	})
 }
 
 func (m *DataModelQuery) collection() dataModelQueryStructure {

@@ -137,6 +137,10 @@ type YekongaConfig struct {
 			Account interface{} `json:"account"` // Account-related queries
 		}
 	}
+	AuditTrail struct { // Audit trail configuration
+		Enabled       bool     `json:"enabled"`       // Enable or disable audit trail recording
+		ExcludeModels []string `json:"excludeModels"` // Model names to exclude from audit trail recording
+	}
 	Database struct { // Database configuration
 		Kind             DatabaseType `json:"kind"`             // Type of database (e.g., mongodb, sql, mysql, local)
 		Srv              bool         `json:"srv"`              // Enable SRV record lookup for MongoDB
