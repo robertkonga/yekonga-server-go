@@ -639,12 +639,12 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 		return err
 	}
 
-	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
+	triggerAfter := m.runTriggerAction(AfterDeleteTriggerAllAction, result)
 	if helper.IsMap(triggerAfter) {
 		result = helper.ToDataMap(triggerAfter)
 	}
 
-	triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, result)
+	triggerAfter = m.runTriggerAction(AfterDeleteTriggerAction, result)
 	if helper.IsMap(triggerAfter) {
 		result = helper.ToDataMap(triggerAfter)
 	}
