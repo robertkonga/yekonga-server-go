@@ -80,6 +80,10 @@ type YekongaData struct {
 	cronjob                *Cronjob
 	mut                    sync.RWMutex
 	publicRoutes           []string
+	rateLimiter            *rateLimiterStore
+	rateLimiterOnce        sync.Once
+	notFoundGuard          *notFoundGuard
+	notFoundGuardOnce      sync.Once
 
 	Config   *mainConfig.YekongaConfig
 	RootPath string
@@ -633,12 +637,25 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var status int
 	var rawBody interface{}
 
+	// Block sources that have tripped the not-found guard (too many 404s per
+	// second, i.e. a path-scanning bot) before doing anything else at all,
+	// including static file lookups.
+	if !y.checkNotFoundBlock(w, r) {
+		return
+	}
+
 	// Check for static file requests first
 	// console.Info("Static file request:", r.URL.Path)
 	if y.isStaticPath(r.URL.Path) {
 		if y.handleStaticFile(w, r) {
 			return
 		}
+	}
+
+	// Reject over-budget clients before doing any request parsing, so an
+	// abusive client can't burn CPU/memory on multipart or JSON decoding.
+	if !y.checkRateLimit(w, r) {
+		return
 	}
 
 	origin := "*"
@@ -659,7 +676,10 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// to account for form headers and boundaries.
-	maxUploadSize := int64(310 << 20) // ~310 MB
+	maxUploadSize := y.Config.Security.MaxBodyBytes
+	if maxUploadSize <= 0 {
+		maxUploadSize = int64(310 << 20) // ~310 MB
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
 	// 1. Parse the multipart form (max 32MB in memory)
@@ -815,6 +835,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			textPage = []byte("Welcome to Yekonga Server")
 			htmlPage, err = StaticFS.ReadFile("static/index.html")
 		} else {
+			y.recordNotFound(r)
 			w.WriteHeader(http.StatusNotFound)
 			textPage = []byte("404 Page Not Found")
 			htmlPage, err = StaticFS.ReadFile("static/404.html")
@@ -869,24 +890,79 @@ func (y *YekongaData) Start(address interface{}) {
 	logRunningServer(serverPort, y.Config.Ports.Secure)
 	y.runWhenReady()
 
+	httpServer := y.newHTTPServer(serverPort)
+
 	if y.Config.Ports.Secure {
 		go func() {
 			httpMux := http.NewServeMux()
 			httpMux.HandleFunc("/", redirectToHTTPS)
 
-			err := http.ListenAndServe(":"+fmt.Sprint(y.Config.Ports.Server), httpMux)
+			redirectServer := y.newHTTPServer(":" + fmt.Sprint(y.Config.Ports.Server))
+			redirectServer.Handler = httpMux
+
+			err := redirectServer.ListenAndServe()
 			if err != nil {
 				fmt.Println("HTTP server error:", err)
 			}
 		}()
 
-		if err := http.ListenAndServeTLS(serverPort, "certificate/cert.pem", "certificate/key.pem", y); err != nil {
+		if err := httpServer.ListenAndServeTLS("certificate/cert.pem", "certificate/key.pem"); err != nil {
 			logger.Error("Error starting https server", err)
 		}
 	} else {
-		if err := http.ListenAndServe(serverPort, y); err != nil {
+		if err := httpServer.ListenAndServe(); err != nil {
 			logger.Error("Error starting server", err)
 		}
+	}
+}
+
+// newHTTPServer builds an *http.Server with explicit timeouts and header size
+// limits so a slow or abusive client can't hold a connection open indefinitely
+// (Slowloris-style resource exhaustion). Values come from config.Security.
+//
+// ReadHeaderTimeout and IdleTimeout default to safe non-zero values because
+// no legitimate client has a reason to trickle in headers or sit idle between
+// requests. ReadTimeout and WriteTimeout default to 0 (no limit, matching the
+// server's previous behavior) because this framework allows request bodies up
+// to ~310MB (see config.Security.MaxBodyBytes) and can stream large exports
+// (CSV/Excel/PDF) back to the client — a blanket deadline there would cut off
+// legitimate slow-network uploads/downloads along with abusive ones. Set them
+// explicitly in config.json once you know the real traffic profile, or handle
+// slow-read/slow-write protection at a reverse proxy in front of this server.
+func (y *YekongaData) newHTTPServer(addr string) *http.Server {
+	sec := y.Config.Security
+
+	var readTimeout, writeTimeout time.Duration
+	if sec.ReadTimeoutSeconds > 0 {
+		readTimeout = time.Duration(sec.ReadTimeoutSeconds) * time.Second
+	}
+	if sec.WriteTimeoutSeconds > 0 {
+		writeTimeout = time.Duration(sec.WriteTimeoutSeconds) * time.Second
+	}
+
+	readHeaderTimeout := 5 * time.Second
+	if sec.ReadHeaderTimeoutSeconds > 0 {
+		readHeaderTimeout = time.Duration(sec.ReadHeaderTimeoutSeconds) * time.Second
+	}
+
+	idleTimeout := 60 * time.Second
+	if sec.IdleTimeoutSeconds > 0 {
+		idleTimeout = time.Duration(sec.IdleTimeoutSeconds) * time.Second
+	}
+
+	maxHeaderBytes := sec.MaxHeaderBytes
+	if maxHeaderBytes <= 0 {
+		maxHeaderBytes = http.DefaultMaxHeaderBytes // 1 MB
+	}
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           y,
+		ReadTimeout:       readTimeout,
+		ReadHeaderTimeout: readHeaderTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+		MaxHeaderBytes:    maxHeaderBytes,
 	}
 }
 

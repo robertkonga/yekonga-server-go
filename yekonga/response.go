@@ -61,6 +61,10 @@ func (res *Response) WriteHeader(statusCode int) {
 func (res *Response) Abort(code int, message string) {
 	var contentUrl string
 
+	if code == http.StatusNotFound && res.request != nil && res.request.App != nil {
+		res.request.App.recordNotFound(res.request.HttpRequest)
+	}
+
 	isJson := (strings.Contains(res.request.GetHeader("content-type"), "json"))
 
 	if !isJson {

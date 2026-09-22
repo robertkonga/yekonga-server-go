@@ -141,6 +141,25 @@ type YekongaConfig struct {
 		Enabled       bool     `json:"enabled"`       // Enable or disable audit trail recording
 		ExcludeModels []string `json:"excludeModels"` // Model names to exclude from audit trail recording
 	}
+	Security struct { // Protection against volumetric/resource-exhaustion attacks
+		ReadTimeoutSeconds       int      `json:"readTimeoutSeconds"`       // Max seconds to read the full request (headers+body); 0 = no limit (default, since uploads can be large)
+		ReadHeaderTimeoutSeconds int      `json:"readHeaderTimeoutSeconds"` // Max seconds to read request headers; 0 = default (5s) — safe to leave on, headers are always small
+		WriteTimeoutSeconds      int      `json:"writeTimeoutSeconds"`      // Max seconds to write the response; 0 = no limit (default, since exports/PDFs can be large)
+		IdleTimeoutSeconds       int      `json:"idleTimeoutSeconds"`       // Max seconds an idle keep-alive connection stays open; 0 = default (60s)
+		MaxHeaderBytes           int      `json:"maxHeaderBytes"`           // Max size of request headers in bytes; 0 = default (1MB, Go's stdlib default)
+		MaxBodyBytes             int64    `json:"maxBodyBytes"`             // Max request body size in bytes; 0 = default (310MB)
+		TrustProxyHeaders        bool     `json:"trustProxyHeaders"`        // Trust X-Forwarded-For/X-Real-Ip to identify clients for rate limiting and the not-found guard (only enable behind a trusted reverse proxy)
+		RateLimit                struct { // Per-client request throttling
+			Enabled           bool `json:"enabled"`           // Enable or disable rate limiting
+			RequestsPerMinute int  `json:"requestsPerMinute"` // Sustained requests allowed per client per minute; 0 = default (300)
+			Burst             int  `json:"burst"`             // Extra burst capacity above the sustained rate; 0 = defaults to requestsPerMinute
+		} `json:"rateLimit"`
+		NotFoundGuard struct { // Blocks clients that flood the server with requests to non-existent routes (path-scanning bots)
+			Enabled           bool `json:"enabled"`           // Enable or disable the not-found guard
+			RequestsPerSecond int  `json:"requestsPerSecond"` // Max 404 responses allowed per client per second before blocking; 0 = default (20)
+			BlockHours        int  `json:"blockHours"`        // How long to block a source once tripped; 0 = default (24)
+		} `json:"notFoundGuard"`
+	}
 	Database struct { // Database configuration
 		Kind             DatabaseType `json:"kind"`             // Type of database (e.g., mongodb, sql, mysql, local)
 		Srv              bool         `json:"srv"`              // Enable SRV record lookup for MongoDB
