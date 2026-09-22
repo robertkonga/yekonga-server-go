@@ -887,7 +887,7 @@ func (y *YekongaData) getRefreshToken(client ClientPayload, payload TokenPayload
 
 	refreshTokenExpireTime := y.Config.RefreshTokenExpireTime
 	if refreshTokenExpireTime <= 0 {
-		refreshTokenExpireTime = 7 // default 30 days
+		refreshTokenExpireTime = 7 // default 7 days
 	}
 
 	var days time.Duration = refreshTokenExpireTime
