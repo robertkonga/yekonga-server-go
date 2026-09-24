@@ -146,6 +146,10 @@ func (y *YekongaData) checkRateLimit(w http.ResponseWriter, r *http.Request) boo
 		return true
 	}
 
+	if y.isIPWhitelisted(r) {
+		return true
+	}
+
 	y.rateLimiterOnce.Do(func() {
 		rpm := y.Config.Security.RateLimit.RequestsPerMinute
 		if rpm <= 0 {

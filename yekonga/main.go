@@ -82,8 +82,10 @@ type YekongaData struct {
 	publicRoutes           []string
 	rateLimiter            *rateLimiterStore
 	rateLimiterOnce        sync.Once
-	notFoundGuard          *notFoundGuard
-	notFoundGuardOnce      sync.Once
+	errorGuard             *errorGuard
+	errorGuardOnce         sync.Once
+	ipWhitelist            *ipWhitelistStore
+	ipWhitelistOnce        sync.Once
 
 	Config   *mainConfig.YekongaConfig
 	RootPath string
@@ -637,10 +639,10 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var status int
 	var rawBody interface{}
 
-	// Block sources that have tripped the not-found guard (too many 404s per
-	// second, i.e. a path-scanning bot) before doing anything else at all,
-	// including static file lookups.
-	if !y.checkNotFoundBlock(w, r) {
+	// Block sources that have tripped the error guard (too many 400/401/403/404
+	// responses per second, i.e. scanning, brute-forcing, or enumeration)
+	// before doing anything else at all, including static file lookups.
+	if !y.checkErrorGuardBlock(w, r) {
 		return
 	}
 
@@ -835,7 +837,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			textPage = []byte("Welcome to Yekonga Server")
 			htmlPage, err = StaticFS.ReadFile("static/index.html")
 		} else {
-			y.recordNotFound(r)
+			y.recordErrorResponse(&req, http.StatusNotFound)
 			w.WriteHeader(http.StatusNotFound)
 			textPage = []byte("404 Page Not Found")
 			htmlPage, err = StaticFS.ReadFile("static/404.html")

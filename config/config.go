@@ -148,17 +148,18 @@ type YekongaConfig struct {
 		IdleTimeoutSeconds       int      `json:"idleTimeoutSeconds"`       // Max seconds an idle keep-alive connection stays open; 0 = default (60s)
 		MaxHeaderBytes           int      `json:"maxHeaderBytes"`           // Max size of request headers in bytes; 0 = default (1MB, Go's stdlib default)
 		MaxBodyBytes             int64    `json:"maxBodyBytes"`             // Max request body size in bytes; 0 = default (310MB)
-		TrustProxyHeaders        bool     `json:"trustProxyHeaders"`        // Trust X-Forwarded-For/X-Real-Ip to identify clients for rate limiting and the not-found guard (only enable behind a trusted reverse proxy)
+		TrustProxyHeaders        bool     `json:"trustProxyHeaders"`        // Trust X-Forwarded-For/X-Real-Ip to identify clients for rate limiting and the error guard (only enable behind a trusted reverse proxy)
 		RateLimit                struct { // Per-client request throttling
 			Enabled           bool `json:"enabled"`           // Enable or disable rate limiting
 			RequestsPerMinute int  `json:"requestsPerMinute"` // Sustained requests allowed per client per minute; 0 = default (300)
 			Burst             int  `json:"burst"`             // Extra burst capacity above the sustained rate; 0 = defaults to requestsPerMinute
 		} `json:"rateLimit"`
-		NotFoundGuard struct { // Blocks clients that flood the server with requests to non-existent routes (path-scanning bots)
-			Enabled           bool `json:"enabled"`           // Enable or disable the not-found guard
-			RequestsPerSecond int  `json:"requestsPerSecond"` // Max 404 responses allowed per client per second before blocking; 0 = default (20)
-			BlockHours        int  `json:"blockHours"`        // How long to block a source once tripped; 0 = default (24)
-		} `json:"notFoundGuard"`
+		ErrorGuard struct { // Blocks clients that flood the server with error responses (400/401/403/404/etc — scanning, brute-force, enumeration)
+			Enabled           bool  `json:"enabled"`           // Enable or disable the error guard
+			StatusCodes       []int `json:"statusCodes"`       // Status codes counted as abuse; empty = default ([400, 401, 403, 404])
+			RequestsPerSecond int   `json:"requestsPerSecond"` // Max tracked error responses allowed per client per second before blocking; 0 = default (20)
+			BlockHours        int   `json:"blockHours"`        // How long to block a source once tripped; 0 = permanent (default, a trip is treated as an attack); set to fall back to a timed block instead
+		} `json:"errorGuard"`
 	}
 	Database struct { // Database configuration
 		Kind             DatabaseType `json:"kind"`             // Type of database (e.g., mongodb, sql, mysql, local)

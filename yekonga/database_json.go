@@ -430,6 +430,22 @@ var DefaultExtraDatabaseStructure DatabaseStructure = DatabaseStructure{
 		"userAgent":  {Kind: "String", DefaultValue: nil, Required: false},
 		"createdAt":  {Kind: "Date", DefaultValue: "now", Required: false},
 	},
+	"IpAccessRules": map[string]CollectionFieldConfig{
+		"id":        {Kind: "ID", DefaultValue: nil, Required: false},
+		"tenantId":  {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
+		"ipAddress": {Kind: "String", DefaultValue: nil, Required: true},
+		"type":      {Kind: "String", DefaultValue: "blacklist", Required: false, Options: []string{"whitelist", "blacklist"}},
+		"reason":    {Kind: "String", DefaultValue: nil, Required: false},
+		"source":    {Kind: "String", DefaultValue: "manual", Required: false, Options: []string{"manual", "errorGuard"}},
+		// Snapshot of the request that tripped an errorGuard block, kept for
+		// investigation — which endpoint was being hit, and with what.
+		"url":       {Kind: "String", DefaultValue: nil, Required: false},
+		"method":    {Kind: "String", DefaultValue: nil, Required: false},
+		"headers":   {Kind: "Any", DefaultValue: nil, Required: false},
+		"body":      {Kind: "Any", DefaultValue: nil, Required: false},
+		"expiresAt": {Kind: "Date", DefaultValue: nil, Required: false}, // null = permanent
+		"createdAt": {Kind: "Date", DefaultValue: "now", Required: false},
+	},
 	"Reports": map[string]CollectionFieldConfig{
 		"id":          {Kind: "ID", DefaultValue: nil, Required: false},
 		"tenantId":    {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
