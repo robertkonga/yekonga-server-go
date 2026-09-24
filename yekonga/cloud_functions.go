@@ -78,6 +78,7 @@ const (
 	SendSMSCloudFunctionKey      PrimaryCloudKey = "__SendSMS__"
 	SendEmailCloudFunctionKey    PrimaryCloudKey = "__SendEmail__"
 	SendWhatsappCloudFunctionKey PrimaryCloudKey = "__SendWhatsapp__"
+	PaymentCloudFunctionKey      PrimaryCloudKey = "__Payment__"
 )
 
 // AddCloudFunction registers a new cloud function

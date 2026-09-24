@@ -37,6 +37,19 @@ type WhatsappGatewayConfig struct { // WhatsApp gateway configuration
 	APIKey   string          `json:"apiKey"`   // API key for authentication
 }
 
+type PaymentProviderConfig struct { // One payment gateway (see gateway/payment Key* constants for credential names)
+	Provider    string            `json:"provider"`    // Gateway name (flutterwave, paypal, pesapal, selcom, clickpesa, azampay, stripe, twocheckout)
+	Sandbox     bool              `json:"sandbox"`     // Use the gateway's test environment
+	BaseURL     string            `json:"baseURL"`     // Overrides the gateway's built-in endpoint
+	WebhookURL  string            `json:"webhookURL"`  // Notification URL sent to the gateway; empty = derived from the request host and webhookRoute
+	Credentials map[string]string `json:"credentials"` // Gateway credentials keyed by payment.Key* names (secret_key, client_id, ...)
+}
+
+type PaymentGatewayConfig struct { // Payment gateway configuration
+	WebhookRoute string                  `json:"webhookRoute"` // Route prefix for provider notifications, served as <webhookRoute>/:provider; empty = /payment/webhook
+	Providers    []PaymentProviderConfig `json:"providers"`    // Enabled payment gateways
+}
+
 // SMTPConfig holds SMTP configuration
 type SMTPConfig struct {
 	Service  string `json:"service"`  // SMTP service provider
@@ -193,6 +206,7 @@ type YekongaConfig struct {
 	ApiGateway struct { // API Gateway configuration for external services
 		SMS      SMSGatewayConfig      `json:"sms"`      // SMS gateway configuration
 		Whatsapp WhatsappGatewayConfig `json:"whatsapp"` // WhatsApp gateway configuration
+		Payment  PaymentGatewayConfig  `json:"payment"`  // Payment gateway configuration
 	}
 	AdminCredential struct { // Admin user credentials
 		Username interface{} `json:"username"` // Admin username

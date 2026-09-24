@@ -81,6 +81,7 @@ func (y *YekongaData) initialize() {
 	}
 
 	y.initializerSocketRoutes()
+	y.initializePaymentRoutes()
 
 	for _, public := range y.Config.Public {
 		if strings.HasPrefix(public, "/") {

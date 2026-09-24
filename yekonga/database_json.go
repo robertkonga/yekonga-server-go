@@ -31,6 +31,7 @@ var DefaultTenantDatabaseStructure DatabaseStructure = DatabaseStructure{
 		"smtp":              {Kind: "Any", DefaultValue: nil, Required: false},
 		"sms":               {Kind: "Any", DefaultValue: nil, Required: false},
 		"whatsapp":          {Kind: "Any", DefaultValue: nil, Required: false},
+		"payment":           {Kind: "Any", DefaultValue: nil, Required: false}, // {"providers": [...]}, same shape as config apiGateway.payment; overrides the defaults per provider
 		"publicCanRegister": {Kind: "Boolean", DefaultValue: false, Required: false},
 		"hasMembership":     {Kind: "Boolean", DefaultValue: false, Required: false},
 		"otherConfig":       {Kind: "Any", DefaultValue: nil, Required: false},

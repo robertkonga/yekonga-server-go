@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/robertkonga/yekonga-server-go/config"
+	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/gateway"
+	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/gateway/setting"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/console"
@@ -129,4 +131,43 @@ func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.Whats
 	result, err := provider.Send(data, config)
 
 	return result, err
+}
+
+// PaymentWebhookData is what a SetPaymentWebhook function receives.
+type PaymentWebhookData struct {
+	Event   *payment.WebhookEvent // authenticated notification; Event.Success reports a settled payment
+	Payment *datatype.DataMap     // Payment record after the webhook was applied; nil when none matches or the event carries no payment state
+	Request *Request
+}
+
+// SetPaymentWebhook registers a function that runs for every authenticated
+// payment webhook, after the Payment record has been updated. It receives a
+// *PaymentWebhookData. Returning an error answers the gateway with 500 so it
+// retries; the retry calls the function again, so it must be idempotent.
+func (y *YekongaData) SetPaymentWebhook(fn BackendCloudFunction) error {
+	y.mut.Lock()
+	defer y.mut.Unlock()
+
+	if _, exists := y.primaryFunctions[PaymentCloudFunctionKey]; exists {
+		return fmt.Errorf("cloud function %s already exists", PaymentCloudFunctionKey)
+	}
+
+	y.primaryFunctions[PaymentCloudFunctionKey] = fn
+	logger.Error("Registered cloud function", PaymentCloudFunctionKey)
+	return nil
+}
+
+// PaymentWebhook runs the function registered with SetPaymentWebhook, if any.
+func (y *YekongaData) PaymentWebhook(data *PaymentWebhookData) error {
+	y.mut.RLock()
+	fun, exists := y.primaryFunctions[PaymentCloudFunctionKey]
+	y.mut.RUnlock()
+
+	if !exists {
+		return nil
+	}
+
+	_, err := fun(data)
+
+	return err
 }

@@ -324,6 +324,12 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 }
 
 func ApplicationIDMiddleware(req *Request, res *Response) (int, error) {
+	// Payment gateways can't send the application key; their webhooks are
+	// authenticated by the provider's own signature check instead.
+	if req.App.isPaymentWebhookPath(req.HttpRequest.URL.Path) {
+		return http.StatusOK, nil
+	}
+
 	if req.App.Config.EnableAppKey {
 
 		var appKey string = req.GetHeader("application-key")

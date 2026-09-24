@@ -1,8 +1,10 @@
 package yekonga
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +17,7 @@ import (
 
 	mainConfig "github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
@@ -85,6 +88,11 @@ type YekongaData struct {
 	errorGuardOnce         sync.Once
 	ipWhitelist            *ipWhitelistStore
 	ipWhitelistOnce        sync.Once
+	paymentController      *payment.Controller
+	paymentControllerErr   error
+	paymentControllerOnce  sync.Once
+	tenantPayments         map[string]*tenantPaymentEntry
+	tenantPaymentsMu       sync.Mutex
 
 	Config   *mainConfig.YekongaConfig
 	RootPath string
@@ -683,6 +691,15 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
+	// Payment gateways sign the raw body, so keep a copy of it for the
+	// webhook handler before the form/JSON parsing below consumes it.
+	var paymentWebhookBody []byte
+	isPaymentWebhook := y.isPaymentWebhookPath(r.URL.Path)
+	if isPaymentWebhook {
+		paymentWebhookBody, _ = io.ReadAll(io.LimitReader(r.Body, paymentWebhookMaxBodyBytes))
+		r.Body = io.NopCloser(bytes.NewReader(paymentWebhookBody))
+	}
+
 	// 1. Parse the multipart form (max 32MB in memory)
 	r.ParseMultipartForm(32 << 20)
 
@@ -705,6 +722,10 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewDecoder(r.Body).Decode(&rawBody)
+
+	if isPaymentWebhook {
+		r.Body = io.NopCloser(bytes.NewReader(paymentWebhookBody))
+	}
 
 	route, params := y.findRoute(r.Method, r.URL.Path)
 
