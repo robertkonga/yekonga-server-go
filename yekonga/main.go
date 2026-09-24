@@ -15,7 +15,6 @@ import (
 
 	mainConfig "github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
-	"github.com/robertkonga/yekonga-server-go/gateway/setting"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 )
@@ -46,7 +45,7 @@ type SystemHandler func(req *Request, res *Response) (interface{}, error)
 type Middleware func(req *Request, res *Response) (int, error)
 
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
-type BackendCloudFunction func(interface{}) (*setting.SendResponse, error)
+type BackendCloudFunction func(interface{}) (interface{}, error)
 type TriggerFunction func(*RequestContext, *QueryContext) (interface{}, error)
 type TriggerAllFunction func(*DataModel, *RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)

@@ -31,7 +31,13 @@ func (y *YekongaData) SendSMS(data setting.SendParams, config *config.SMSGateway
 	y.mut.RUnlock()
 
 	if exists {
-		return fun(data)
+		result, err := fun(data)
+
+		if r, ok := result.(*setting.SendResponse); ok {
+			return r, err
+		}
+
+		return nil, err
 	}
 
 	provider := gateway.NewSMSProvider(&y.Config.ApiGateway.SMS)
@@ -60,7 +66,13 @@ func (y *YekongaData) SendEmail(data helper.EmailMessage, config *config.SMTPCon
 	y.mut.RUnlock()
 
 	if exists {
-		return fun(data)
+		result, err := fun(data)
+
+		if r, ok := result.(*setting.SendResponse); ok {
+			return r, err
+		}
+
+		return nil, err
 	}
 
 	// Initialize with your config
@@ -104,7 +116,13 @@ func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.Whats
 	y.mut.RUnlock()
 
 	if exists {
-		return fun(data)
+		result, err := fun(data)
+
+		if r, ok := result.(*setting.SendResponse); ok {
+			return r, err
+		}
+
+		return nil, err
 	}
 
 	provider := gateway.NewWhatsappProvider(&y.Config.ApiGateway.Whatsapp)
