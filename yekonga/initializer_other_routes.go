@@ -124,6 +124,10 @@ func (y *YekongaData) GetWebConfig(req *Request) WebConfig {
 	}
 }
 
+// tenantConfigPrivateKeys are TenantConfig fields never sent to clients:
+// the tenant's SMTP/SMS/WhatsApp gateway settings, which include credentials.
+var tenantConfigPrivateKeys = []string{"smtp", "sms", "whatsapp"}
+
 func (y *YekongaData) initializerOtherRoutes() {
 
 	y.All("/upload", func(req *Request, res *Response) {
@@ -279,7 +283,14 @@ func (y *YekongaData) initializerOtherRoutes() {
 		// console.Error("tenantConfig", tenantConfig)
 
 		if helper.IsNotEmpty(tenantConfig) {
-			res.Json(helper.ToMap[interface{}](tenantConfig))
+			data := helper.ToMap[interface{}](tenantConfig)
+
+			// This route is public; the gateway settings hold credentials.
+			for _, key := range tenantConfigPrivateKeys {
+				delete(data, key)
+			}
+
+			res.Json(data)
 			return
 		}
 
