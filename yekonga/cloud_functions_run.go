@@ -25,6 +25,10 @@ func runDefaultCloudFunctions() {
 		}
 	}
 
+	if (config.HasTenant && config.HasTenantBilling) || config.HasPaymentModule {
+		_protectSensitiveDataModel(DefaultPaymentDatabaseStructure)
+	}
+
 }
 
 func _protectSensitiveDataModel(structureType DatabaseStructure) {

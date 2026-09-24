@@ -87,6 +87,7 @@ type YekongaConfig struct {
 	HasTenant               bool          `json:"hasTenant"`               // Enable multi-tenancy
 	TenantOnly              bool          `json:"tenantOnly"`              // Restrict access to tenants only
 	HasTenantBilling        bool          `json:"hasTenantBilling"`        // Enable tenant billing features
+	HasPaymentModule        bool          `json:"hasPaymentModule"`        // Enable the Payment models without tenant billing (tenant billing already includes them)
 	HasTenantCatch          bool          `json:"hasTenantCatch"`          // Enable tenant catch for domain-based tenant resolution
 	SecureAuthentication    bool          `json:"secureAuthentication"`    // Enable or disable secure authentication
 	IsAuthorizationServer   bool          `json:"isAuthorizationServer"`   // Designate as an authorization server

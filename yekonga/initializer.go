@@ -474,6 +474,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 	var databaseAuthStructure = DefaultAuthDatabaseStructure
 	var databaseTenantStructure = DefaultTenantDatabaseStructure
 	var databaseBillingStructure = DefaultBillingDatabaseStructure
+	var databasePaymentStructure = DefaultPaymentDatabaseStructure
 	var databaseTenantCatchStructure = DefaultTenantCatchDatabaseStructure
 	var databaseStructure = DefaultExtraDatabaseStructure
 
@@ -517,6 +518,26 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 				} else {
 					databaseStructure[k] = v
 				}
+			}
+
+			for k, v := range databasePaymentStructure {
+				k = helper.ToCamelCase(helper.Pluralize(k))
+				if existing, ok := databaseStructure[k]; ok {
+					mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
+				} else {
+					databaseStructure[k] = v
+				}
+			}
+		}
+	}
+
+	if (!config.HasTenant || (config.HasTenant && !config.HasTenantBilling)) && config.HasPaymentModule {
+		for k, v := range databasePaymentStructure {
+			k = helper.ToCamelCase(helper.Pluralize(k))
+			if existing, ok := databaseStructure[k]; ok {
+				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
+			} else {
+				databaseStructure[k] = v
 			}
 		}
 	}

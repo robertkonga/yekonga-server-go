@@ -326,20 +326,70 @@ var DefaultBillingDatabaseStructure DatabaseStructure = DatabaseStructure{
 		"metadata":           {Kind: "Any", DefaultValue: nil, Required: false},
 		"createdAt":          {Kind: "Date", DefaultValue: "now", Required: false},
 	},
+	"AccountCredits": map[string]CollectionFieldConfig{
+		"id":        {Kind: "ID", DefaultValue: nil, Required: false},
+		"tenantId":  {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
+		"paymentId": {Kind: "String", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Payments", Key: "id"}},
+		"amount":    {Kind: "Float", DefaultValue: 0, Required: false},
+		"createdAt": {Kind: "Date", DefaultValue: "now", Required: false},
+	},
+}
+
+var DefaultPaymentDatabaseStructure DatabaseStructure = DatabaseStructure{
+
 	"Payments": map[string]CollectionFieldConfig{
 		"id":                {Kind: "ID", DefaultValue: nil, Required: false},
 		"tenantId":          {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
 		"provider":          {Kind: "String", DefaultValue: nil, Required: false},
+		"providerConfig":    {Kind: "String", DefaultValue: "default", Required: false, Options: []string{"default", "tenant"}}, // whose gateway account the payment runs on
+		"providerReference": {Kind: "String", DefaultValue: nil, Required: false},
 		"providerPaymentId": {Kind: "String", DefaultValue: nil, Required: false},
+		"checkoutUrl":       {Kind: "String", DefaultValue: nil, Required: false},
 		"amount":            {Kind: "Float", DefaultValue: 0, Required: false},
-		"currency":          {Kind: "String", DefaultValue: nil, Required: false},
-		"status":            {Kind: "String", DefaultValue: "flat", Required: false, Options: []string{"pending", "succeeded", "failed", "canceled", "refunded"}},
-		"paymentMethod":     {Kind: "String", DefaultValue: "flat", Required: false, Options: []string{"card", "bank_transfer", "paypal", "crypto"}},
-		"failureReason":     {Kind: "String", DefaultValue: nil, Required: false},
-		"paidAt":            {Kind: "Date", DefaultValue: "now", Required: false},
-		"refundedAt":        {Kind: "Date", DefaultValue: nil, Required: false},
-		"metadata":          {Kind: "Any", DefaultValue: nil, Required: false},
-		"updatedAt":         {Kind: "Date", DefaultValue: "now", Required: false},
+		"charge":            {Kind: "Float", DefaultValue: nil},
+		"currency":          {Kind: "String", DefaultValue: "TZS"},
+
+		"tillNumber":       {Kind: "String", DefaultValue: nil},
+		"txnDate":          {Kind: "String", DefaultValue: nil},
+		"txnId":            {Kind: "String", DefaultValue: nil},
+		"txnAmount":        {Kind: "Float", DefaultValue: nil},
+		"txnPhone":         {Kind: "String", DefaultValue: nil},
+		"paymentReference": {Kind: "String", DefaultValue: nil},
+		"channel":          {Kind: "String", DefaultValue: nil, Options: []string{"vodacom", "tigo", "airtel", "halotel", "ttcl", "zantel", "mobile_money", "card", "bank_transfer", "paypal", "qr", "cash", "manual"}},
+		"method":           {Kind: "String", DefaultValue: nil, Options: []string{"system", "selcom", "clickpesa", "azampay", "flutterwave", "pesapal", "stripe", "paypal", "2checkout", "manual", "cash"}},
+		"paymentTagId":     {Kind: "ID", DefaultValue: nil},
+		"reference":        {Kind: "String", DefaultValue: nil},
+		"transactionData":  {Kind: "Any", DefaultValue: nil},
+		// Gateway payments use pending/succeeded/failed/refunded (the framework's
+		// payment webhook writes these); SUCCESS/PENDING/FAIL are kept for
+		// manual/cash entries.
+		"status":        {Kind: "String", DefaultValue: nil, Options: []string{"PENDING", "SUCCESS", "FAILED", "CANCELED", "REFUNDED"}},
+		"paymentMethod": {Kind: "String", DefaultValue: nil, Options: []string{"manual", "card", "bank_transfer", "mobile_money", "paypal", "crypto"}},
+		"failureReason": {Kind: "String", DefaultValue: nil},
+		"paidAt":        {Kind: "Date", DefaultValue: nil},
+		"refundedAt":    {Kind: "Date", DefaultValue: nil},
+		"metadata":      {Kind: "Any", DefaultValue: nil},
+		"message":       {Kind: "String", DefaultValue: nil},
+		"isPaid":        {Kind: "Boolean", DefaultValue: false},
+		"createdBy":     {Kind: "ID", DefaultValue: nil},
+		"updatedAt":     {Kind: "Date", DefaultValue: "now", Required: false},
+		"createdAt":     {Kind: "Date", DefaultValue: "now", Required: false},
+	},
+	"PaymentProviderRequests": map[string]CollectionFieldConfig{
+		"id":                {Kind: "ID", DefaultValue: nil, Required: false},
+		"tenantId":          {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
+		"paymentId":         {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Payment", Key: "id"}},
+		"provider":          {Kind: "String", DefaultValue: nil, Required: false},
+		"action":            {Kind: "String", DefaultValue: nil, Required: false, Options: []string{"createPayment"}},
+		"reference":         {Kind: "String", DefaultValue: nil, Required: false},
+		"providerReference": {Kind: "String", DefaultValue: nil, Required: false},
+		"status":            {Kind: "String", DefaultValue: nil, Required: false, Options: []string{"succeeded", "failed"}},
+		"httpStatus":        {Kind: "Integer", DefaultValue: nil, Required: false},
+		"errorCode":         {Kind: "String", DefaultValue: nil, Required: false},
+		"errorMessage":      {Kind: "String", DefaultValue: nil, Required: false},
+		"request":           {Kind: "Any", DefaultValue: nil, Required: false},
+		"response":          {Kind: "Any", DefaultValue: nil, Required: false},
+		"durationMs":        {Kind: "Integer", DefaultValue: 0, Required: false},
 		"createdAt":         {Kind: "Date", DefaultValue: "now", Required: false},
 	},
 	"PaymentAllocations": map[string]CollectionFieldConfig{
@@ -349,13 +399,6 @@ var DefaultBillingDatabaseStructure DatabaseStructure = DatabaseStructure{
 		"invoiceId":       {Kind: "String", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Invoice", Key: "id"}},
 		"amountAllocated": {Kind: "Float", DefaultValue: 0, Required: false},
 		"createdAt":       {Kind: "Date", DefaultValue: "now", Required: false},
-	},
-	"AccountCredits": map[string]CollectionFieldConfig{
-		"id":        {Kind: "ID", DefaultValue: nil, Required: false},
-		"tenantId":  {Kind: "ID", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Tenant", Key: "id"}},
-		"paymentId": {Kind: "String", DefaultValue: nil, Required: false, ForeignKey: CollectionFieldConfigForeignKey{Model: "Payments", Key: "id"}},
-		"amount":    {Kind: "Float", DefaultValue: 0, Required: false},
-		"createdAt": {Kind: "Date", DefaultValue: "now", Required: false},
 	},
 }
 
