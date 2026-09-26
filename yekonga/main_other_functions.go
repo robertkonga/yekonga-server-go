@@ -56,6 +56,12 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 			logoUrl := helper.GetBaseUrl(logoStr, host)
 			faviconStr := helper.GetValueOfString(lightTheme, "favicon")
 			faviconUrl := helper.GetBaseUrl(faviconStr, host)
+			tenantName := helper.GetValueOfString(tenant, "name")
+			description := helper.GetValueOf(tenant, "description")
+
+			if helper.IsEmpty(description) {
+				description = "This is " + tenantName + " main website"
+			}
 
 			data := datatype.DataMap{
 				"domain":            host,
@@ -63,8 +69,8 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				"appName":           y.Config.AppName,
 				"baseUrl":           baseUrl,
 				"userId":            helper.GetValueOf(tenant, "userId"),
-				"tenantName":        helper.GetValueOf(tenant, "name"),
-				"description":       helper.GetValueOf(tenant, "description"),
+				"tenantName":        tenantName,
+				"description":       description,
 				"language":          helper.GetValueOf(tenant, "language"),
 				"type":              helper.GetValueOf(tenant, "type"),
 				"address":           helper.GetValueOf(tenant, "address"),

@@ -2,9 +2,10 @@
 //
 // Pure-Go, no CGo, no C libraries required.
 //
-// Install ONE dependency:
+// Dependencies:
 //
 //	go get golang.org/x/image
+//	go get github.com/gen2brain/webp
 package helper
 
 import (
@@ -17,9 +18,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	// needed to register .webp decoder + provides draw kernels
+	// registers the .webp decoder and provides the WebP encoder
+	"github.com/gen2brain/webp"
 	"golang.org/x/image/draw"
-	_ "golang.org/x/image/webp" // decode WebP input
 )
 
 // ResizeOptions controls resizing and re-encoding behaviour.
@@ -41,14 +42,12 @@ type ResizeOptions struct {
 	ScalePercent float64
 
 	// ── Encoding ──────────────────────────────────────────────────────────────
-	// Quality for JPEG output (1–100). Default 80.
+	// Quality for JPEG and WebP output (1–100). Default 80.
 	// PNG always uses maximum compression (lossless).
 	Quality int
 
-	// OutputFormat: "jpeg" | "jpg" | "png"
+	// OutputFormat: "jpeg" | "jpg" | "png" | "webp"
 	// Leave empty to keep the source format.
-	// Note: WebP *input* is supported, but WebP output requires CGo.
-	//       Use "jpeg" or "png" as the output format.
 	OutputFormat string
 
 	// Kernel: resampling algorithm.
@@ -111,8 +110,10 @@ func ResizeFile(src, dst string, opts ResizeOptions) error {
 		err = jpeg.Encode(outFile, result, &jpeg.Options{Quality: quality})
 	case "png":
 		err = (&png.Encoder{CompressionLevel: png.BestCompression}).Encode(outFile, result)
+	case "webp":
+		err = webp.Encode(outFile, result, webp.Options{Quality: quality, Method: webp.DefaultMethod})
 	default:
-		return fmt.Errorf("unsupported output format %q (use jpeg or png)", outFmt)
+		return fmt.Errorf("unsupported output format %q (use jpeg, png or webp)", outFmt)
 	}
 	if err != nil {
 		return fmt.Errorf("encode: %w", err)
@@ -214,15 +215,11 @@ func resample(src image.Image, w, h int, kernel string) image.Image {
 	return dst
 }
 
-// normaliseFormat maps raw/source format strings to "jpeg" or "png".
+// normaliseFormat maps raw/source format strings to "jpeg", "png" or "webp".
 func normaliseFormat(requested, fallback string) string {
 	f := strings.ToLower(requested)
 	if f == "" {
 		f = strings.ToLower(fallback)
-	}
-	// WebP output not supported without CGo; fall back to JPEG
-	if f == "webp" {
-		f = "jpeg"
 	}
 	if f == "jpg" {
 		f = "jpeg"
@@ -232,8 +229,11 @@ func normaliseFormat(requested, fallback string) string {
 
 func replaceExt(name, format string) string {
 	ext := ".jpg"
-	if format == "png" {
+	switch format {
+	case "png":
 		ext = ".png"
+	case "webp":
+		ext = ".webp"
 	}
 	return strings.TrimSuffix(name, filepath.Ext(name)) + ext
 }

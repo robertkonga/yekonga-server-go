@@ -223,7 +223,7 @@ func (res *Response) File(filePath string) {
 
 	if helper.FileExists(filePath) {
 		// // Set cache headers
-		res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", 1))
+		res.SetHeader("cache-control", fmt.Sprintf("max-age=%d", 7))
 		res.ResetHeaders()
 
 		file, err := os.Open(filePath)

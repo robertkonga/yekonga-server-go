@@ -110,7 +110,7 @@ func (y *YekongaData) initialize() {
 				PathPrefix:  y.AppendBaseUrl("/"), // Access files at /public URL path
 				IndexFile:   "index.html",         // Default index file
 				Extensions:  DefaultExtensions[:],
-				CacheMaxAge: 86400, // Cache for 24 hours
+				CacheMaxAge: 2592000, // Cache for 30 days hours
 			})
 
 			if err != nil {

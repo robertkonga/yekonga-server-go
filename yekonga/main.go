@@ -535,7 +535,7 @@ func (y *YekongaData) Static(config StaticConfig) error {
 		config.Extensions = DefaultExtensions[:]
 	}
 	if config.CacheMaxAge == 0 {
-		config.CacheMaxAge = 86400 // 24 hours
+		config.CacheMaxAge = 2592000 // 24 hours
 	}
 
 	// Verify directory exists
@@ -608,8 +608,13 @@ func (y *YekongaData) handleStaticFile(w http.ResponseWriter, r *http.Request) b
 				ext := strings.ToLower(path.Ext(filePath))
 				for _, allowedExt := range static.Extensions {
 					if ext == allowedExt {
-						// Set cache headers
-						w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", static.CacheMaxAge))
+						// Set cache headers; uploaded files are cached for 1 year
+						cacheMaxAge := static.CacheMaxAge
+						slashPath := "/" + strings.TrimPrefix(filepath.ToSlash(filePath), "/")
+						if strings.Contains(slashPath, "/public/uploads/") {
+							cacheMaxAge = 31536000
+						}
+						w.Header().Set("Cache-Control", fmt.Sprintf("max-age=%d", cacheMaxAge))
 
 						// Serve the file
 						http.ServeFile(w, r, filePath)

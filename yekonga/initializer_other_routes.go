@@ -573,12 +573,14 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dst.Name()), r.Host)
 	fileNames = append(fileNames, uploadedUrl)
 
-	if helper.Contains([]string{".png", ".jpg", ".jpeg", "webp"}, fileExt) {
+	if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
 		// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
+		savedFile = filepath.Join(uploadDir, helper.GetHexString(24)+".webp")
+
 		helper.ResizeFile(savedFile, savedFile, helper.ResizeOptions{
-			MaxWidth: 900,
-			// OutputFormat: "png",
-			Quality: 80,
+			MaxWidth:     1400,
+			OutputFormat: "webp",
+			Quality:      80,
 		})
 	}
 
@@ -659,11 +661,20 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if helper.Contains([]string{".png", ".jpg", ".jpeg", "webp"}, fileExt) {
+		if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
+			// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
+			dstPath = filepath.Join(uploadDir, helper.GetHexString(24)+".webp")
+
+			// helper.ResizeFile(dstPath, dstPath, helper.ResizeOptions{
+			// 	MaxWidth: 900,
+			// 	// OutputFormat: "png",
+			// 	Quality: 80,
+			// })
+
 			helper.ResizeFile(dstPath, dstPath, helper.ResizeOptions{
-				MaxWidth: 900,
-				// OutputFormat: "png",
-				Quality: 80,
+				MaxWidth:     1400,
+				OutputFormat: "webp",
+				Quality:      80,
 			})
 		}
 
