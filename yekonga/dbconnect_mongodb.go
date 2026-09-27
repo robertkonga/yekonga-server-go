@@ -24,6 +24,7 @@ type mongodbConnection struct {
 	ctx    *context.Context
 	mut    sync.RWMutex
 	client *mongo.Client
+	filter *datatype.DataMap // built once by where(); a connection serves a single query
 }
 
 func newMongodbInstance(con *mongodbConnection) mongodbConnection {
@@ -509,26 +510,36 @@ func (con *mongodbConnection) selection() *[]string {
 	return &[]string{}
 }
 
+// where builds the Mongo filter for the query. It's cached on the connection
+// because one operation can need it several times (count + find for
+// pagination, update + re-read), and building it may run relation
+// sub-queries.
 func (con *mongodbConnection) where() *datatype.DataMap {
-	var filters = datatype.DataMap{}
+	if con.filter == nil {
+		filters := con.extractWhereObject(con.query.where)
+		con.filter = &filters
+	}
 
-	for k := range con.query.where {
-		if helper.Contains([]string{"AND", "OR", "NOR"}, k) {
-			vs := con.extractWhere(con.query.where)
+	return con.filter
+}
 
-			for ki, vi := range vs {
-				filters[ki] = vi
-			}
-		} else {
-			vs := con.extractWhereObject(con.query.where)
+func isLogicalWhereKey(key string) bool {
+	return key == "AND" || key == "OR" || key == "NOR"
+}
 
-			for ki, vi := range vs {
-				filters[ki] = vi
-			}
+func isListOfMaps(v interface{}) bool {
+	val := reflect.ValueOf(v)
+	if val.Kind() != reflect.Slice || val.Len() == 0 {
+		return false
+	}
+
+	for i := 0; i < val.Len(); i++ {
+		if !helper.IsMap(val.Index(i).Interface()) {
+			return false
 		}
 	}
 
-	return &filters
+	return true
 }
 
 func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
@@ -546,7 +557,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 				}
 
 				if len(newValue) > 0 {
-					filters["$and"] = newValue
+					addFilterClause(filters, "$and", newValue)
 				}
 			case "OR":
 				var newValue = []interface{}{}
@@ -571,6 +582,12 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 					filters["$nor"] = newValue
 				}
 			default:
+				// Any other key holding a list of maps is treated as AND. Lists of
+				// plain values are regular filters, handled by extractWhereObject.
+				if !isListOfMaps(v) {
+					continue
+				}
+
 				var newValue = []interface{}{}
 				var vi = helper.ToDataMapList(v)
 
@@ -579,7 +596,7 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 				}
 
 				if len(newValue) > 0 {
-					filters["$and"] = newValue
+					addFilterClause(filters, "$and", newValue)
 				}
 			}
 		}
@@ -588,51 +605,182 @@ func (con *mongodbConnection) extractWhere(where interface{}) datatype.DataMap {
 	return filters
 }
 
+// extractWhereObject converts one where map into a Mongo filter. Logical keys
+// (AND/OR/NOR) go through extractWhere and operator maps through
+// extractWhereItem; both take the whole map, so each runs at most once here
+// rather than once per key. Plain values become {"$eq": value}, applied last
+// so a key filters the same way whether or not other keys use operators.
 func (con *mongodbConnection) extractWhereObject(where interface{}) datatype.DataMap {
 	var filters = datatype.DataMap{}
-	// var localFilter = helper.ToDataMap(where)
 
-	if whr, ok := where.(datatype.DataMap); ok {
-		for k, v := range whr {
+	whr, ok := where.(datatype.DataMap)
+	if !ok {
+		return filters
+	}
 
-			if helper.Contains([]string{"AND", "OR", "NOR"}, k) {
-				vs := con.extractWhere(whr)
+	hasLogical := false
+	hasOperatorMap := false
 
-				for ki, vi := range vs {
-					filters[ki] = vi
-				}
-			} else if helper.IsMap(v) {
-				w := helper.ToDataMap(whr)
-				vs := con.extractWhereItem(w)
+	for k, v := range whr {
+		if isLogicalWhereKey(k) {
+			hasLogical = true
+		} else if helper.IsMap(v) {
+			hasOperatorMap = true
+		}
+	}
 
-				for ki, vi := range vs {
-					filters[ki] = vi
-				}
-			} else {
-				vs := datatype.DataMap{
-					k: datatype.DataMap{
-						"$eq": v,
-					},
-				}
+	if hasLogical {
+		for ki, vi := range con.extractWhere(whr) {
+			filters[ki] = vi
+		}
+	}
 
-				for ki, vi := range vs {
-					filters[ki] = vi
-				}
+	var relations datatype.DataMap
+	if hasOperatorMap {
+		var items datatype.DataMap
+		items, relations = con.extractWhereItem(whr)
+
+		for ki, vi := range items {
+			filters[ki] = vi
+		}
+	}
+
+	for k, v := range whr {
+		if !isLogicalWhereKey(k) && !helper.IsMap(v) {
+			filters[k] = datatype.DataMap{
+				"$eq": v,
 			}
 		}
+	}
+
+	// Relation filters land on a linking key (e.g. outletId) that the where
+	// may also filter directly, so they're combined rather than overwritten.
+	for rk, rv := range relations {
+		addFilterClause(filters, rk, rv)
 	}
 
 	return filters
 }
 
-func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataMap {
+// addFilterClause adds a condition on key so that it holds together with any
+// condition already there. Operator maps on the same field are merged when
+// they don't share an operator ({$eq} + {$in}); otherwise both conditions go
+// under $and. $and lists are concatenated.
+func addFilterClause(filters datatype.DataMap, key string, condition interface{}) {
+	existing, exists := filters[key]
+	if !exists {
+		filters[key] = condition
+		return
+	}
+
+	if reflect.DeepEqual(existing, condition) {
+		return
+	}
+
+	if key == "$and" {
+		existingList, ok1 := existing.([]interface{})
+		conditionList, ok2 := condition.([]interface{})
+		if ok1 && ok2 {
+			filters[key] = append(append([]interface{}{}, existingList...), conditionList...)
+			return
+		}
+	}
+
+	existingOps, ok1 := existing.(datatype.DataMap)
+	conditionOps, ok2 := condition.(datatype.DataMap)
+	if ok1 && ok2 && !strings.HasPrefix(key, "$") {
+		shared := false
+		for op := range conditionOps {
+			if _, ok := existingOps[op]; ok {
+				shared = true
+				break
+			}
+		}
+
+		if !shared {
+			merged := make(datatype.DataMap, len(existingOps)+len(conditionOps))
+			for op, v := range existingOps {
+				merged[op] = v
+			}
+			for op, v := range conditionOps {
+				merged[op] = v
+			}
+			filters[key] = merged
+			return
+		}
+	}
+
+	delete(filters, key)
+	and, _ := filters["$and"].([]interface{})
+	filters["$and"] = append(append([]interface{}{}, and...), datatype.DataMap{key: existing}, datatype.DataMap{key: condition})
+}
+
+// relationFilter turns a filter on a related model (e.g. {"outlet": {"name":
+// {...}}}) into an "$in" on the linking key, by fetching the matching related
+// IDs. The sub-query runs with the parent's request context so it stays
+// scoped to the same tenant.
+func (con *mongodbConnection) relationFilter(field string, where datatype.DataMap) datatype.DataMap {
+	model := con.query.Model
+
+	if relation, ok := model.ParentFields[field]; ok {
+		return datatype.DataMap{
+			relation.ForeignKey: datatype.DataMap{
+				"$in": con.relatedIds(relation.ModelName, where, relation.PrimaryKey),
+			},
+		}
+	}
+
+	if relation, ok := model.ChildrenFields[field]; ok {
+		return datatype.DataMap{
+			relation.PrimaryKey: datatype.DataMap{
+				"$in": con.relatedIds(relation.ModelName, where, relation.ForeignKey),
+			},
+		}
+	}
+
+	return datatype.DataMap{}
+}
+
+func (con *mongodbConnection) relatedIds(modelName string, where datatype.DataMap, key string) []bson.ObjectID {
+	objectIDs := []bson.ObjectID{}
+
+	related := con.query.Model.App.ModelQuery(modelName)
+	if related == nil {
+		return objectIDs
+	}
+
+	related.SetRequestContext(con.query.RequestContext)
+	if con.query.skipTenant {
+		related.SkipTenant()
+	}
+
+	list := related.WhereAll(where).Find(nil)
+	if list == nil {
+		return objectIDs
+	}
+
+	for _, item := range *list {
+		if v, ok := item[key]; ok {
+			objectIDs = append(objectIDs, helper.ObjectID(v))
+		}
+	}
+
+	return objectIDs
+}
+
+// extractWhereItem converts operator maps ({"price": {"greaterThan": 5}}) and
+// relation filters ({"outlet": {"name": {...}}}). Relation filters come back
+// separately, keyed by the linking field, for extractWhereObject to combine.
+func (con *mongodbConnection) extractWhereItem(where interface{}) (datatype.DataMap, datatype.DataMap) {
 	var filters = make(datatype.DataMap)
+	var relations = make(datatype.DataMap)
 
 	if whr, ok := where.(datatype.DataMap); ok {
 		for k, v := range whr {
 
 			if helper.IsMap(v) {
 				vi := helper.ToDataMap(v)
+				var relation datatype.DataMap // fetched once per field, not once per nested key
 
 				for ki, vii := range vi {
 					innerFilter := datatype.DataMap{}
@@ -720,21 +868,12 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 						case "exists":
 							if exists, ok := vii.(bool); ok {
 								if exists {
+									// Present and not null.
 									innerFilter["$exists"] = true
 									innerFilter["$nin"] = []interface{}{nil}
 								} else {
-									filters["$or"] = []datatype.DataMap{
-										map[string]any{
-											k: datatype.DataMap{
-												"$exists": false,
-											},
-										},
-										map[string]any{
-											k: datatype.DataMap{
-												"$nin": []interface{}{nil},
-											},
-										},
-									}
+									// Missing or null: {$eq: null} matches both.
+									innerFilter["$eq"] = nil
 								}
 							}
 						case "matchesRegex":
@@ -756,47 +895,16 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 
 						filters[k] = innerFilter
 					} else {
-						if viii, ok := con.query.Model.ParentFields[k]; ok {
-							// if innerFilter[viii.PrimaryKey] == nil {
-							// 	// innerFilter[viii.PrimaryKey] = datatype.DataMap{}
-							// }
-
-							list := con.query.Model.App.ModelQuery(viii.ModelName).WhereAll(vi).Find(nil)
-							ids := helper.GetList(list, viii.PrimaryKey)
-
-							objectIDs := []bson.ObjectID{}
-							for _, v := range ids {
-								objectIDs = append(objectIDs, helper.ObjectID(v))
-							}
-
-							innerFilter[viii.ForeignKey] = datatype.DataMap{
-								"$in": objectIDs,
-							}
-							// fmt.Println("ids.p", ids)
-						} else if viii, ok := con.query.Model.ChildrenFields[k]; ok {
-							// if filters[viii.PrimaryKey] == nil {
-							// 	filters[viii.PrimaryKey] = datatype.DataMap{}
-							// }
-
-							list := con.query.Model.App.ModelQuery(viii.ModelName).WhereAll(vi).Find(nil)
-							ids := helper.GetList(list, viii.ForeignKey)
-							objectIDs := []bson.ObjectID{}
-							for _, v := range ids {
-								objectIDs = append(objectIDs, helper.ObjectID(v))
-							}
-
-							innerFilter[viii.PrimaryKey] = datatype.DataMap{
-								"$in": objectIDs,
-							}
-							// console.Log("ids.c", ids)
-						}
-
-						for k, v := range innerFilter {
-							filters[k] = v
+						if relation == nil {
+							relation = con.relationFilter(k, vi)
 						}
 					}
 				}
-			} else if !helper.Contains([]string{"AND", "OR", "NOR"}, k) {
+
+				for rk, rv := range relation {
+					addFilterClause(relations, rk, rv)
+				}
+			} else if !isLogicalWhereKey(k) {
 				innerFilter := datatype.DataMap{}
 
 				if inf, ok := filters[k].(datatype.DataMap); ok {
@@ -814,7 +922,7 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) datatype.DataM
 		}
 	}
 
-	return filters
+	return filters, relations
 }
 
 func (con *mongodbConnection) hasGroup() bool {

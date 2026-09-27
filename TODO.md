@@ -19,31 +19,32 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## P0 — Large impact, low risk
 
-- [ ] **Precompile route regexes.** `matchRoute` calls `regexp.MustCompile` for every route on every request (`yekonga/main.go:366`). Compile once in `addRoute` and store a `*regexp.Regexp` on `Route`.
-- [ ] **Hoist per-call regexes to package-level vars** in `helper/helpers.go`: `ToSlug` (:577), `ToUnderscore` (:648, :652, :678), `GetBaseUrl` (:1481), `GetMainDomain` (:1488), email/phone validators (:2007, :2025), and `helper/template.go` (:233, :237). Also `isValidParam` and `parseSegment` in `yekonga/main.go`.
-- [ ] **Fix lock contention and deadlock risk on `y.mut`.**
+- [x] **Precompile route regexes.** `matchRoute` calls `regexp.MustCompile` for every route on every request (`yekonga/main.go:366`). Compile once in `addRoute` and store a `*regexp.Regexp` on `Route`.
+- [x] **Hoist per-call regexes to package-level vars** in `helper/helpers.go`: `ToSlug` (:577), `ToUnderscore` (:648, :652, :678), `GetBaseUrl` (:1481), `GetMainDomain` (:1488), email/phone validators (:2007, :2025), and `helper/template.go` (:233, :237). Also `isValidParam` and `parseSegment` in `yekonga/main.go`.
+- [x] **Fix lock contention and deadlock risk on `y.mut`.** (also `authTriggerCallback`)
   - `findRoute` takes an exclusive `y.mut.Lock()` on every request (`yekonga/main.go:434`). Use `RLock`; routes are effectively immutable after `Start`.
   - `triggerCallback` / `triggerAllCallback` hold `y.mut.RLock()` while user trigger code runs, including DB I/O (`yekonga/cloud_functions.go:322`, `:417`). Routing then waits on every in-flight trigger, and nested queries in triggers re-acquire the read lock, which can deadlock when a writer is waiting. Lock only to look up the function, release, then call it.
-- [ ] **Cache tenant resolution.** With `HasTenant`, each request runs 3 DB queries:
+- [x] **Cache tenant resolution.** Done in `yekonga/lookup_cache.go`: 30 s TTL (`cache.tenantSeconds`), capped at 10k hosts, cleared on any `Tenant`/`TenantConfig` write through `DataModelQuery`. With `HasTenant`, each request runs 3 DB queries:
   - `TenantCatchMiddleware` looks up `Tenant` by host (`yekonga/middleware.go:85`).
   - `GetTenantConfig` runs the **same** `Tenant` lookup again, then `TenantConfig`, then a JSON round-trip via `helper.ConvertTo` (`yekonga/main_other_functions.go:17`, `:32`, `:92`).
   - Add an in-memory cache keyed by host (TTL ~30–60 s), invalidated from after-create/update/delete triggers on `Tenant` and `TenantConfig`.
-  - Consider the same for `UserInfoMiddleware` when `IsAuthorizationServer` is on (`yekonga/middleware.go:302`).
-- [ ] **Rewrite Mongo filter building as a single pass.**
+  - [x] `UserInfoMiddleware` on an authorization server: user records cached for 10 s (`cache.userSeconds`), cleared on any `User` write; each request gets its own copy.
+  - [x] `HasTenantCatch` path: the `TenantCatch` lookup is cached (including misses) and cleared on `TenantCatch` writes. The `FetchTenantByDomain` cloud function itself is never cached.
+- [x] **Rewrite Mongo filter building as a single pass.** Output verified identical to the old builder on 16 filter shapes; the filter is also built once per connection instead of per use.
   - `where()` rebuilds the full filter once per key (`yekonga/dbconnect_mongodb.go:512`); `extractWhereObject` rescans the whole map per map-valued key (:604). Cost grows much faster than the number of keys.
   - Relation filters run a `Find` sub-query (:764, :781) inside those passes, so the sub-query repeats: ~6× per `where()` for 3 keys with one relation filter, and `Paginate` calls `where()` twice.
-  - **Security:** that sub-query has no `RequestContext`, so it skips the tenant filter and scans across tenants. Pass the parent's request context through.
+  - **Security:** that sub-query has no `RequestContext`, so it skips the tenant filter and scans across tenants. Pass the parent's request context through. (Done; `skipTenant` is propagated too.)
 
 ## P1 — GraphQL
 
-- [ ] **Remove the wasted second parse.** `yekonga/initializer.go:239-241` parses the query, converts the AST to JSON and back, and builds `QuerySelectors`. The only consumer is a loop that calls `fmt.Sprintf` and discards the result (`yekonga/graphql.go:2295`). Delete both.
-- [ ] **Cache parsed and validated documents.** Add an LRU keyed by query string (or its hash) holding the AST and validation result, so repeated queries skip `parser.Parse` and validation.
-- [ ] **Fix N+1 on relation fields.** Each parent row resolves each relation with its own query (`setModelParams`, `yekonga/graphql.go:2135`). A 50-row list with 3 relations issues 150+ extra queries. Add a per-request dataloader that batches by foreign key with `$in`; the commented-out code in `loadRelatedData` was heading this way.
-- [ ] **Stop using JSON round-trips for type conversion on hot paths:**
+- [x] **Remove the wasted second parse.** `QuerySelectors` is still filled (it's an exported field), but computed once per unique query and cached. `yekonga/initializer.go:239-241` parses the query, converts the AST to JSON and back, and builds `QuerySelectors`. The only consumer is a loop that calls `fmt.Sprintf` and discards the result (`yekonga/graphql.go:2295`). Delete both.
+- [x] **Cache parsed and validated documents.** `yekonga/graphql_cache.go`: per-schema cache, 1 h TTL, 1000 queries, queries over 16 KB not cached. ~8× less overhead per request on a small query. Add an LRU keyed by query string (or its hash) holding the AST and validation result, so repeated queries skip `parser.Parse` and validation.
+- [x] **Fix N+1 on relation fields.** `yekonga/graphql_loader.go`, MongoDB only. Triggers still run per row; only the fetch is batched. Fields with `limit`/`page`/`skip`/`groupBy`/`distinct` stay per row. Integration test: `YEKONGA_TEST_MONGO_PORT=<port> go test -run TestRelationLoader ./yekonga/`. Each parent row resolves each relation with its own query (`setModelParams`, `yekonga/graphql.go:2135`). A 50-row list with 3 relations issues 150+ extra queries. Add a per-request dataloader that batches by foreign key with `$in`; the commented-out code in `loadRelatedData` was heading this way.
+- [x] **Stop using JSON round-trips for type conversion on hot paths:** `ToMap` converts maps directly with identical results; `Auth()` decodes once per request; `GetMapValue` reads plain maps directly.
   - `helper.ToMap[...]` on resolver args (`yekonga/graphql.go:2150`, `:2214`, `:2240`).
   - `Request.Auth()` marshals and unmarshals on every call (`yekonga/request.go:339`). Store a typed `AuthPayload` once in `UserInfoMiddleware`.
   - `helper.GetMapValue` copies the whole map via reflection to read one key (`helper/helpers.go:1656`). Fast-path `datatype.DataMap` / `map[string]interface{}` with a type assertion. Also remove the leftover `key == "data.clients"` debug branch.
-- [ ] **Cheaper output formatting.** `formateOutputData` calls `GetBaseUrl` (regex) and `OriginDomain` (`url.Parse`) per row per file field (`yekonga/graphql.go:2341`). Compute the domain once per request.
+- [x] **Cheaper output formatting.** `formateOutputData` calls `GetBaseUrl` (regex) and `OriginDomain` (`url.Parse`) per row per file field (`yekonga/graphql.go:2341`). Compute the domain once per request.
 
 ## P1 — Database layer
 
@@ -68,6 +69,11 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## Bugs found during the review
 
+- [x] **Summary fields shared relation keys across requests.** The count/sum/max/min/average/graph resolvers wrote the relation keys into variables captured by the closure, which every request shares, so concurrent requests could overwrite each other's keys.
+- [x] **To-many relation with no link value returns unrelated records.** In the list resolver (`getQueryMultipleField`), when `setModelParams` returns false because the parent row has no linking value, the result is ignored and the query runs without the relation filter. Left as is to keep behaviour unchanged; it should return an empty list.
+- [x] **Numeric range filters never match.** `ConvertCalculatedValue` returns `v` (the empty string from a failed type assertion) instead of `value` for non-string numbers (`helper/helpers.go`, `else { return v }`). `{"price": {"greaterThan": 5}}` becomes `{"$gt": ""}`. One-line fix, but it changes query results.
+- [x] **`exists: false` filter can't match.** Now `{field: {$eq: null}}` (missing or null). `exists` also never worked on ID fields: `Where` turned the boolean into a random ObjectID; fixed. It emits the correct `$or`, but also leaves `field: {}` in the filter, which Mongo reads as "equals an empty document" (`extractWhereItem`, `yekonga/dbconnect_mongodb.go`).
+- [x] **`$or` collisions.** Conditions on the same key are now combined (merged operators, or `$and`) instead of overwritten. A top-level `OR` and an `exists: false` filter both write `$or`, so one silently replaces the other. Same for a relation filter whose linking key is also filtered directly. These should be combined under `$and`.
 - [ ] `Authorization` header without `"Bearer"` panics on index `[1]` (`yekonga/middleware.go:217`).
 - [ ] `find()` defers `cursor.Close` on a nil cursor when the query errors (`yekonga/dbconnect_mongodb.go:144`); same pattern in `count`, `sum`, `max`, `min`, `average`.
 - [ ] Distinct `count` uses `RemainingBatchLength`, which is wrong above 101 groups (`yekonga/dbconnect_mongodb.go:253`). Use a `$count` stage.

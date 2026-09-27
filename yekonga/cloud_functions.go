@@ -319,21 +319,27 @@ func (y *YekongaData) setTrigger(model string, action TriggerAction, accessRole 
 }
 
 // AddCloudFunction registers a new cloud function
+//
+// The lock only covers the map lookup. Triggers run user code that usually
+// queries the database (and can fire nested triggers), so holding y.mut while
+// they run would block every writer and risk a recursive-RLock deadlock.
 func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
 	y.mut.RLock()
-	defer y.mut.RUnlock()
+	modelTriggers := y.triggerFunctions[model]
+	hasAction := modelTriggers[action] != nil
+	y.mut.RUnlock()
 
-	if y.triggerFunctions[model] == nil {
+	if modelTriggers == nil {
 		return nil, fmt.Errorf("%v model not exists, action %v", model, string(action))
 	}
 
-	if y.triggerFunctions[model][action] == nil {
+	if !hasAction {
 		return nil, fmt.Errorf("%v -> %v action not exists", model, action)
 	}
 
 	actionAccess := ctxQuery.AccessRole
 
-	if helper.IsEmpty(actionAccess) {
+	if actionAccess == "" {
 		actionAccess = ctxQuery.Route
 	} else {
 		actionAccess += "_" + ctxQuery.Route
@@ -341,18 +347,19 @@ func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxReq
 
 	actionAccess = helper.ToSlug(actionAccess)
 
-	if _, exists := y.triggerFunctions[model][action][actionAccess]; exists {
-		var result interface{}
-		var err error
+	y.mut.RLock()
+	fn, exists := y.triggerFunctions[model][action][actionAccess]
+	y.mut.RUnlock()
 
-		result, err = y.triggerFunctions[model][action][actionAccess](ctxRequest, ctxQuery)
+	if exists {
+		result, err := fn(ctxRequest, ctxQuery)
 
 		if err != nil {
 			console.Error("Error:triggerCallback", model, action, actionAccess, err.Error())
 		}
 		return result, err
 	} else {
-		if helper.IsNotEmpty(actionAccess) {
+		if actionAccess != "" {
 			logger.Warn("cloud function %s -> %v -> %v not exists", model, action, actionAccess)
 			return false, fmt.Errorf("%v -> %v -> %v action not exists", model, action, actionAccess)
 		}
@@ -379,15 +386,11 @@ func (y *YekongaData) setAuthTrigger(action TriggerAction, fn TriggerFunction) e
 // AddCloudFunction registers a new cloud function
 func (y *YekongaData) authTriggerCallback(action TriggerAction, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
 	y.mut.RLock()
-	defer y.mut.RUnlock()
+	fn, exists := y.authTriggerFunctions[action]
+	y.mut.RUnlock()
 
-	if _, exists := y.authTriggerFunctions[action]; exists {
-		var result interface{}
-		var err error
-
-		result, err = y.authTriggerFunctions[action](ctxRequest, ctxQuery)
-
-		return result, err
+	if exists {
+		return fn(ctxRequest, ctxQuery)
 	}
 
 	return nil, errors.New("not exists")
@@ -416,21 +419,14 @@ func (y *YekongaData) setTriggerAll(action TriggerAction, fn TriggerAllFunction)
 // AddCloudFunction registers a new cloud function
 func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModel, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
 	y.mut.RLock()
-	defer y.mut.RUnlock()
+	fn := y.triggerAllFunctions[action]
+	y.mut.RUnlock()
 
-	if y.triggerAllFunctions[action] == nil {
+	if fn == nil {
 		return nil, fmt.Errorf("%v -> action not exists", action)
 	}
 
-	if _, exists := y.triggerAllFunctions[action]; exists {
-		var result interface{}
-		var err error
-		result, err = y.triggerAllFunctions[action](model, ctxRequest, ctxQuery)
-
-		return result, err
-	}
-
-	return nil, errors.New("not exists")
+	return fn(model, ctxRequest, ctxQuery)
 }
 
 // AddCloudFunction registers a new cloud function
@@ -478,7 +474,6 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 	fun, exists := y.functions[FetchTenantByDomain]
 	y.mut.RUnlock()
 
-	const tenantCatchModelName = "TenantCatch"
 	var tenant any
 	var tenantId any
 	var domain any
@@ -498,9 +493,9 @@ func (y *YekongaData) FetchTenantByDomain(data any, req *Request, res *Response)
 
 	if helper.IsNotEmpty(domain) {
 		if y.Config.HasTenantCatch {
-			tenant = req.App.ModelQuery(tenantCatchModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-				"domain": domain,
-			})
+			if record := y.tenantCatchByDomain(domain); record != nil {
+				tenant = record
+			}
 
 			if helper.IsNotEmpty(tenant) {
 				tenantId = helper.GetValueOf(tenant, "tenantId")

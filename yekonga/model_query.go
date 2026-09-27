@@ -166,6 +166,9 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 						}
 
 						vp[ki] = vpi
+					} else if _, isBool := vi.(bool); isBool {
+						// e.g. {"exists": false}: an operator flag, not an ID.
+						vp[ki] = vi
 					} else {
 						switch vi {
 						case string(NULLValue):
@@ -358,6 +361,8 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		m.recordAuditChange("create", m.auditDocumentId(*result), nil, *result)
 	}
 
+	m.Model.App.invalidateCaches(m.Model.Name)
+
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
 		"action": "create",
 		"model":  m.Model.Name,
@@ -417,6 +422,8 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		}
 		m.recordAuditChange("update", m.auditDocumentId(*result), oldValues, *result)
 	}
+
+	m.Model.App.invalidateCaches(m.Model.Name)
 
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
 		"action": "update",
@@ -483,6 +490,8 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 			m.recordAuditChange("update", id, oldValuesById[id], doc)
 		}
 	}
+
+	m.Model.App.invalidateCaches(m.Model.Name)
 
 	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
 		"action": "update",
@@ -642,6 +651,8 @@ ParentLoop:
 	result["updated"] = updated
 	result["data"] = afterData
 
+	m.Model.App.invalidateCaches(m.Model.Name)
+
 	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
 		"action": "import",
 		"model":  m.Model.Name,
@@ -696,6 +707,8 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 		}
 	}
 
+	m.Model.App.invalidateCaches(m.Model.Name)
+
 	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
 		"action": "delete",
 		"model":  m.Model.Name,
@@ -743,27 +756,40 @@ func (m *DataModelQuery) First(where interface{}) *datatype.DataMap {
 }
 
 func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
+	if !m.prepareFind(where) {
+		return nil
+	}
+
+	return m.finishFindOne(m.collection().findOne())
+}
+
+// prepareFind applies where, the tenant filter and the before-find triggers.
+// It returns false when a trigger vetoed the query.
+func (m *DataModelQuery) prepareFind(where interface{}) bool {
 	m.WhereAll(where)
 	m.addTenantId()
 
 	if !m.skipBeforeCommit {
 		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
 		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
+			return false
 		} else if helper.IsMap(triggerBefore) {
 			m.WhereAll(helper.ToDataMap(triggerBefore))
 		}
 
 		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
 		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
+			return false
 		} else if helper.IsMap(triggerBefore) {
 			m.WhereAll(helper.ToDataMap(triggerBefore))
 		}
 	}
 
-	result := m.collection().findOne()
+	return true
+}
 
+// finishFindOne runs the after-find triggers on a fetched record.
+func (m *DataModelQuery) finishFindOne(result *datatype.DataMap) *datatype.DataMap {
 	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
 	if helper.IsMap(triggerAfter) {
 		v := helper.ToDataMap(triggerAfter)
@@ -780,29 +806,16 @@ func (m *DataModelQuery) FindOne(where interface{}) *datatype.DataMap {
 }
 
 func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			vl := make([]datatype.DataMap, 0)
-			return &vl
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			vl := make([]datatype.DataMap, 0)
-			return &vl
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
+	if !m.prepareFind(where) {
+		vl := make([]datatype.DataMap, 0)
+		return &vl
 	}
 
-	result := m.collection().find()
+	return m.finishFind(m.collection().find())
+}
 
+// finishFind runs the after-find triggers on fetched records.
+func (m *DataModelQuery) finishFind(result *[]datatype.DataMap) *[]datatype.DataMap {
 	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
 	if helper.IsMapList(triggerAfter) {
 		v := helper.ToDataMapList(triggerAfter)
@@ -1346,7 +1359,7 @@ func (m *DataModelQuery) addTenantId() {
 
 			if payload != nil && helper.IsNotEmpty(payload.TenantId) {
 				tenantId = payload.TenantId
-			} else {
+			} else if m.RequestContext.Request != nil {
 				tenantId = m.RequestContext.Request.TenantId()
 			}
 
@@ -1368,7 +1381,7 @@ func (m *DataModelQuery) getTenantId() interface{} {
 
 			if payload != nil && helper.IsNotEmpty(payload.TenantId) {
 				tenantId = payload.TenantId
-			} else {
+			} else if m.RequestContext.Request != nil {
 				tenantId = m.RequestContext.Request.TenantId()
 			}
 		}

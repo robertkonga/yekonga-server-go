@@ -16,12 +16,18 @@ import (
 //go:embed static/*
 var StaticFS embed.FS
 
+var (
+	reTemplatePlaceholder = regexp.MustCompile(`{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}`)
+	reHTMLTag             = regexp.MustCompile(`<[^>]+>`)
+	reDisallowedChars     = regexp.MustCompile(`[^a-zA-Z0-9'"?!.,;:-_&()+\s]`)
+)
+
 // TextTemplate replaces {{key}} and {{nested.key}} placeholders
 // Uses the safer FindAllStringSubmatchIndex approach to avoid infinite loops
 func TextTemplate(templateString string, data map[string]interface{}, customPattern *regexp.Regexp) string {
 	if customPattern == nil {
 		// Supports: {{ name }}, {{ user.name }}, {{ items.0.price }}, spaces around name
-		customPattern = regexp.MustCompile(`{{\s*([a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*)\s*}}`)
+		customPattern = reTemplatePlaceholder
 	}
 
 	result := []byte(templateString)
@@ -230,12 +236,10 @@ func ClearSpecialCharacters(val string) string {
 	val = strings.ReplaceAll(val, "’", "'")
 
 	// Remove HTML tags (e.g., <p>, <div>, etc.)
-	reHTML := regexp.MustCompile(`<[^>]+>`)
-	val = reHTML.ReplaceAllString(val, "")
+	val = reHTMLTag.ReplaceAllString(val, "")
 
 	// Keep only allowed characters: a-z, A-Z, 0-9, '"?!.,;:-_&()+\s
-	reAllowed := regexp.MustCompile(`[^a-zA-Z0-9'"?!.,;:-_&()+\s]`)
-	val = reAllowed.ReplaceAllString(val, "")
+	val = reDisallowedChars.ReplaceAllString(val, "")
 
 	return val
 }

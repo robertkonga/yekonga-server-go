@@ -1,7 +1,6 @@
 package yekonga
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/jwt"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
-	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql/gqlerrors"
 )
 
@@ -170,17 +168,14 @@ func (y *YekongaData) initialize() {
 				}
 			}
 
-			// requestQueryMap := helper.ToMap[interface{}](graphql.Parser(requestQuery))
-			// querySelectors := helper.ExtractGraphqlQuery(requestQueryMap, 0)
-			// graphqlContext.QuerySelectors = querySelectors
-			currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
-
-			result := graphql.Do(graphql.Params{
-				Schema:         y.graphqlBuild.AuthSchema,
+			result := executeGraphql(graphqlExecution{
+				Schema:         &y.graphqlBuild.AuthSchema,
+				Cache:          y.graphqlBuild.authDocumentCache,
 				RequestString:  requestQuery,
-				Context:        currentContext,
-				VariableValues: variableValues,
 				OperationName:  operationName,
+				VariableValues: variableValues,
+				Context:        &graphqlContext,
+				Parent:         req.HttpRequest.Context(),
 			})
 
 			if len(result.Errors) > 0 {
@@ -236,19 +231,17 @@ func (y *YekongaData) initialize() {
 			}
 		}
 
-		requestQueryMap := helper.ToMap[interface{}](graphql.Parser(requestQuery))
-		querySelectors := helper.ExtractGraphqlQuery(requestQueryMap, 0)
-		graphqlContext.QuerySelectors = querySelectors
-		currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
-
 		// start := time.Now()
-		result := graphql.Do(graphql.Params{
-			Schema:         y.graphqlBuild.Schema,
+		result := executeGraphql(graphqlExecution{
+			Schema:         &y.graphqlBuild.Schema,
+			Cache:          y.graphqlBuild.documentCache,
 			RequestString:  requestQuery,
-			Context:        currentContext,
-			VariableValues: variableValues,
 			OperationName:  operationName,
+			VariableValues: variableValues,
 			RootObject:     make(map[string]interface{}),
+			Context:        &graphqlContext,
+			Parent:         req.HttpRequest.Context(),
+			WithSelectors:  true,
 		})
 
 		if len(result.Errors) > 0 {

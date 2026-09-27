@@ -23,6 +23,8 @@ type RequestContext struct {
 	QueryRelatedData datatype.JsonObject
 	QueryWhereData   datatype.JsonObject
 	mut              sync.RWMutex
+
+	relations *relationLoader // batches GraphQL relation lookups; see graphql_loader.go
 }
 
 type AuthPayload struct {
@@ -196,6 +198,10 @@ type Request struct {
 	mut           sync.RWMutex
 	App           *YekongaData
 	auditChanges  []AuditTrailChange
+
+	// Auth() decoded from the user info, reused until the user info changes.
+	auth       AuthPayload
+	authCached bool
 }
 
 // Request methods
@@ -207,6 +213,10 @@ func (r *Request) SetContext(key string, value interface{}) {
 	}
 
 	r.Context[key] = value
+
+	if key == string(UserInfoPayloadKey) {
+		r.authCached = false
+	}
 }
 
 func (r *Request) GetContext(key string) interface{} {
@@ -328,17 +338,28 @@ func (r *Request) Next(req Request, res Response) error {
 	return nil
 }
 
+// Auth returns the signed-in user, decoded from the user info on the request
+// context. The decode goes through JSON, so it's done once per request and
+// each call gets its own copy.
 func (r *Request) Auth() *AuthPayload {
-	var typeValue AuthPayload
-	data, exists := r.Context[string(UserInfoPayloadKey)]
+	r.mut.Lock()
+	defer r.mut.Unlock()
 
+	data, exists := r.Context[string(UserInfoPayloadKey)]
 	if !exists {
 		return nil
 	}
 
-	json.Unmarshal(helper.ToByte(data), &typeValue)
+	if !r.authCached {
+		var typeValue AuthPayload
+		json.Unmarshal(helper.ToByte(data), &typeValue)
 
-	return &typeValue
+		r.auth = typeValue
+		r.authCached = true
+	}
+
+	auth := r.auth
+	return &auth
 }
 
 func (r *Request) Client() *ClientPayload {

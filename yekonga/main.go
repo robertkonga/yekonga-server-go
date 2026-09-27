@@ -36,6 +36,7 @@ type StaticConfig struct {
 // Route represents a route with its pattern and parameters
 type Route struct {
 	pattern    string
+	re         *regexp.Regexp // compiled once from pattern in addRoute
 	paramNames []string
 	handler    Handler
 }
@@ -93,6 +94,9 @@ type YekongaData struct {
 	paymentControllerOnce  sync.Once
 	tenantPayments         map[string]*tenantPaymentEntry
 	tenantPaymentsMu       sync.Mutex
+	tenantCache            *lookupCache[tenantRecords]
+	tenantCatchCache       *lookupCache[*datatype.DataMap]
+	userCache              *lookupCache[*datatype.DataMap]
 
 	Config   *mainConfig.YekongaConfig
 	RootPath string
@@ -140,6 +144,8 @@ func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStr
 		publicRoutes:           make([]string, 0),
 		logger:                 &log.Logger{},
 	}
+
+	Server.initLookupCaches()
 
 	dbConnect.appPath = Server.HomeDirectory()
 	SetSystemModelDBconnection(Server, &systemModels)
@@ -294,9 +300,12 @@ type parsedSegment struct {
 
 // parseSegment handles a single path segment that contains one or more params.
 // e.g. "user-:name-:action" → params: ["name","action"], pattern: "user-([^/-]+)-([^/]+)"
-func parseSegment(part string) (parsedSegment, error) {
-	paramRe := regexp.MustCompile(`:([a-zA-Z0-9_]+)(\?)?`)
+var (
+	paramRe      = regexp.MustCompile(`:([a-zA-Z0-9_]+)(\?)?`)
+	validParamRe = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+)
 
+func parseSegment(part string) (parsedSegment, error) {
 	var params []string
 	var patternBuf strings.Builder
 
@@ -357,14 +366,11 @@ func parseSegment(part string) (parsedSegment, error) {
 }
 
 func isValidParam(param string) bool {
-	match, _ := regexp.MatchString("^[a-zA-Z0-9]+$", param)
-	return match
+	return validParamRe.MatchString(param)
 }
 
 // matchRoute checks if a path matches a compiled route regex and extracts parameters.
-func matchRoute(pattern string, paramNames []string, path string) (bool, map[string]string) {
-	re := regexp.MustCompile(pattern)
-
+func matchRoute(re *regexp.Regexp, paramNames []string, path string) (bool, map[string]string) {
 	matches := re.FindStringSubmatch(path)
 
 	// if strings.Contains(path, "/nome") {
@@ -410,6 +416,7 @@ func (y *YekongaData) addRoute(method, pattern string, handler Handler) {
 
 	y.routes[method] = append(y.routes[method], Route{
 		pattern:    normalized,
+		re:         regexp.MustCompile(normalized),
 		paramNames: paramNames,
 		handler:    handler,
 	})
@@ -432,13 +439,13 @@ func (y *YekongaData) AppendBaseUrl(pattern string) string {
 }
 
 func (y *YekongaData) findRoute(method, path string) (*Route, map[string]string) {
-	y.mut.Lock()
+	y.mut.RLock()
 	routes := y.routes[method]
-	y.mut.Unlock()
+	y.mut.RUnlock()
 
-	for _, route := range routes {
-		if matches, params := matchRoute(route.pattern, route.paramNames, path); matches {
-			return &route, params
+	for i := range routes {
+		if matches, params := matchRoute(routes[i].re, routes[i].paramNames, path); matches {
+			return &routes[i], params
 		}
 	}
 

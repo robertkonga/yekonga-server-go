@@ -74,7 +74,6 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 }
 
 func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
-	tenantModelName := "Tenant"
 	client := *req.Client()
 	host := client.OriginDomain()
 	// console.Log("host", client)
@@ -82,16 +81,9 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 	var tenantId interface{}
 
 	if req.App.Config.HasTenant {
-		tenant := req.App.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
-			"OR": []datatype.DataMap{
-				{"domain": host},
-				{"subdomain": host},
-				{"customDomain": host},
-				{"customSubdomain": host},
-			},
-		})
+		tenant, _ := req.App.tenantByHost(host)
 
-		if helper.IsNotEmpty(tenant) {
+		if tenant != nil {
 			tenantId = helper.GetValueOfString(tenant, "_id")
 		}
 
@@ -288,7 +280,6 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 // Middleware to add user info as a map
 func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 	var userInfo *datatype.DataMap
-	const userModelName = "User"
 	tokenPayload := req.GetContext(string(TokenPayloadKey))
 
 	// console.Error("tokenPayload", tokenPayload)
@@ -299,9 +290,7 @@ func UserInfoMiddleware(req *Request, res *Response) (int, error) {
 
 			if helper.IsNotEmpty(id) {
 				if req.App.Config.IsAuthorizationServer {
-					userInfo = req.App.ModelQuery(userModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-						"_id": helper.ObjectID(id),
-					})
+					userInfo = req.App.userById(id)
 				} else {
 					data := helper.ToDataMap(payload.ToMap())
 					data["_id"] = id

@@ -232,6 +232,12 @@ func ToByte(data interface{}) []byte {
 
 // JSON file and converts it to a map
 func ToMap[T any](data interface{}) map[string]T {
+	// Map inputs are converted directly: this runs per resolver call and per
+	// row, and the result is identical to the JSON round-trip below.
+	if result, handled := toMapFast[T](data); handled {
+		return result
+	}
+
 	var result map[string]T
 	var dataByte []byte
 	if s, ok := data.(string); ok {
@@ -696,6 +702,18 @@ func ToTitle(s string) string {
 	return strings.Join(titleWords, " ")
 }
 
+// Compiled once: these run on hot paths (trigger lookups, URL building,
+// tenant resolution), and compiling per call costs microseconds each time.
+var (
+	reSlugInvalid         = regexp.MustCompile(`[^a-z0-9]+`)
+	reSeparator           = regexp.MustCompile(`[\s-]+`)
+	reMultipleUnderscores = regexp.MustCompile(`_+`)
+	reHttpScheme          = regexp.MustCompile(`http(s?)://`)
+	reMainDomain          = regexp.MustCompile(`((.*)[.])?([a-zA-Z0-9-_]{3,}[.]([a-z]{2,3}([.][a-z]{2,})?))`)
+	reEmail               = regexp.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`)
+	rePhone               = regexp.MustCompile(`(?im)^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$`)
+)
+
 // Pluralization rules
 var pluralRules = []struct {
 	pattern *regexp.Regexp
@@ -1001,9 +1019,9 @@ func ConvertCalculatedValue(value interface{}) interface{} {
 		if v, ok := value.(string); ok {
 			vi, _ := strconv.ParseFloat(v, 64)
 			return vi
-		} else {
-			return v
 		}
+
+		return value
 	}
 
 	return GetTimestamp(value)
@@ -1480,10 +1498,7 @@ func GetBaseUrl(str string, domain string) string {
 }
 
 func GetMainDomain(value string) *string {
-	// Regex pattern (Go uses RE2, no named groups support like JS)
-	reg := regexp.MustCompile(`((.*)[.])?([a-zA-Z0-9-_]{3,}[.]([a-z]{2,3}([.][a-z]{2,})?))`)
-
-	matches := reg.FindStringSubmatch(value)
+	matches := reMainDomain.FindStringSubmatch(value)
 
 	// matches[3] corresponds to the "domain" group in your JS regex
 	if len(matches) > 3 && matches[3] != "" {
@@ -1652,6 +1667,40 @@ func GetValueOfList(data interface{}, key string) []interface{} {
 }
 
 func GetMapValue(data interface{}, key string) interface{} {
+	// Plain maps are read directly. The generic path below copies the whole
+	// map via reflection just to read one key, and this runs hundreds of
+	// times per request.
+	var m map[string]interface{}
+	switch x := data.(type) {
+	case map[string]interface{}:
+		m = x
+	case datatype.DataMap:
+		m = x
+	case *datatype.DataMap:
+		if x == nil {
+			return nil
+		}
+		m = *x
+	case *map[string]interface{}:
+		if x == nil {
+			return nil
+		}
+		m = *x
+	}
+
+	if m != nil {
+		first, rest, nested := strings.Cut(key, ".")
+
+		if vi, ok := m[first]; ok {
+			if !nested {
+				return vi
+			}
+			return GetMapValue(vi, rest)
+		}
+
+		return nil
+	}
+
 	if str, ok := data.(string); ok {
 		var d map[string]interface{}
 		if err := json.Unmarshal([]byte(str), &d); err == nil {
@@ -1675,11 +1724,6 @@ func GetMapValue(data interface{}, key string) interface{} {
 		} else {
 			localData = data
 		}
-	}
-
-	if key == "data.clients" {
-		console.Error(TypeOf(localData))
-		console.Info("GetMapValue", IsMap(localData), first, keys, localData)
 	}
 
 	if IsMap(localData) {
@@ -1998,8 +2042,7 @@ func Request(method string, url string, headers map[string]string, body interfac
 
 func ValidateEmail(email interface{}) bool {
 	if v, ok := email.(string); ok {
-		re := regexp.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`)
-		return re.MatchString(strings.ToLower(v))
+		return reEmail.MatchString(strings.ToLower(v))
 	}
 
 	return false
@@ -2016,8 +2059,7 @@ func IsPhone(value interface{}) bool {
 		}
 		v = FormatPhone(v) // Assuming formatPhone is defined elsewhere
 
-		phone := regexp.MustCompile(`(?im)^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$`)
-		return phone.MatchString(v)
+		return rePhone.MatchString(v)
 
 	}
 

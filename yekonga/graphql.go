@@ -74,6 +74,10 @@ type GraphqlAutoBuild struct {
 	Schema              graphql.Schema
 	AuthSchema          graphql.Schema
 	mut                 sync.RWMutex
+
+	// Parsed and validated queries, one cache per schema (see graphql_cache.go).
+	documentCache     *lookupCache[*graphqlDocument]
+	authDocumentCache *lookupCache[*graphqlDocument]
 }
 
 type CustomGraphqlResolver func(p graphql.ResolveParams) (interface{}, error)
@@ -206,6 +210,10 @@ func (g *GraphqlAutoBuild) initialize() {
 
 	g.Schema = s
 	g.AuthSchema = sa
+
+	// Documents validated against the previous schemas may no longer be valid.
+	g.documentCache = newGraphqlDocumentCache()
+	g.authDocumentCache = newGraphqlDocumentCache()
 }
 
 func (g *GraphqlAutoBuild) initializeDefaultCustomQuery() {
@@ -433,6 +441,10 @@ func (g *GraphqlAutoBuild) getQuerySingleField(collection string, foreignKey str
 				return nil, nil
 			}
 
+			if isRelationField(&p, foreignKey) {
+				return g.resolveRelation(model, &p, foreignKey, targetKey, true)
+			}
+
 			data := model.FindOne(nil)
 
 			if helper.IsNotEmpty(data) {
@@ -488,6 +500,11 @@ func (g *GraphqlAutoBuild) getQueryMultipleField(collection string, foreignKey s
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			var model = g.yekonga.ModelQuery(name)
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
+
+			if isRelationField(&p, foreignKey) {
+				return g.resolveRelation(model, &p, foreignKey, targetKey, false)
+			}
+
 			data := model.Find(nil)
 
 			g.loadRelatedData(data, model, &p, foreignKey, targetKey)
@@ -697,6 +714,10 @@ func (g *GraphqlAutoBuild) getQueryCountField(collection string, foreignKey stri
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -761,6 +782,10 @@ func (g *GraphqlAutoBuild) getQuerySumField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -820,6 +845,10 @@ func (g *GraphqlAutoBuild) getQueryMaxField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -878,6 +907,10 @@ func (g *GraphqlAutoBuild) getQueryMinField(collection string, foreignKey string
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -936,6 +969,10 @@ func (g *GraphqlAutoBuild) getQueryAverageField(collection string, foreignKey st
 			},
 		},
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -1071,6 +1108,10 @@ func (g *GraphqlAutoBuild) getQueryGraphField(collection string, foreignKey stri
 		Description: fmt.Sprintf("Get %v", name),
 		Args:        argsParams,
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+			// Per-call copies: the relation keys below are set per request, and
+			// writing the captured variables would leak them into other requests.
+			foreignKey, targetKey := foreignKey, targetKey
+
 			var parent datatype.DataMap
 			if pp, ok := p.Source.(graphql.ResolveParams); ok {
 				if helper.IsMap(pp.Source) {
@@ -2174,6 +2215,9 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 				}
 			} else {
 				if helper.IsEmpty(localParent[foreignKey]) {
+					// The parent row has nothing to link on, so the relation is empty.
+					// Callers that don't check the result must not get unfiltered records.
+					model.Where("_id", nil)
 					return false
 				}
 				model.Where(targetKey, localParent[foreignKey])
@@ -2229,6 +2273,9 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 				}
 			} else {
 				if helper.IsEmpty(localParent[foreignKey]) {
+					// The parent row has nothing to link on, so the relation is empty.
+					// Callers that don't check the result must not get unfiltered records.
+					model.Where("_id", nil)
 					return false
 				}
 
@@ -2284,89 +2331,53 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 }
 
 func (g *GraphqlAutoBuild) loadRelatedData(data *[]datatype.DataMap, model *DataModelQuery, p *graphql.ResolveParams, foreignKey string, targetKey string) {
-	ctx, _ := p.Context.Value(RequestContextKey).(*RequestContext)
-
 	for i, d := range *data {
 		dataMap := g.formateOutputData(model, d, foreignKey, targetKey)
 		dataMap["_params"] = p.Args
 		(*data)[i] = dataMap
 	}
-
-	for level, keys := range ctx.QuerySelectors {
-		fmt.Sprintf("level: %v, len(keys): %v, == %v", level, len(keys), keys)
-		// console.Log("level: %v, len(keys): %v, == %v", level, len(keys), keys)
-
-		// 	if len(keys) > 0 {
-		// 		selects := []string{}
-		// 		related := []string{}
-		// 		for _, key := range keys {
-		// 			if strings.HasPrefix(key, "_c_") {
-		// 				related = append(related, key[3:])
-		// 			} else if strings.HasPrefix(key, "_p_") {
-
-		// 			} else {
-		// 				selects = append(selects, key)
-		// 			}
-		// 		}
-
-		// 		if len(related) > 0 {
-		// 			relatedData := datatype.DataMap{}
-		// 			for _, k := range related {
-		// 				relatedModel := helper.ToCamelCase(helper.Singularize(k))
-		// 				// console.Log("ChildrenFields", relatedModel)
-
-		// 				if f, exists := model.Model.ChildrenFields[k]; exists {
-		// 					ids := helper.GetList(*data, f.ForeignKey)
-		// 					console.Log("ChildrenFields", f.ForeignKey, ids)
-		// 					children := g.yekonga.ModelQuery(relatedModel).WhereAll(datatype.DataMap{f.ForeignKey: map[string]interface{}{"in": ids}}).Find(nil)
-		// 					console.Log("relatedModel=========", len(*children))
-		// 					relatedData[k] = children
-		// 				} else if f, exists := model.Model.ParentFields[k]; exists {
-		// 					ids := helper.GetList(*data, f.ForeignKey)
-		// 					console.Log("ParentFields", f.ForeignKey, ids)
-		// 					// var model = g.yekonga.ModelQuery(relatedModel).Where(f.ForeignKey, ids).FindOne(nil)
-		// 				}
-
-		// 			}
-		// 		}
-
-		// 		fmt.Sprintf("level: %v, selected: %v, related: %v \n\n", level, selects, related)
-		// 	}
-	}
-
-	// console.Success("Reverse", ctx.QuerySelectors)
-
 }
 
 func (g *GraphqlAutoBuild) formateOutputData(model *DataModelQuery, data interface{}, foreignKey string, targetKey string) map[string]interface{} {
 	output := map[string]interface{}{}
 
-	if helper.IsNotEmpty(data) && helper.IsMap(data) {
-		localData := helper.ToDataMap(data)
-		// console.Log(helper.TypeOf(localData))
-		for k, v := range localData {
-			if helper.Contains(model.Model.Protected, k) {
-				output[k] = "--protected--"
+	var localData map[string]interface{}
+	switch d := data.(type) {
+	case datatype.DataMap:
+		localData = d
+	case map[string]interface{}:
+		localData = d
+	default:
+		if helper.IsNotEmpty(data) && helper.IsMap(data) {
+			localData = helper.ToDataMap(data)
+		}
+	}
+
+	// Worked out on first use rather than per file field: it parses a URL.
+	domain, domainKnown := "", false
+	originDomain := func() string {
+		if !domainKnown {
+			if model.RequestContext != nil && model.RequestContext.Client != nil {
+				domain = model.RequestContext.Client.OriginDomain()
+			}
+			domainKnown = true
+		}
+		return domain
+	}
+
+	for k, v := range localData {
+		if helper.Contains(model.Model.Protected, k) {
+			output[k] = "--protected--"
+		} else {
+			output[k] = v
+		}
+
+		if helper.Contains(model.Model.FileFields, k) {
+			if vi, ok := v.(string); ok && vi != "" {
+				output[k] = helper.GetBaseUrl(vi, originDomain())
 			} else {
-				output[k] = v
+				output[k] = helper.GetBaseUrl("placeholder.jpg", originDomain())
 			}
-
-			if helper.Contains(model.Model.FileFields, k) {
-				if vi, ok := v.(string); ok && helper.IsNotEmpty(v) {
-					if helper.IsNotEmpty(model.RequestContext) {
-						output[k] = helper.GetBaseUrl(vi, model.RequestContext.Client.OriginDomain())
-					} else {
-						output[k] = helper.GetBaseUrl(vi, "")
-					}
-				} else {
-					if helper.IsNotEmpty(model.RequestContext) {
-						output[k] = helper.GetBaseUrl("placeholder.jpg", model.RequestContext.Client.OriginDomain())
-					} else {
-						output[k] = helper.GetBaseUrl("placeholder.jpg", "")
-					}
-				}
-			}
-
 		}
 	}
 

@@ -819,14 +819,14 @@ func (y *YekongaData) GraphQL(query string, variables map[string]interface{}, re
 		Client:       req.Client(),
 	}
 
-	currentContext := context.WithValue(req.HttpRequest.Context(), RequestContextKey, &graphqlContext)
-
-	result := graphql.Do(graphql.Params{
-		Schema:         y.graphqlBuild.Schema,
+	result := executeGraphql(graphqlExecution{
+		Schema:         &y.graphqlBuild.Schema,
+		Cache:          y.graphqlBuild.documentCache,
 		RequestString:  requestString,
-		Context:        currentContext,
-		VariableValues: variableValues,
 		OperationName:  operationName,
+		VariableValues: variableValues,
+		Context:        &graphqlContext,
+		Parent:         req.HttpRequest.Context(),
 	})
 
 	return result

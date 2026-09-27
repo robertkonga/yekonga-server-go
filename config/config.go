@@ -155,6 +155,10 @@ type YekongaConfig struct {
 		Enabled       bool     `json:"enabled"`       // Enable or disable audit trail recording
 		ExcludeModels []string `json:"excludeModels"` // Model names to exclude from audit trail recording
 	}
+	Cache struct { // In-memory caches for per-request lookups; writes through the framework clear them immediately, so the TTL only bounds staleness from changes made elsewhere (another instance, or the database directly)
+		TenantSeconds int `json:"tenantSeconds"` // How long a host's Tenant/TenantConfig/TenantCatch lookup is reused; 0 = default (30s), negative = disabled
+		UserSeconds   int `json:"userSeconds"`   // How long a user's record is reused on an authorization server; 0 = default (10s), negative = disabled. Also how long a role/permission change made elsewhere takes to apply
+	} `json:"cache"`
 	Security struct { // Protection against volumetric/resource-exhaustion attacks
 		ReadTimeoutSeconds       int      `json:"readTimeoutSeconds"`       // Max seconds to read the full request (headers+body); 0 = no limit (default, since uploads can be large)
 		ReadHeaderTimeoutSeconds int      `json:"readHeaderTimeoutSeconds"` // Max seconds to read request headers; 0 = default (5s) — safe to leave on, headers are always small

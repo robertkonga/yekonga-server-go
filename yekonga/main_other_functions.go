@@ -7,34 +7,21 @@ import (
 )
 
 func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
-	tenantModelName := "Tenant"
 	client := req.Client()
 	host := client.OriginDomain()
 
-	var tenant any
+	var tenant *datatype.DataMap
+	var tenantConfig *datatype.DataMap
 
 	if req.App.Config.HasTenant {
-		tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-			"OR": []datatype.DataMap{
-				{"domain": host},
-				{"subdomain": host},
-				{"customDomain": host},
-				{"customSubdomain": host},
-			},
-		})
-
+		tenant, tenantConfig = req.App.tenantByHost(host)
 	}
 
-	if helper.IsNotEmpty(tenant) {
-		tenantConfigModelName := "TenantConfig"
+	if tenant != nil {
 		tenantId := helper.GetValueOf(tenant, "id")
-
-		tenantConfig := req.App.ModelQuery(tenantConfigModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
-			"tenantId": tenantId,
-		})
 		// console.Log("tenantConfig", tenantId, tenantConfig)
 
-		if helper.IsEmpty(tenantConfig) {
+		if tenantConfig == nil {
 			tenantConfig = &datatype.DataMap{
 				"tenantId": tenantId,
 			}
