@@ -579,8 +579,7 @@ func ToSlug(s string) string {
 	s = ToUnderscore(s)
 
 	// Replace non-alphanumeric characters with hyphens
-	re := regexp.MustCompile(`[^a-z0-9]+`)
-	s = re.ReplaceAllString(s, "-")
+	s = reSlugInvalid.ReplaceAllString(s, "-")
 
 	// Trim leading and trailing hyphens
 	s = strings.Trim(s, "-")
@@ -645,11 +644,9 @@ func ToUnderscore(text string) string {
 
 	// 3. Replace spaces and hyphens with a single underscore
 	// Example: "hello-world thing" -> "hello_world_thing"
-	reSeparator := regexp.MustCompile("[\\s-]+")
 	t = reSeparator.ReplaceAllString(t, "_")
 
 	// 4. Remove any multiple consecutive underscores resulting from the previous steps
-	reMultipleUnderscores := regexp.MustCompile("_+")
 	t = reMultipleUnderscores.ReplaceAllString(t, "_")
 
 	// 5. Remove leading and trailing underscores
@@ -675,8 +672,7 @@ func ToTitle(s string) string {
 	s = ToUnderscore(s)
 
 	// Step 2: collapse multiple underscores → single space
-	re := regexp.MustCompile(`_+`)
-	s = re.ReplaceAllString(s, " ")
+	s = reMultipleUnderscores.ReplaceAllString(s, " ")
 
 	// Step 3: trim and split into words
 	s = strings.TrimSpace(s)
@@ -1462,24 +1458,22 @@ func HomeDirectory(name string) string {
 }
 
 func GetBaseUrl(str string, domain string) string {
-	ip, _ := GetLocalIP()
+	if reHttpScheme.MatchString(str) {
+		return str
+	}
+
 	port := 80
 	prefix := ""
-	if IsNotEmpty(config.Config) {
+	if config.Config != nil {
 		port = config.Config.Ports.Server
 		prefix = config.Config.BaseUrl
 	}
 
-	if IsEmpty(domain) {
+	// Only look up the local IP when there's no domain to use: it hits the
+	// network interfaces, and this runs once per file field per row.
+	if domain == "" {
+		ip, _ := GetLocalIP()
 		domain = fmt.Sprintf("%s:%d", ip, port)
-	}
-
-	if IsNotEmpty(config.Config) && config.Config.Ports.Secure {
-		port = config.Config.Ports.SSLServer
-	}
-
-	if regexp.MustCompile(`http(s?)://`).MatchString(str) {
-		return str
 	}
 
 	return "https://" + domain + strings.TrimSuffix(prefix, "/") + "/" + strings.TrimPrefix(strings.TrimSuffix(str, "/"), "/")

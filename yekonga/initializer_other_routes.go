@@ -573,21 +573,24 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 	uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dst.Name()), r.Host)
 	fileNames = append(fileNames, uploadedUrl)
 
-	if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
-		// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
-		savedFile = filepath.Join(uploadDir, helper.GetHexString(24)+".webp")
-
-		helper.ResizeFile(savedFile, savedFile, helper.ResizeOptions{
-			MaxWidth:     1400,
-			OutputFormat: "webp",
-			Quality:      80,
-		})
-	}
-
 	// 5. Copy the uploaded file to the destination
 	if _, err := io.Copy(dst, file); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
+		// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
+		targetFile := strings.TrimSuffix(savedFile, fileExt) + ".webp"
+
+		err := helper.ResizeFile(savedFile, targetFile, helper.ResizeOptions{
+			MaxWidth:     1400,                                              // 900 was default value
+			OutputFormat: strings.TrimPrefix(filepath.Ext(targetFile), "."), // "webp",
+			Quality:      80,
+		})
+		if err == nil {
+			savedFile = targetFile
+		}
 	}
 
 	// 1. Set the header so the client (Vue/Postman) knows it's JSON
@@ -644,8 +647,8 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 
 		// 3. Create destination path
 		fileExt := filepath.Ext(fileHeader.Filename)
-		dstPath := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
-		dst, err := os.Create(dstPath)
+		savedFile := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
+		dst, err := os.Create(savedFile)
 		if err != nil {
 			console.Log("Saving file to:", err.Error())
 
@@ -654,7 +657,7 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer dst.Close()
 
-		console.Log("Saving file to:", dstPath)
+		console.Log("Saving file to:", savedFile)
 		// 4. Copy the data
 		if _, err := io.Copy(dst, file); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -663,22 +666,19 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 
 		if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
 			// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
-			dstPath = filepath.Join(uploadDir, helper.GetHexString(24)+".webp")
+			targetFile := strings.TrimSuffix(savedFile, fileExt) + ".webp"
 
-			// helper.ResizeFile(dstPath, dstPath, helper.ResizeOptions{
-			// 	MaxWidth: 900,
-			// 	// OutputFormat: "png",
-			// 	Quality: 80,
-			// })
-
-			helper.ResizeFile(dstPath, dstPath, helper.ResizeOptions{
-				MaxWidth:     1400,
-				OutputFormat: "webp",
+			err := helper.ResizeFile(savedFile, targetFile, helper.ResizeOptions{
+				MaxWidth:     1400,                                              // 900 was default value
+				OutputFormat: strings.TrimPrefix(filepath.Ext(targetFile), "."), // "webp",
 				Quality:      80,
 			})
+			if err == nil {
+				savedFile = targetFile
+			}
 		}
 
-		uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dstPath), r.Host)
+		uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(savedFile), r.Host)
 		fileNames = append(fileNames, uploadedUrl)
 
 		fmt.Printf("Saved: %s\n", fileHeader.Filename)
