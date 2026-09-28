@@ -15,6 +15,8 @@ type CollectionFieldConfig struct {
 	DefaultValue interface{}                     `json:"default,omitempty"`
 	Required     bool                            `json:"required,omitempty"`
 	Protected    bool                            `json:"protected,omitempty"`
+	Index        bool                            `json:"index,omitempty"`  // create a database index on this field
+	Unique       bool                            `json:"unique,omitempty"` // create a unique index on this field
 	Options      []string                        `json:"options,omitempty"`
 	ForeignKey   CollectionFieldConfigForeignKey `json:"foreignKey,omitempty"`
 }
@@ -59,6 +61,18 @@ func databaseCollectionFieldConfigFromMap(fieldData interface{}) CollectionField
 		if v, ok := field["protected"]; ok {
 			if vi, oki := v.(bool); oki {
 				result.Protected = vi
+			}
+		}
+
+		if v, ok := field["index"]; ok {
+			if vi, oki := v.(bool); oki {
+				result.Index = vi
+			}
+		}
+
+		if v, ok := field["unique"]; ok {
+			if vi, oki := v.(bool); oki {
+				result.Unique = vi
 			}
 		}
 

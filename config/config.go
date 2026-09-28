@@ -190,6 +190,15 @@ type YekongaConfig struct {
 		Prefix           string       `json:"prefix"`           // Table/collection name prefix
 		GenerateID       bool         `json:"generateID"`       // Automatically generate IDs for new records
 		GenerateIDLength int          `json:"generateIDLength"` // Length of generated IDs
+
+		// MongoDB connection pool and timeouts; 0 = the driver's default.
+		MaxPoolSize                   int  `json:"maxPoolSize"`                   // Max connections per server; 0 = driver default (100)
+		MinPoolSize                   int  `json:"minPoolSize"`                   // Connections kept open while idle; 0 = driver default (0)
+		MaxConnIdleTimeSeconds        int  `json:"maxConnIdleTimeSeconds"`        // Close connections idle this long; 0 = never
+		ConnectTimeoutSeconds         int  `json:"connectTimeoutSeconds"`         // Max seconds to open a connection; 0 = driver default (30s)
+		ServerSelectionTimeoutSeconds int  `json:"serverSelectionTimeoutSeconds"` // Max seconds to find a usable server; 0 = driver default (30s)
+		QueryTimeoutSeconds           int  `json:"queryTimeoutSeconds"`           // Max seconds for any one database operation; 0 = no limit (default, since exports and reports can run long)
+		DisableAutoIndexes            bool `json:"disableAutoIndexes"`            // Skip creating indexes at startup (tenantId, foreign keys, and fields marked "index"/"unique" in database.json)
 	}
 	Authentication struct { // Authentication configuration
 		SaltRound   int    `json:"saltRound"`   // Number of salt rounds for password hashing

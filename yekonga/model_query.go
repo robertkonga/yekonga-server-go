@@ -392,11 +392,23 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	}
 
 	var auditOldValue *datatype.DataMap
-	if m.auditEnabled() {
-		auditOldValue = m.collection().findOne()
-	}
+	var result *datatype.DataMap
+	var err error
 
-	result, err := m.collection().update(*(m.formatInputData(data, UpdateInputAction)))
+	formatted := *(m.formatInputData(data, UpdateInputAction))
+
+	if withPrevious, ok := m.collection().(interface {
+		updateWithPrevious(datatype.DataMap) (*datatype.DataMap, *datatype.DataMap, error)
+	}); ok && m.auditEnabled() {
+		// One round trip that also returns the record as it was.
+		auditOldValue, result, err = withPrevious.updateWithPrevious(formatted)
+	} else {
+		if m.auditEnabled() {
+			auditOldValue = m.collection().findOne()
+		}
+
+		result, err = m.collection().update(formatted)
+	}
 
 	if err != nil {
 		console.Log(err.Error())
@@ -607,8 +619,6 @@ ParentLoop:
 			console.Error("DataModelQuery.Import", err.Error())
 		} else if createData != nil {
 			imported = len(*createData)
-			interfaceData := helper.ToList[interface{}](createData)
-			afterData = append(afterData, interfaceData...)
 
 			status = true
 			message = "SUCCESS"
@@ -622,6 +632,14 @@ ParentLoop:
 		triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, createData)
 		if result, ok := triggerAfter.([]datatype.DataMap); ok {
 			createData = &(result)
+		}
+
+		// Added after the triggers so the returned records include their
+		// changes, as Create's result does.
+		if err == nil && createData != nil {
+			for _, record := range *createData {
+				afterData = append(afterData, record)
+			}
 		}
 	}
 
@@ -1441,7 +1459,12 @@ func (m *DataModelQuery) recordAuditChange(action string, documentId string, old
 }
 
 func (m *DataModelQuery) collection() dataModelQueryStructure {
-	ctx := context.TODO()
+	// Queries made while handling a request stop if the client disconnects;
+	// anything else (cron jobs, background work) runs to completion.
+	ctx := context.Background()
+	if m.RequestContext != nil && m.RequestContext.Request != nil {
+		ctx = m.RequestContext.Request.DatabaseContext()
+	}
 
 	switch m.Model.DatabaseType {
 	case config.DBTypeMongodb:

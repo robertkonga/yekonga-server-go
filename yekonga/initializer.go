@@ -470,7 +470,12 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 	var databaseBillingStructure = DefaultBillingDatabaseStructure
 	var databasePaymentStructure = DefaultPaymentDatabaseStructure
 	var databaseTenantCatchStructure = DefaultTenantCatchDatabaseStructure
-	var databaseStructure = DefaultExtraDatabaseStructure
+	// Built on a copy: the Default* structures are package-level and must not
+	// pick up this app's collections (e.g. when a process builds two servers).
+	var databaseStructure = make(DatabaseStructure, len(DefaultExtraDatabaseStructure))
+	for k, v := range DefaultExtraDatabaseStructure {
+		databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
+	}
 
 	if config.IsAuthorizationServer {
 		for k, v := range databaseAuthStructure {
@@ -478,7 +483,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 			if existing, ok := databaseStructure[k]; ok {
 				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 			} else {
-				databaseStructure[k] = v
+				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 			}
 		}
 	}
@@ -489,7 +494,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 			if existing, ok := databaseStructure[k]; ok {
 				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 			} else {
-				databaseStructure[k] = v
+				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 			}
 		}
 	}
@@ -500,7 +505,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 			if existing, ok := databaseStructure[k]; ok {
 				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 			} else {
-				databaseStructure[k] = v
+				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 			}
 		}
 
@@ -510,7 +515,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 				if existing, ok := databaseStructure[k]; ok {
 					mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 				} else {
-					databaseStructure[k] = v
+					databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 				}
 			}
 
@@ -519,7 +524,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 				if existing, ok := databaseStructure[k]; ok {
 					mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 				} else {
-					databaseStructure[k] = v
+					databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 				}
 			}
 		}
@@ -531,7 +536,7 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 			if existing, ok := databaseStructure[k]; ok {
 				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
 			} else {
-				databaseStructure[k] = v
+				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
 			}
 		}
 	}

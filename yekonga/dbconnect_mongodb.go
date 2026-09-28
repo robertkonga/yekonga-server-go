@@ -27,20 +27,6 @@ type mongodbConnection struct {
 	filter *datatype.DataMap // built once by where(); a connection serves a single query
 }
 
-func newMongodbInstance(con *mongodbConnection) mongodbConnection {
-	return mongodbConnection{
-		ctx:    con.ctx,
-		client: con.client,
-		query: &DataModelQuery{
-			Model:            con.query.Model,
-			RequestContext:   con.query.RequestContext,
-			QueryContext:     con.query.QueryContext,
-			isAdmin:          con.query.isAdmin,
-			skipBeforeCommit: con.query.skipBeforeCommit,
-		},
-	}
-}
-
 func (con *mongodbConnection) collection() *mongo.Collection {
 
 	// Get collection
@@ -49,6 +35,23 @@ func (con *mongodbConnection) collection() *mongo.Collection {
 		Collection(con.query.Model.Collection)
 
 	return collection
+}
+
+// readCtx is the context for reads: cancelled if the request's client
+// disconnects (see Request.DatabaseContext).
+func (con *mongodbConnection) readCtx() context.Context {
+	if con.ctx == nil || *con.ctx == nil {
+		return context.Background()
+	}
+
+	return *con.ctx
+}
+
+// writeCtx is the context for writes and cursor cleanup. It ignores the
+// client disconnecting, so a handler's writes aren't cut off half-way; the
+// configured query timeout still applies.
+func (con *mongodbConnection) writeCtx() context.Context {
+	return context.WithoutCancel(con.readCtx())
 }
 
 func (con *mongodbConnection) findOne() *datatype.DataMap {
@@ -64,7 +67,7 @@ func (con *mongodbConnection) findOne() *datatype.DataMap {
 	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", localWhere)
 	// }
 
-	res := con.collection().FindOne(context.TODO(), localWhere, opts)
+	res := con.collection().FindOne(con.readCtx(), localWhere, opts)
 	err := res.Decode(&result)
 	if err != nil {
 		// logger.Error("mongodbConnection.findOne", err.Error())
@@ -114,7 +117,7 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 
 		// console.Log("mongodbConnection.find", "Pipeline: %v", pipeline)
 
-		cursor, err = con.collection().Aggregate(context.TODO(), pipeline, opts)
+		cursor, err = con.collection().Aggregate(con.readCtx(), pipeline, opts)
 		if err != nil {
 			logger.Error("mongodbConnection.find 0", err.Error())
 		}
@@ -135,14 +138,15 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 			opts = opts.SetSort(con.orderBy())
 		}
 
-		cursor, err = con.collection().Find(context.TODO(), con.where(), opts)
+		cursor, err = con.collection().Find(con.readCtx(), con.where(), opts)
 	}
 
 	if err != nil {
 		logger.Error("mongodbConnection.find", err.Error())
+		return &[]datatype.DataMap{}
 	}
 
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(con.writeCtx())
 
 	// if con.query.Model.Collection == "user_verifications" {
 	// 	console.Log("mongodbConnection.find", "Cursor: %v", con.where())
@@ -154,7 +158,7 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 		result := make([]datatype.DataMap, 0, cursor.RemainingBatchLength())
 
 		// cursor.All(context.TODO(), &result)
-		for cursor.Next(context.TODO()) {
+		for cursor.Next(con.readCtx()) {
 			// To decode into a struct, use cursor.Decode()
 			var data datatype.DataMap
 			err := cursor.Decode(&data)
@@ -179,6 +183,13 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 		// 	console.Log("mongodbConnection.find", "Found %d documents", result)
 		// }
 
+		// Stopped part-way (cancelled or timed out): don't pass off a
+		// truncated list as the full result.
+		if err := cursor.Err(); err != nil {
+			logger.Error("mongodbConnection.find", err.Error())
+			return &[]datatype.DataMap{}
+		}
+
 		return &result
 	}
 
@@ -187,11 +198,35 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 
 func (con *mongodbConnection) pagination() *datatype.DataMap {
 	var lastPage int64
-	total := con.count()
 	perPage := con.limit()
 	currentPage := con.page()
 	from := (perPage * (currentPage - 1)) + 1
 	to := perPage * (currentPage)
+
+	con.query.Take(perPage)
+
+	// The count and the page don't depend on each other, so they run at the
+	// same time. The filter is built first: it's shared and may run queries.
+	con.where()
+
+	var total int64
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			// A panic here would take down the process, not just the request.
+			if r := recover(); r != nil {
+				logger.Error("mongodbConnection.pagination count", r)
+			}
+		}()
+
+		total = con.count()
+	}()
+
+	data := con.find()
+	wg.Wait()
+
 	remainder := total % int64(perPage)
 
 	if remainder == 0 {
@@ -200,8 +235,6 @@ func (con *mongodbConnection) pagination() *datatype.DataMap {
 		lastPage = (total + (int64(perPage) - total%int64(perPage))) / int64(perPage)
 	}
 
-	con.query.Take(perPage)
-
 	result := datatype.DataMap{
 		"total":       total,
 		"perPage":     perPage,
@@ -209,7 +242,7 @@ func (con *mongodbConnection) pagination() *datatype.DataMap {
 		"lastPage":    lastPage,
 		"from":        from,
 		"to":          to,
-		"data":        con.find(),
+		"data":        data,
 	}
 
 	return &result
@@ -245,15 +278,22 @@ func (con *mongodbConnection) count() int64 {
 			{{Key: "$group", Value: bson.M{"_id": groupId, "aggregateValue": bson.M{"$sum": 1}}}},
 		}
 
-		cursorResult, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+		cursorResult, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
 		if err != nil {
 			logger.Error("mongodbConnection.count 1", err.Error())
+			return 0
 		}
-		defer cursorResult.Close(context.TODO())
+		defer cursorResult.Close(con.writeCtx())
 
 		cursor = int64(cursorResult.RemainingBatchLength())
 	} else {
-		cursor, err = con.collection().CountDocuments(context.TODO(), con.where())
+		if len(*con.where()) == 0 {
+			// Nothing to filter on: read the count from collection metadata
+			// instead of scanning every record.
+			cursor, err = con.collection().EstimatedDocumentCount(con.readCtx())
+		} else {
+			cursor, err = con.collection().CountDocuments(con.readCtx(), con.where())
+		}
 		if err != nil {
 			logger.Error("mongodbConnection.count", err.Error())
 		}
@@ -272,17 +312,18 @@ func (con *mongodbConnection) sum(key string) float64 {
 		{{Key: "$group", Value: bson.M{"_id": nil, "aggregateValue": bson.M{"$sum": "$" + key}}}},
 	}
 
-	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+	cursor, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
 	if err != nil {
 		logger.Error("mongodbConnection.sum 1", err.Error())
+		return 0
 	}
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(con.writeCtx())
 
 	// Retrieve the result
 	var result struct {
 		AggregateValue float64 `bson:"aggregateValue"`
 	}
-	if cursor.Next(context.TODO()) {
+	if cursor.Next(con.readCtx()) {
 		if err := cursor.Decode(&result); err != nil {
 			logger.Error("mongodbConnection.sum 2", err.Error())
 		}
@@ -302,17 +343,18 @@ func (con *mongodbConnection) max(key string) interface{} {
 		{{Key: "$group", Value: bson.M{"_id": nil, "aggregateValue": bson.M{"$max": "$" + key}}}},
 	}
 
-	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+	cursor, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
 	if err != nil {
 		logger.Error("mongodbConnection.max 1", err.Error())
+		return nil
 	}
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(con.writeCtx())
 
 	// Retrieve the result
 	var result struct {
 		AggregateValue interface{} `bson:"aggregateValue"`
 	}
-	if cursor.Next(context.TODO()) {
+	if cursor.Next(con.readCtx()) {
 		if err := cursor.Decode(&result); err != nil {
 			logger.Error("mongodbConnection.max 2", err.Error())
 		}
@@ -349,17 +391,18 @@ func (con *mongodbConnection) min(key string) interface{} {
 		{{Key: "$group", Value: bson.M{"_id": nil, "aggregateValue": bson.M{"$min": "$" + key}}}},
 	}
 
-	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+	cursor, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
 	if err != nil {
 		logger.Error("mongodbConnection.min 1", err.Error())
+		return nil
 	}
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(con.writeCtx())
 
 	// Retrieve the result
 	var result struct {
 		AggregateValue interface{} `bson:"aggregateValue"`
 	}
-	if cursor.Next(context.TODO()) {
+	if cursor.Next(con.readCtx()) {
 
 		if err := cursor.Decode(&result); err != nil {
 			logger.Error("mongodbConnection.min 2", err.Error())
@@ -397,17 +440,18 @@ func (con *mongodbConnection) average(key string) float64 {
 		{{Key: "$group", Value: bson.M{"_id": nil, "aggregateValue": bson.M{"$avg": "$" + key}}}},
 	}
 
-	cursor, err := con.collection().Aggregate(context.TODO(), pipeline, opts)
+	cursor, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
 	if err != nil {
 		logger.Error("mongodbConnection.average 1", err.Error())
+		return 0
 	}
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(con.writeCtx())
 
 	// Retrieve the result
 	var result struct {
 		AggregateValue float64 `bson:"aggregateValue"`
 	}
-	if cursor.Next(context.TODO()) {
+	if cursor.Next(con.readCtx()) {
 		if err := cursor.Decode(&result); err != nil {
 			logger.Error("mongodbConnection.average 2", err.Error())
 		}
@@ -424,7 +468,13 @@ func (con *mongodbConnection) graph() *datatype.DataMap {
 
 func (con *mongodbConnection) create(data datatype.DataMap) (*datatype.DataMap, error) {
 	var result *datatype.DataMap
-	res, err := con.collection().InsertOne(*con.ctx, data)
+
+	raw, err := encodeForInsert(data)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := con.collection().InsertOne(con.writeCtx(), raw)
 
 	if err != nil {
 		console.Log("mongodbConnection.create", err.Error())
@@ -432,7 +482,10 @@ func (con *mongodbConnection) create(data datatype.DataMap) (*datatype.DataMap, 
 	}
 
 	if res.Acknowledged {
-		result = newMongodbInstance(con).query.Where("_id", res.InsertedID).collection().findOne()
+		result, err = con.storedDocument(raw)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return result, nil
@@ -440,7 +493,17 @@ func (con *mongodbConnection) create(data datatype.DataMap) (*datatype.DataMap, 
 
 func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result *[]datatype.DataMap
-	res, err := con.collection().InsertMany(*con.ctx, data)
+
+	raws := make([]bson.Raw, 0, len(data))
+	for _, item := range data {
+		raw, err := encodeForInsert(item)
+		if err != nil {
+			return nil, err
+		}
+		raws = append(raws, raw)
+	}
+
+	res, err := con.collection().InsertMany(con.writeCtx(), raws)
 
 	if err != nil {
 		console.Log("mongodbConnection.createMany", err.Error())
@@ -448,34 +511,145 @@ func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 	}
 
 	if res.Acknowledged {
-		where := map[string]interface{}{"_id": map[string]interface{}{"in": res.InsertedIDs}}
-		result = newMongodbInstance(con).query.WhereAll(where).collection().find()
+		created := make([]datatype.DataMap, 0, len(raws))
+
+		for _, raw := range raws {
+			stored, err := con.storedDocument(raw)
+			if err != nil {
+				return nil, err
+			}
+
+			created = append(created, *stored)
+		}
+
+		result = &created
 	}
 
 	return result, nil
 }
 
-func (con *mongodbConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
-	var result *datatype.DataMap
-	res, err := con.collection().UpdateOne(*con.ctx, con.where(), datatype.DataMap{
-		"$set": data,
-	})
+// encodeForInsert encodes a record once, so the bytes inserted are exactly
+// the bytes storedDocument decodes: encoding a map twice can order nested
+// fields differently each time.
+func encodeForInsert(data datatype.DataMap) (bson.Raw, error) {
+	if _, ok := data["_id"]; !ok {
+		data["_id"] = bson.NewObjectID()
+	}
 
-	if err != nil {
-		console.Log("mongodbConnection.update", err.Error())
+	return bson.Marshal(data)
+}
+
+// storedDocument decodes an inserted record the way a read of it would, plus
+// the fields find() adds. It saves re-reading a record just written.
+func (con *mongodbConnection) storedDocument(raw bson.Raw) (*datatype.DataMap, error) {
+	var stored datatype.DataMap
+	if err := bson.Unmarshal(raw, &stored); err != nil {
 		return nil, err
 	}
 
-	if res.Acknowledged && res.MatchedCount > 0 {
-		result = con.findOne()
+	con.addRecordFields(stored)
+
+	return &stored, nil
+}
+
+// addRecordFields adds the fields every record read through this backend
+// carries.
+func (con *mongodbConnection) addRecordFields(record datatype.DataMap) {
+	record["id"] = record["_id"]
+	record["_collection"] = con.query.Model.Collection
+	record["_model"] = con.query.Model.Name
+}
+
+// update sets data on the first matching record and returns it as updated,
+// in one round trip.
+func (con *mongodbConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
+	set, err := bson.Marshal(data)
+	if err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	_, updated, err := con.findOneAndUpdate(set, options.After)
+	return updated, err
+}
+
+// updateWithPrevious is update, also returning the record as it was before,
+// for the audit trail. It's one round trip instead of a read plus a write.
+func (con *mongodbConnection) updateWithPrevious(data datatype.DataMap) (previous *datatype.DataMap, updated *datatype.DataMap, err error) {
+	// Encoded once: the bytes sent are the bytes merged below, so nested
+	// fields come out in the order they're stored.
+	set, err := bson.Marshal(data)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	previous, _, err = con.findOneAndUpdate(set, options.Before)
+	if err != nil || previous == nil {
+		return previous, nil, err
+	}
+
+	var applied datatype.DataMap
+	if err := bson.Unmarshal(set, &applied); err != nil {
+		return previous, nil, err
+	}
+
+	// $set replaces top-level fields, so the updated record is the previous
+	// one with data applied.
+	merged := make(datatype.DataMap, len(*previous)+len(applied))
+	for k, v := range *previous {
+		merged[k] = v
+	}
+	for k, v := range applied {
+		merged[k] = v
+	}
+	delete(merged, "id")
+	delete(merged, "_collection")
+	delete(merged, "_model")
+
+	raw, err := bson.Marshal(merged)
+	if err != nil {
+		return previous, nil, err
+	}
+
+	updated, err = con.storedDocument(raw)
+
+	return previous, updated, err
+}
+
+// findOneAndUpdate applies set ($set) to the first record matching the query
+// (in its sort order) and returns the record as it was before or after,
+// depending on which. Both results are nil when nothing matched.
+func (con *mongodbConnection) findOneAndUpdate(set bson.Raw, which options.ReturnDocument) (before *datatype.DataMap, after *datatype.DataMap, err error) {
+	opts := options.FindOneAndUpdate().SetReturnDocument(which)
+	if con.hasOrderBy() {
+		opts = opts.SetSort(con.orderBy())
+	}
+
+	var record datatype.DataMap
+	err = con.collection().FindOneAndUpdate(con.writeCtx(), con.where(), bson.D{
+		{Key: "$set", Value: set},
+	}, opts).Decode(&record)
+
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil, nil
+	}
+
+	if err != nil {
+		console.Log("mongodbConnection.update", err.Error())
+		return nil, nil, err
+	}
+
+	con.addRecordFields(record)
+
+	if which == options.Before {
+		return &record, nil, nil
+	}
+
+	return nil, &record, nil
 }
 
 func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
 	var result *[]datatype.DataMap
-	res, err := con.collection().UpdateMany(*con.ctx, con.where(), datatype.DataMap{
+	res, err := con.collection().UpdateMany(con.writeCtx(), con.where(), datatype.DataMap{
 		"$set": data,
 	})
 
@@ -495,7 +669,7 @@ func (con *mongodbConnection) delete() (interface{}, error) {
 	where := con.where()
 
 	if helper.IsNotEmpty(*where) {
-		res, err := con.collection().DeleteMany(*con.ctx, where)
+		res, err := con.collection().DeleteMany(con.writeCtx(), where)
 		if err != nil {
 			console.Log("mongodbConnection.delete", err.Error())
 			return nil, err

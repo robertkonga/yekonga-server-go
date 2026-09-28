@@ -1272,16 +1272,8 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 						for _, v := range data {
 							if helper.IsMap(v) {
 								vMap := helper.ToDataMap(v)
-								match := true
 
-								for _, uk := range uniqueKeys {
-									if helper.GetValueOf(sdMap, uk) != helper.GetValueOf(vMap, uk) {
-										match = false
-										break
-									}
-								}
-
-								if match {
+								if importInputMatches(sdMap, vMap, uniqueKeys) {
 									childDataRaw = vMap
 									break
 								}
@@ -1324,6 +1316,38 @@ func (g *GraphqlAutoBuild) getMutationImportField(collection string, foreignKey 
 			return imported, nil
 		},
 	}
+}
+
+// importInputMatches reports whether saved (a record Import returned) came
+// from input, by comparing uniqueKeys, or the record id when there are none.
+// Without any key to compare there's no match: before, every record matched
+// the first input, which would attach its children to every imported parent.
+func importInputMatches(saved datatype.DataMap, input datatype.DataMap, uniqueKeys []string) bool {
+	keys := uniqueKeys
+	if len(keys) == 0 {
+		keys = []string{"id"}
+	}
+
+	for _, key := range keys {
+		want := helper.GetValueOf(input, key)
+		if want == nil && (key == "id" || key == "_id") {
+			want = helper.GetValueOf(input, "_id")
+			if want == nil {
+				want = helper.GetValueOf(input, "id")
+			}
+		}
+
+		if want == nil {
+			return false
+		}
+
+		// An ObjectID and its hex string are the same id.
+		if idString(helper.GetValueOf(saved, key)) != idString(want) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey string, targetKey string) *graphql.Field {

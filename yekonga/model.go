@@ -51,6 +51,8 @@ type DataModelField struct {
 	ForeignKey   DataModelFieldForeignKey
 	Options      []DataModelFieldOptions
 	ID           bool
+	Index        bool
+	Unique       bool
 }
 
 type DataModelFieldForeignKey struct {
@@ -386,5 +388,7 @@ func getDataModelField(name string, field CollectionFieldConfig) *DataModelField
 		Options:      options,
 		IsArray:      isArray,
 		ID:           kind == DataModelID,
+		Index:        field.Index,
+		Unique:       field.Unique,
 	}
 }

@@ -1,6 +1,7 @@
 package yekonga
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -202,6 +203,30 @@ type Request struct {
 	// Auth() decoded from the user info, reused until the user info changes.
 	auth       AuthPayload
 	authCached bool
+
+	dbCtx context.Context // see DatabaseContext
+}
+
+// DatabaseContext is the context this request's database reads run with. It's
+// cancelled if the client disconnects while the request is being handled, so
+// abandoned requests stop querying. Unlike HttpRequest.Context(), it is not
+// cancelled when the handler returns, so work a handler starts in the
+// background can keep using the database.
+func (r *Request) DatabaseContext() context.Context {
+	if r == nil || r.dbCtx == nil {
+		return context.Background()
+	}
+
+	return r.dbCtx
+}
+
+// watchDisconnect sets up DatabaseContext for the duration of the handler.
+// The returned func must be called when the handler returns.
+func (r *Request) watchDisconnect() (stop func() bool) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(r.HttpRequest.Context()))
+	r.dbCtx = ctx
+
+	return context.AfterFunc(r.HttpRequest.Context(), cancel)
 }
 
 // Request methods

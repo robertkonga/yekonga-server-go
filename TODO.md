@@ -48,13 +48,13 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## P1 — Database layer
 
-- [ ] **Propagate request context and timeouts.** `DataModelQuery.collection()` uses `context.TODO()` (`yekonga/model_query.go:1430`), and the Mongo backend uses `context.TODO()` throughout. Queries can't be cancelled when the client disconnects and have no deadline. Pass `req.HttpRequest.Context()` with a configurable timeout.
-- [ ] **Create indexes.** The framework never creates any. Add index declarations to `database.json` and an `EnsureIndexes` step at startup. Minimum: `tenantId` (added to every tenant query), foreign keys, and the tenant domain fields (`domain`, `subdomain`, `customDomain`, `customSubdomain`).
-- [ ] **Remove extra round trips on writes** (`yekonga/dbconnect_mongodb.go:424-473`).
+- [x] **Propagate request context and timeouts.** Reads stop when the client disconnects mid-request; writes don't. `database.queryTimeoutSeconds` (default 0 = none). `DataModelQuery.collection()` uses `context.TODO()` (`yekonga/model_query.go:1430`), and the Mongo backend uses `context.TODO()` throughout. Queries can't be cancelled when the client disconnects and have no deadline. Pass `req.HttpRequest.Context()` with a configurable timeout.
+- [x] **Create indexes.** At startup in the background: `tenantId`, foreign keys, and fields marked `"index"`/`"unique"`. Opt out with `database.disableAutoIndexes`. The framework never creates any. Add index declarations to `database.json` and an `EnsureIndexes` step at startup. Minimum: `tenantId` (added to every tenant query), foreign keys, and the tenant domain fields (`domain`, `subdomain`, `customDomain`, `customSubdomain`).
+- [x] **Remove extra round trips on writes** (`yekonga/dbconnect_mongodb.go:424-473`).
   - `create`: insert then `findOne`. Build the result from the inserted data and `InsertedID`.
   - `update`: update then `findOne` (plus another `findOne` for audit in `model_query.go:391`). Use `FindOneAndUpdate` with `ReturnDocument: After`.
-- [ ] **Run `Paginate`'s count and find concurrently** (`yekonga/dbconnect_mongodb.go:187`). Consider `EstimatedDocumentCount` when the filter is empty.
-- [ ] **Make the Mongo pool configurable** (`maxPoolSize`, `minPoolSize`, timeouts) in `config.json` (`yekonga/dbconnect.go:134`).
+- [x] **Run `Paginate`'s count and find concurrently** (`yekonga/dbconnect_mongodb.go:187`). Consider `EstimatedDocumentCount` when the filter is empty.
+- [x] **Make the Mongo pool configurable** (`maxPoolSize`, `minPoolSize`, timeouts) in `config.json` (`yekonga/dbconnect.go:134`).
 
 ## P2 — Smaller, cheap to fix
 
@@ -69,13 +69,15 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## Bugs found during the review
 
+- [x] **`Import` always returns an empty `data` list.** Also meant the GraphQL import mutation never attached nested children to newly created parents. Created records are now returned after the after-create triggers, and records are matched to inputs by unique keys (or id), never by default. It passes a `*[]DataMap` to `helper.ToList`, which only accepts slices (`yekonga/model_query.go`, after `createMany`).
+- [x] **Building a server changed the package-level default schemas.** `NewDatabaseStructure` added the app's collections to `DefaultExtraDatabaseStructure`, so a second `ServerConfig` in the same process saw the first one's models.
 - [x] **Summary fields shared relation keys across requests.** The count/sum/max/min/average/graph resolvers wrote the relation keys into variables captured by the closure, which every request shares, so concurrent requests could overwrite each other's keys.
 - [x] **To-many relation with no link value returns unrelated records.** In the list resolver (`getQueryMultipleField`), when `setModelParams` returns false because the parent row has no linking value, the result is ignored and the query runs without the relation filter. Left as is to keep behaviour unchanged; it should return an empty list.
 - [x] **Numeric range filters never match.** `ConvertCalculatedValue` returns `v` (the empty string from a failed type assertion) instead of `value` for non-string numbers (`helper/helpers.go`, `else { return v }`). `{"price": {"greaterThan": 5}}` becomes `{"$gt": ""}`. One-line fix, but it changes query results.
 - [x] **`exists: false` filter can't match.** Now `{field: {$eq: null}}` (missing or null). `exists` also never worked on ID fields: `Where` turned the boolean into a random ObjectID; fixed. It emits the correct `$or`, but also leaves `field: {}` in the filter, which Mongo reads as "equals an empty document" (`extractWhereItem`, `yekonga/dbconnect_mongodb.go`).
 - [x] **`$or` collisions.** Conditions on the same key are now combined (merged operators, or `$and`) instead of overwritten. A top-level `OR` and an `exists: false` filter both write `$or`, so one silently replaces the other. Same for a relation filter whose linking key is also filtered directly. These should be combined under `$and`.
 - [ ] `Authorization` header without `"Bearer"` panics on index `[1]` (`yekonga/middleware.go:217`).
-- [ ] `find()` defers `cursor.Close` on a nil cursor when the query errors (`yekonga/dbconnect_mongodb.go:144`); same pattern in `count`, `sum`, `max`, `min`, `average`.
+- [x] `find()` defers `cursor.Close` on a nil cursor when the query errors (`yekonga/dbconnect_mongodb.go:144`); same pattern in `count`, `sum`, `max`, `min`, `average`.
 - [ ] Distinct `count` uses `RemainingBatchLength`, which is wrong above 101 groups (`yekonga/dbconnect_mongodb.go:253`). Use a `$count` stage.
 - [ ] `isStaticPath` / `handleStaticFile` write `y.staticConfig` without a lock (data race) (`yekonga/main.go:553`, `:577`). `Static()` also pre-fills the slice with `nil` entries before appending (:527).
 - [ ] Catch middlewares: the loop returns after the first one, so only one ever runs (`yekonga/main.go:854`).

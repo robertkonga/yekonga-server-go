@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
@@ -132,6 +133,27 @@ func (dc *DatabaseConnections) mongodbConnect() {
 
 	// logger.Info("connectionUrl", connectionUrl)
 	clientOptions := options.Client().ApplyURI(connectionUrl)
+
+	db := dc.config.Database
+	if db.MaxPoolSize > 0 {
+		clientOptions.SetMaxPoolSize(uint64(db.MaxPoolSize))
+	}
+	if db.MinPoolSize > 0 {
+		clientOptions.SetMinPoolSize(uint64(db.MinPoolSize))
+	}
+	if db.MaxConnIdleTimeSeconds > 0 {
+		clientOptions.SetMaxConnIdleTime(time.Duration(db.MaxConnIdleTimeSeconds) * time.Second)
+	}
+	if db.ConnectTimeoutSeconds > 0 {
+		clientOptions.SetConnectTimeout(time.Duration(db.ConnectTimeoutSeconds) * time.Second)
+	}
+	if db.ServerSelectionTimeoutSeconds > 0 {
+		clientOptions.SetServerSelectionTimeout(time.Duration(db.ServerSelectionTimeoutSeconds) * time.Second)
+	}
+	if db.QueryTimeoutSeconds > 0 {
+		// Applies to every operation whose context has no deadline of its own.
+		clientOptions.SetTimeout(time.Duration(db.QueryTimeoutSeconds) * time.Second)
+	}
 
 	if dc.config.Database.Username != nil {
 		// logger.Error(dc.config.Database)

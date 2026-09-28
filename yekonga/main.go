@@ -154,6 +154,7 @@ func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStr
 	Server.graphqlBuild = graphqlBuild
 
 	dbConnect.connect()
+	go Server.ensureIndexes()
 	Server.initialize()
 	Server.cronjob = NewCronjob(Server)
 	Server.setNotification()
@@ -748,6 +749,9 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Params:      params,
 		App:         y,
 	}
+
+	stopWatchingDisconnect := req.watchDisconnect()
+	defer stopWatchingDisconnect()
 
 	res := Response{
 		httpResponseWriter: &w,

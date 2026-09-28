@@ -34,6 +34,7 @@ func TestRelationLoaderAgainstMongo(t *testing.T) {
 	cfg.Database.Host = "127.0.0.1"
 	cfg.Database.Port = port
 	cfg.Database.DatabaseName = "yekonga_relation_loader_test"
+	cfg.Database.DisableAutoIndexes = true // index builds would show up in the query counts
 
 	y := ServerConfig(cfg, DatabaseStructure{
 		"outlets": {
