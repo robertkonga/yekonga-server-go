@@ -2028,6 +2028,16 @@ YekongaConfig parameters:
 | `prefix` | string | Table/collection prefix |
 | `generateID` | bool | Auto-generate IDs |
 | `generateIDLength` | int | Generated ID length |
+| `maxPoolSize` | int | Max open connections (0 = driver default) |
+| `minPoolSize` | int | Connections kept open while idle (0 = driver default) |
+| `maxConnIdleTimeSeconds` | int | Close connections idle this long (0 = never) |
+| `connectTimeoutSeconds` | int | Max seconds to open a connection (0 = driver default) |
+| `serverSelectionTimeoutSeconds` | int | MongoDB: max seconds to find a usable server (0 = driver default) |
+| `queryTimeoutSeconds` | int | Max seconds for any one database operation (0 = no limit) |
+| `disableAutoIndexes` | bool | Don't create indexes at startup (`tenantId`, foreign keys, and fields marked `"index"`/`"unique"` in `database.json`) |
+| `disableAutoMigrate` | bool | `mysql`/`sql`: don't create missing tables and columns at startup |
+
+`mysql` and `sql` both connect to a MySQL-compatible server (MySQL 5.7+, MariaDB 10.2+) and behave like `mongodb`: the same filters, relations, GraphQL and results. Tables and columns are created from `database.json` at startup; existing columns are never changed or dropped. Records keep the MongoDB shape (`_id`/`id` as ObjectIDs, dates as `bson.DateTime`); `Object`, `Array` and `Any` fields are stored as JSON. The MongoDB-only `$type` filter isn't supported.
 
 #### Authentication Configuration
 

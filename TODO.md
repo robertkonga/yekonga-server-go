@@ -69,7 +69,8 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## Bugs found during the review
 
-- [ ] **The MySQL/SQL backends are incomplete.** They connect now, but e.g. `findOne` calls `row.Scan()` with no destinations (always fails) and filtered queries send `?` placeholders without their values. A working SQL backend is a separate piece of work; startup logs a warning.
+- [ ] **`UpdateMany` returns `[]` when the update changes a filtered field.** It re-reads with the original filter after updating (MongoDB and SQL backends alike), so e.g. setting `status: void → archived` where `status = void` returns nothing, and the audit trail records no changes. Fix: collect the matching ids first, update by id, re-read by id.
+- [x] **The MySQL/SQL backends were incomplete.** Rewritten as one backend for both kinds (`yekonga/dbconnect_sql*.go`), tested for identical results against MongoDB (`TestSQLBackendMatchesMongo`).
 - [x] **JWT signature compared with `!=`** (not constant-time) in `helper/jwt`. Now `hmac.Equal`.
 - [x] **`Import` always returns an empty `data` list.** Also meant the GraphQL import mutation never attached nested children to newly created parents. Created records are now returned after the after-create triggers, and records are matched to inputs by unique keys (or id), never by default. It passes a `*[]DataMap` to `helper.ToList`, which only accepts slices (`yekonga/model_query.go`, after `createMany`).
 - [x] **Building a server changed the package-level default schemas.** `NewDatabaseStructure` added the app's collections to `DefaultExtraDatabaseStructure`, so a second `ServerConfig` in the same process saw the first one's models.

@@ -215,8 +215,6 @@ func (dc *DatabaseConnections) sqlConnect() {
 func (dc *DatabaseConnections) openSQL(label string) *sql.DB {
 	db := dc.config.Database
 
-	logger.Warn(label + " database support is incomplete: some queries (e.g. findOne, filtered finds) don't work yet. MongoDB is the supported backend.")
-
 	port := string(db.Port)
 	if port == "" {
 		port = "3306"
@@ -227,6 +225,9 @@ func (dc *DatabaseConnections) openSQL(label string) *sql.DB {
 	cfg.Addr = db.Host + ":" + port
 	cfg.DBName = db.DatabaseName
 	cfg.ParseTime = true
+	// Arguments are escaped client-side instead of preparing each statement,
+	// which would cost an extra round trip per query.
+	cfg.InterpolateParams = true
 	if v, ok := db.Username.(string); ok {
 		cfg.User = v
 	}

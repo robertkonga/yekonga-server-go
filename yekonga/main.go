@@ -157,6 +157,7 @@ func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStr
 
 	dbConnect.connect()
 	go Server.ensureIndexes()
+	Server.ensureSQLSchema()
 	Server.initialize()
 	Server.cronjob = NewCronjob(Server)
 	Server.setNotification()

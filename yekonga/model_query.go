@@ -1486,7 +1486,7 @@ func (m *DataModelQuery) collection() dataModelQueryStructure {
 			client: m.Model.DBConnect.sqlClient,
 		}
 	case config.DBTypeMysql:
-		return &mysqlConnection{
+		return &sqlConnection{
 			query:  m,
 			ctx:    &ctx,
 			client: m.Model.DBConnect.mysqlClient,

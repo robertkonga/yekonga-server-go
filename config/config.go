@@ -199,6 +199,7 @@ type YekongaConfig struct {
 		ServerSelectionTimeoutSeconds int  `json:"serverSelectionTimeoutSeconds"` // Max seconds to find a usable server; 0 = driver default (30s)
 		QueryTimeoutSeconds           int  `json:"queryTimeoutSeconds"`           // Max seconds for any one database operation; 0 = no limit (default, since exports and reports can run long)
 		DisableAutoIndexes            bool `json:"disableAutoIndexes"`            // Skip creating indexes at startup (tenantId, foreign keys, and fields marked "index"/"unique" in database.json)
+		DisableAutoMigrate            bool `json:"disableAutoMigrate"`            // MySQL/SQL: skip creating missing tables and columns from database.json at startup
 	}
 	Authentication struct { // Authentication configuration
 		SaltRound   int    `json:"saltRound"`   // Number of salt rounds for password hashing

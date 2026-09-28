@@ -5,60 +5,240 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
-	"sync"
+	"time"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
-	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
 )
 
+// sqlConnection is the backend for config.database.kind "mysql" and "sql",
+// on MySQL-compatible servers (MySQL 5.7+, MariaDB 10.2+).
+//
+// It behaves like the MongoDB backend, so the rest of the framework doesn't
+// need to know which one is in use:
+//   - Filters come from the MongoDB filter builder (the one place where-
+//     semantics live: operators, null handling, relations, tenants) and are
+//     translated to SQL with the same meaning. See dbconnect_sql_filter.go.
+//   - Records keep the MongoDB shape: the primary key column is _id, stored
+//     as hex and read back as an ObjectID, with id, _collection and _model
+//     added to every record.
+//   - Tables and columns are created from database.json at startup. See
+//     dbconnect_sql_schema.go.
 type sqlConnection struct {
 	query  *DataModelQuery
 	ctx    *context.Context
 	client *sql.DB
-	mut    sync.RWMutex
+	where  *sqlClause // built once; a connection serves a single query
 }
 
-func newSQLInstance(con *sqlConnection) sqlConnection {
-	return sqlConnection{
-		ctx:    con.ctx,
-		client: con.client,
-		query: &DataModelQuery{
-			Model:          con.query.Model,
-			RequestContext: con.query.RequestContext,
-			QueryContext:   con.query.QueryContext,
-		},
+// sqlClause is a SQL fragment and the arguments for its placeholders.
+type sqlClause struct {
+	text string
+	args []interface{}
+	err  error
+}
+
+var errSQLNotConnected = errors.New("the SQL database is not connected")
+
+func quoteIdent(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+}
+
+func (con *sqlConnection) table() string {
+	return quoteIdent(con.query.Model.Collection)
+}
+
+func (con *sqlConnection) readCtx() context.Context {
+	if con.ctx == nil || *con.ctx == nil {
+		return context.Background()
 	}
+
+	return *con.ctx
 }
 
-func (con *sqlConnection) connect() any {
-	return con.client
+// opCtx is the context for one statement. Reads stop if the request's client
+// disconnects; writes don't (see mongodbConnection.writeCtx). Both are bound
+// by database.queryTimeoutSeconds.
+func (con *sqlConnection) opCtx(write bool) (context.Context, context.CancelFunc) {
+	ctx := con.readCtx()
+	if write {
+		ctx = context.WithoutCancel(ctx)
+	}
+
+	if cfg := con.query.Model.Config; cfg != nil && cfg.Database.QueryTimeoutSeconds > 0 {
+		return context.WithTimeout(ctx, time.Duration(cfg.Database.QueryTimeoutSeconds)*time.Second)
+	}
+
+	return ctx, func() {}
 }
 
-func (con *sqlConnection) collection() any {
-	return con.client
+// whereClause returns " WHERE ..." for the query's filter, or "".
+func (con *sqlConnection) whereClause() (string, []interface{}, error) {
+	if con.where == nil {
+		filter := (&mongodbConnection{query: con.query}).where()
+		builder := &sqlFilterBuilder{model: con.query.Model}
+		text, err := builder.build(*filter)
+		con.where = &sqlClause{text: text, args: builder.args, err: err}
+	}
+
+	if con.where.err != nil || con.where.text == "" {
+		return "", nil, con.where.err
+	}
+
+	return " WHERE " + con.where.text, con.where.args, nil
+}
+
+func (con *sqlConnection) hasOrderBy() bool {
+	return len(con.query.orderBy) > 0
+}
+
+// orderClause returns " ORDER BY ..." over the given expressions, or "".
+// Keys are sorted so the same query always produces the same SQL.
+func (con *sqlConnection) orderClause(expr func(key string) string) string {
+	keys := make([]string, 0, len(con.query.orderBy))
+	for k := range con.query.orderBy {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var parts []string
+	for _, k := range keys {
+		e := expr(k)
+		if e == "" {
+			continue
+		}
+
+		if strings.ToLower(con.query.orderBy[k]) == "desc" {
+			parts = append(parts, e+" DESC")
+		} else {
+			parts = append(parts, e+" ASC")
+		}
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	return " ORDER BY " + strings.Join(parts, ", ")
+}
+
+func (con *sqlConnection) columnOrder(key string) string {
+	expr, _, _ := sqlColumnExpr(con.query.Model, key)
+	if expr == "NULL" {
+		return ""
+	}
+	return expr
+}
+
+func (con *sqlConnection) limitClause() string {
+	limit, skip := con.limit(), con.skip()
+
+	switch {
+	case limit > 0 && skip > 0:
+		return fmt.Sprintf(" LIMIT %d OFFSET %d", limit, skip)
+	case limit > 0:
+		return fmt.Sprintf(" LIMIT %d", limit)
+	case skip > 0:
+		// MySQL has no OFFSET without LIMIT; this is its documented "all rows".
+		return fmt.Sprintf(" LIMIT 18446744073709551615 OFFSET %d", skip)
+	}
+
+	return ""
+}
+
+// limit, skip and page match mongodbConnection's.
+func (con *sqlConnection) limit() int {
+	if con.query.limit > 0 {
+		return con.query.limit
+	}
+
+	return -1
+}
+
+func (con *sqlConnection) skip() int {
+	if con.query.skip > 0 {
+		return con.query.skip
+	}
+
+	return con.query.limit * (con.page() - 1)
+}
+
+func (con *sqlConnection) page() int {
+	if con.query.page < 1 {
+		return 1
+	}
+
+	return con.query.page
+}
+
+func (con *sqlConnection) hasGroup() bool {
+	return len(con.query.groupBy) > 0 || len(con.query.groupByRaw) > 0
+}
+
+func (con *sqlConnection) addRecordFields(record datatype.DataMap) {
+	record["id"] = record["_id"]
+	record["_collection"] = con.query.Model.Collection
+	record["_model"] = con.query.Model.Name
+}
+
+// selectRecords runs a query returning whole records.
+func (con *sqlConnection) selectRecords(ctx context.Context, runner sqlRunner, query string, args []interface{}) ([]datatype.DataMap, error) {
+	rows, err := runner.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records, err := scanSQLRows(rows, func(column string) (DataModelFieldType, bool) {
+		return sqlFieldKind(con.query.Model, column)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, record := range records {
+		con.addRecordFields(record)
+	}
+
+	return records, nil
+}
+
+// sqlRunner is a *sql.DB or a *sql.Tx.
+type sqlRunner interface {
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 }
 
 func (con *sqlConnection) findOne() *datatype.DataMap {
-	query := con.buildSelectQuery()
-	query += " LIMIT 1"
-
-	row := con.client.QueryRow(query)
-
 	var result datatype.DataMap
-	err := row.Scan()
-	if err != nil {
-		if err != sql.ErrNoRows {
-			logger.Error("sqlConnection.findOne", err.Error())
-		}
-		return nil
+
+	if con.client == nil {
+		logger.Error("sqlConnection.findOne", errSQLNotConnected.Error())
+		return &result
 	}
 
-	if result != nil {
-		result["_collection"] = con.query.Model.Collection
-		result["_model"] = con.query.Model.Name
+	where, args, err := con.whereClause()
+	if err != nil {
+		logger.Error("sqlConnection.findOne", err.Error())
+		return &result
+	}
+
+	ctx, cancel := con.opCtx(false)
+	defer cancel()
+
+	query := "SELECT * FROM " + con.table() + where + con.orderClause(con.columnOrder) + " LIMIT 1"
+	records, err := con.selectRecords(ctx, con.client, query, args)
+	if err != nil {
+		logger.Error("sqlConnection.findOne", err.Error())
+		return &result
+	}
+
+	if len(records) > 0 {
+		result = records[0]
 	}
 
 	return &result
@@ -69,89 +249,122 @@ func (con *sqlConnection) findAll() *[]datatype.DataMap {
 }
 
 func (con *sqlConnection) find() *[]datatype.DataMap {
-	query := con.buildSelectQuery()
+	empty := &[]datatype.DataMap{}
 
-	if con.hasOrderBy() {
-		query += " " + con.orderBySQL()
+	if con.client == nil {
+		logger.Error("sqlConnection.find", errSQLNotConnected.Error())
+		return empty
 	}
 
-	if con.limit() > 0 {
-		query += fmt.Sprintf(" LIMIT %d", con.limit())
+	if con.hasGroup() {
+		return con.findGroups()
 	}
 
-	if con.skip() > 0 {
-		query += fmt.Sprintf(" OFFSET %d", con.skip())
-	}
-
-	rows, err := con.client.Query(query)
+	where, args, err := con.whereClause()
 	if err != nil {
-		logger.Error("sqlConnection.find 1", err.Error())
-		return &[]datatype.DataMap{}
+		logger.Error("sqlConnection.find", err.Error())
+		return empty
+	}
+
+	ctx, cancel := con.opCtx(false)
+	defer cancel()
+
+	query := "SELECT * FROM " + con.table() + where + con.orderClause(con.columnOrder) + con.limitClause()
+	records, err := con.selectRecords(ctx, con.client, query, args)
+	if err != nil {
+		logger.Error("sqlConnection.find", err.Error())
+		return empty
+	}
+
+	return &records
+}
+
+// findGroups is find with groupBy/groupByRaw: one record per group, with the
+// group's fields at the top level and together under _id, as the MongoDB
+// backend returns them.
+func (con *sqlConnection) findGroups() *[]datatype.DataMap {
+	empty := &[]datatype.DataMap{}
+
+	group, err := buildSQLGroup(con.query)
+	if err != nil {
+		logger.Error("sqlConnection.find group", err.Error())
+		return empty
+	}
+
+	where, args, err := con.whereClause()
+	if err != nil {
+		logger.Error("sqlConnection.find group", err.Error())
+		return empty
+	}
+
+	query := "SELECT " + strings.Join(group.selects, ", ") + " FROM " + con.table() + where
+	if len(group.keys) > 0 {
+		quoted := make([]string, len(group.keys))
+		for i, key := range group.keys {
+			quoted[i] = quoteIdent(key)
+		}
+		query += " GROUP BY " + strings.Join(quoted, ", ")
+	}
+
+	query += con.orderClause(func(key string) string {
+		if _, ok := group.kinds[key]; ok {
+			return quoteIdent(key)
+		}
+		return "" // only grouped values can be ordered by
+	})
+	query += con.limitClause()
+
+	ctx, cancel := con.opCtx(false)
+	defer cancel()
+
+	rows, err := con.client.QueryContext(ctx, query, args...)
+	if err != nil {
+		logger.Error("sqlConnection.find group", err.Error())
+		return empty
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
+	records, err := scanSQLRows(rows, func(column string) (DataModelFieldType, bool) {
+		kind, ok := group.kinds[column]
+		return kind, ok
+	})
 	if err != nil {
-		logger.Error("sqlConnection.find 2", err.Error())
-		return &[]datatype.DataMap{}
+		logger.Error("sqlConnection.find group", err.Error())
+		return empty
 	}
 
-	result := make([]datatype.DataMap, 0)
-
-	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
-		for i := range columns {
-			valuePtrs[i] = &values[i]
+	for _, record := range records {
+		id := make(datatype.DataMap, len(group.keys))
+		for _, key := range group.keys {
+			id[key] = record[key]
 		}
 
-		err := rows.Scan(valuePtrs...)
-		if err != nil {
-			logger.Error("sqlConnection.find 3", err.Error())
-			continue
-		}
-
-		data := make(datatype.DataMap)
-		for i, col := range columns {
-			val := values[i]
-			data[col] = val
-			if val == nil {
-				data[col] = nil
-			}
-		}
-
-		data["_collection"] = con.query.Model.Collection
-		data["_model"] = con.query.Model.Name
-
-		result = append(result, data)
+		record["_id"] = id
+		con.addRecordFields(record)
 	}
 
-	if err := rows.Err(); err != nil {
-		logger.Error("sqlConnection.find 4", err.Error())
-	}
-
-	return &result
+	return &records
 }
 
 func (con *sqlConnection) pagination() *datatype.DataMap {
 	var lastPage int64
-	total := con.count()
-	perPage := int64(con.limit())
-	if perPage <= 0 {
-		perPage = 10
-	}
-	currentPage := int64(con.page())
+	perPage := con.limit()
+	currentPage := con.page()
 	from := (perPage * (currentPage - 1)) + 1
 	to := perPage * (currentPage)
-	remainder := total % perPage
+
+	con.query.Take(perPage)
+
+	total := con.count()
+	data := con.find()
+
+	remainder := total % int64(perPage)
 
 	if remainder == 0 {
-		lastPage = (total) / perPage
+		lastPage = (total) / int64(perPage)
 	} else {
-		lastPage = (total + (perPage - total%perPage)) / perPage
+		lastPage = (total + (int64(perPage) - total%int64(perPage))) / int64(perPage)
 	}
-
-	con.query.Take(int(perPage))
 
 	result := datatype.DataMap{
 		"total":       total,
@@ -160,7 +373,7 @@ func (con *sqlConnection) pagination() *datatype.DataMap {
 		"lastPage":    lastPage,
 		"from":        from,
 		"to":          to,
-		"data":        con.find(),
+		"data":        data,
 	}
 
 	return &result
@@ -178,421 +391,415 @@ func (con *sqlConnection) summary() *datatype.DataMap {
 	return &result
 }
 
-func (con *sqlConnection) count() int64 {
-	query := fmt.Sprintf("SELECT COUNT(*) as count FROM `%s`", con.query.Model.Collection)
+func (con *sqlConnection) graph() *datatype.DataMap {
+	return &datatype.DataMap{}
+}
 
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
+func (con *sqlConnection) count() int64 {
+	if con.client == nil {
+		logger.Error("sqlConnection.count", errSQLNotConnected.Error())
+		return 0
 	}
 
-	row := con.client.QueryRow(query)
-
-	var count int64
-	err := row.Scan(&count)
+	where, args, err := con.whereClause()
 	if err != nil {
 		logger.Error("sqlConnection.count", err.Error())
 		return 0
 	}
 
-	return count
+	query := "SELECT COUNT(*) FROM " + con.table() + where
+
+	if len(con.query.distinct) > 0 {
+		// Distinct combinations, missing values included, as MongoDB groups them.
+		columns := make([]string, len(con.query.distinct))
+		for i, field := range con.query.distinct {
+			columns[i], _, _ = sqlColumnExpr(con.query.Model, field)
+		}
+		query = "SELECT COUNT(*) FROM (SELECT DISTINCT " + strings.Join(columns, ", ") + " FROM " + con.table() + where + ") AS distinct_values"
+	}
+
+	ctx, cancel := con.opCtx(false)
+	defer cancel()
+
+	var total int64
+	if err := con.client.QueryRowContext(ctx, query, args...).Scan(&total); err != nil {
+		logger.Error("sqlConnection.count", err.Error())
+		return 0
+	}
+
+	return total
 }
 
-func (con *sqlConnection) max(key string) interface{} {
-	query := fmt.Sprintf("SELECT MAX(`%s`) as max_value FROM `%s`", key, con.query.Model.Collection)
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
+// aggregate runs one aggregate function over a field.
+func (con *sqlConnection) aggregate(function string, key string) (interface{}, DataModelFieldType, bool) {
+	if con.client == nil {
+		logger.Error("sqlConnection."+function, errSQLNotConnected.Error())
+		return nil, DataModelString, false
 	}
 
-	row := con.client.QueryRow(query)
-
-	var result interface{}
-	err := row.Scan(&result)
+	where, args, err := con.whereClause()
 	if err != nil {
-		logger.Error("sqlConnection.max", err.Error())
-		return nil
+		logger.Error("sqlConnection."+function, err.Error())
+		return nil, DataModelString, false
 	}
 
-	return result
-}
+	expr, kind, _ := sqlColumnExpr(con.query.Model, key)
 
-func (con *sqlConnection) min(key string) interface{} {
-	query := fmt.Sprintf("SELECT MIN(`%s`) as min_value FROM `%s`", key, con.query.Model.Collection)
+	ctx, cancel := con.opCtx(false)
+	defer cancel()
 
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
+	selected := function + "(" + expr + ")"
+	if function == "AVG" {
+		selected = sqlAverage(expr)
 	}
 
-	row := con.client.QueryRow(query)
-
-	var result interface{}
-	err := row.Scan(&result)
-	if err != nil {
-		logger.Error("sqlConnection.min", err.Error())
-		return nil
+	var value interface{}
+	query := "SELECT " + selected + " FROM " + con.table() + where
+	if err := con.client.QueryRowContext(ctx, query, args...).Scan(&value); err != nil {
+		logger.Error("sqlConnection."+function, err.Error())
+		return nil, kind, false
 	}
 
-	return result
+	return value, kind, true
 }
 
 func (con *sqlConnection) sum(key string) float64 {
-	query := fmt.Sprintf("SELECT COALESCE(SUM(`%s`), 0) as sum_value FROM `%s`", key, con.query.Model.Collection)
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
-	}
-
-	row := con.client.QueryRow(query)
-
-	var result float64
-	err := row.Scan(&result)
-	if err != nil {
-		logger.Error("sqlConnection.sum", err.Error())
-		return 0
-	}
-
-	return result
+	value, _, _ := con.aggregate("SUM", key)
+	number, _ := decodeSQLValue(DataModelFloat, value).(float64)
+	return number
 }
 
 func (con *sqlConnection) average(key string) float64 {
-	query := fmt.Sprintf("SELECT COALESCE(AVG(`%s`), 0) as avg_value FROM `%s`", key, con.query.Model.Collection)
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
-	}
-
-	row := con.client.QueryRow(query)
-
-	var result float64
-	err := row.Scan(&result)
-	if err != nil {
-		logger.Error("sqlConnection.average", err.Error())
-		return 0
-	}
-
-	return result
+	value, _, _ := con.aggregate("AVG", key)
+	number, _ := decodeSQLValue(DataModelFloat, value).(float64)
+	return number
 }
 
-func (con *sqlConnection) graph() *datatype.DataMap {
-	return &datatype.DataMap{}
+func (con *sqlConnection) max(key string) interface{} {
+	value, kind, _ := con.aggregate("MAX", key)
+	return extremeValue(decodeSQLValue(kind, value))
+}
+
+func (con *sqlConnection) min(key string) interface{} {
+	value, kind, _ := con.aggregate("MIN", key)
+	return extremeValue(decodeSQLValue(kind, value))
+}
+
+// extremeValue matches what the MongoDB backend's max/min return: dates as
+// time.Time rather than bson.DateTime.
+func extremeValue(value interface{}) interface{} {
+	if date, ok := value.(bson.DateTime); ok {
+		return date.Time()
+	}
+	return value
+}
+
+// insertRecords inserts records with one multi-row INSERT per chunk.
+func (con *sqlConnection) insertRecords(ctx context.Context, runner sqlRunner, records []datatype.DataMap) ([]string, error) {
+	model := con.query.Model
+
+	// Columns present in any record; a record without one gets NULL.
+	columnSet := map[string]bool{}
+	for _, record := range records {
+		if _, ok := record["_id"]; !ok {
+			record["_id"] = bson.NewObjectID()
+		}
+		for key := range record {
+			column := sqlColumnName(key)
+			if _, known := sqlFieldKind(model, column); known {
+				columnSet[column] = true
+			}
+		}
+	}
+
+	columns := make([]string, 0, len(columnSet))
+	for column := range columnSet {
+		columns = append(columns, column)
+	}
+	sort.Strings(columns)
+
+	quoted := make([]string, len(columns))
+	for i, column := range columns {
+		quoted[i] = quoteIdent(column)
+	}
+	rowPlaceholder := "(" + strings.TrimSuffix(strings.Repeat("?, ", len(columns)), ", ") + ")"
+
+	ids := make([]string, 0, len(records))
+
+	// Keep each statement well under the server's placeholder limit.
+	chunk := 60000 / len(columns)
+	if chunk > 500 {
+		chunk = 500
+	}
+
+	for start := 0; start < len(records); start += chunk {
+		end := start + chunk
+		if end > len(records) {
+			end = len(records)
+		}
+
+		placeholders := make([]string, 0, end-start)
+		args := make([]interface{}, 0, (end-start)*len(columns))
+
+		for _, record := range records[start:end] {
+			for _, column := range columns {
+				value := record[column]
+				if column == "_id" {
+					ids = append(ids, idString(value))
+				}
+
+				kind, _ := sqlFieldKind(model, column)
+				arg, err := encodeSQLValue(kind, value)
+				if err != nil {
+					return nil, fmt.Errorf("%s: %w", column, err)
+				}
+				args = append(args, arg)
+			}
+			placeholders = append(placeholders, rowPlaceholder)
+		}
+
+		query := "INSERT INTO " + con.table() + " (" + strings.Join(quoted, ", ") + ") VALUES " + strings.Join(placeholders, ", ")
+		if _, err := runner.ExecContext(ctx, query, args...); err != nil {
+			return nil, err
+		}
+	}
+
+	return ids, nil
+}
+
+// recordsByID reads records by primary key, in the order of ids.
+func (con *sqlConnection) recordsByID(ctx context.Context, runner sqlRunner, ids []string) ([]datatype.DataMap, error) {
+	if len(ids) == 0 {
+		return []datatype.DataMap{}, nil
+	}
+
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+
+	query := "SELECT * FROM " + con.table() + " WHERE `_id` IN (" + strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ") + ")"
+	records, err := con.selectRecords(ctx, runner, query, args)
+	if err != nil {
+		return nil, err
+	}
+
+	byID := make(map[string]datatype.DataMap, len(records))
+	for _, record := range records {
+		byID[idString(record["_id"])] = record
+	}
+
+	ordered := make([]datatype.DataMap, 0, len(ids))
+	for _, id := range ids {
+		if record, ok := byID[id]; ok {
+			ordered = append(ordered, record)
+		}
+	}
+
+	return ordered, nil
+}
+
+// inTransaction runs fn in a transaction, committing if it returns nil.
+func (con *sqlConnection) inTransaction(ctx context.Context, fn func(tx *sql.Tx) error) error {
+	tx, err := con.client.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	if err := fn(tx); err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (con *sqlConnection) create(data datatype.DataMap) (*datatype.DataMap, error) {
-	keys := make([]string, 0)
-	values := make([]interface{}, 0)
-
-	for k, v := range data {
-		keys = append(keys, fmt.Sprintf("`%s`", k))
-		values = append(values, v)
-	}
-
-	placeholders := make([]string, len(keys))
-	for i := range placeholders {
-		placeholders[i] = "?"
-	}
-
-	query := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s)",
-		con.query.Model.Collection,
-		strings.Join(keys, ", "),
-		strings.Join(placeholders, ", "))
-
-	result, err := con.client.Exec(query, values...)
-	if err != nil {
-		console.Log("sqlConnection.create", err.Error())
+	created, err := con.createMany([]datatype.DataMap{data})
+	if err != nil || created == nil || len(*created) == 0 {
 		return nil, err
 	}
 
-	id, err := result.LastInsertId()
-	if err != nil {
-		console.Log("sqlConnection.create", err.Error())
-		return nil, err
-	}
-
-	createdRecord := newSQLInstance(con).query.Where("id", id).collection().findOne()
-	return createdRecord, nil
+	return &(*created)[0], nil
 }
 
 func (con *sqlConnection) createMany(data []datatype.DataMap) (*[]datatype.DataMap, error) {
-	if len(data) == 0 {
-		return nil, errors.New("no data provided")
+	if con.client == nil {
+		return nil, errSQLNotConnected
 	}
 
-	keys := make([]string, 0)
-	allValues := make([]interface{}, 0)
-	placeholderRows := make([]string, 0)
+	if len(data) == 0 {
+		return &[]datatype.DataMap{}, nil
+	}
 
-	for idx, record := range data {
-		if idx == 0 {
-			for k := range record {
-				keys = append(keys, fmt.Sprintf("`%s`", k))
+	ctx, cancel := con.opCtx(true)
+	defer cancel()
+
+	var created []datatype.DataMap
+	err := con.inTransaction(ctx, func(tx *sql.Tx) error {
+		ids, err := con.insertRecords(ctx, tx, data)
+		if err != nil {
+			return err
+		}
+
+		// Read back, so values have exactly the types and precision stored.
+		created, err = con.recordsByID(ctx, tx, ids)
+		return err
+	})
+
+	if err != nil {
+		logger.Error("sqlConnection.create", err.Error())
+		return nil, err
+	}
+
+	return &created, nil
+}
+
+// setClause builds "`a` = ?, `b` = ?" for the fields of data that are columns.
+func (con *sqlConnection) setClause(data datatype.DataMap) (string, []interface{}, error) {
+	model := con.query.Model
+
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		if key == "_id" || key == "id" {
+			continue // the primary key doesn't change
+		}
+		if _, known := sqlFieldKind(model, key); known {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+
+	sets := make([]string, len(keys))
+	args := make([]interface{}, len(keys))
+	for i, key := range keys {
+		kind, _ := sqlFieldKind(model, key)
+		arg, err := encodeSQLValue(kind, data[key])
+		if err != nil {
+			return "", nil, fmt.Errorf("%s: %w", key, err)
+		}
+
+		sets[i] = quoteIdent(key) + " = ?"
+		args[i] = arg
+	}
+
+	return strings.Join(sets, ", "), args, nil
+}
+
+// update sets data on the first matching record (in the query's order) and
+// returns it as updated, like the MongoDB backend's FindOneAndUpdate.
+func (con *sqlConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
+	if con.client == nil {
+		return nil, errSQLNotConnected
+	}
+
+	where, whereArgs, err := con.whereClause()
+	if err != nil {
+		return nil, err
+	}
+
+	set, setArgs, err := con.setClause(data)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := con.opCtx(true)
+	defer cancel()
+
+	var updated *datatype.DataMap
+	err = con.inTransaction(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, "SELECT `_id` FROM "+con.table()+where+con.orderClause(con.columnOrder)+" LIMIT 1 FOR UPDATE", whereArgs...)
+		if err != nil {
+			return err
+		}
+
+		var id string
+		found := rows.Next()
+		if found {
+			err = rows.Scan(&id)
+		}
+		rows.Close()
+		if err != nil || !found {
+			return err
+		}
+
+		if set != "" {
+			args := append(append([]interface{}{}, setArgs...), id)
+			if _, err := tx.ExecContext(ctx, "UPDATE "+con.table()+" SET "+set+" WHERE `_id` = ?", args...); err != nil {
+				return err
 			}
 		}
 
-		rowPlaceholders := make([]string, len(keys))
-		for i := range rowPlaceholders {
-			rowPlaceholders[i] = "?"
+		records, err := con.recordsByID(ctx, tx, []string{id})
+		if err == nil && len(records) > 0 {
+			updated = &records[0]
 		}
-		placeholderRows = append(placeholderRows, "("+strings.Join(rowPlaceholders, ", ")+")")
+		return err
+	})
 
-		for _, k := range keys {
-			k = strings.Trim(k, "`")
-			allValues = append(allValues, record[k])
-		}
-	}
-
-	query := fmt.Sprintf("INSERT INTO `%s` (%s) VALUES %s",
-		con.query.Model.Collection,
-		strings.Join(keys, ", "),
-		strings.Join(placeholderRows, ", "))
-
-	_, err := con.client.Exec(query, allValues...)
 	if err != nil {
-		console.Log("sqlConnection.createMany", err.Error())
+		logger.Error("sqlConnection.update", err.Error())
 		return nil, err
 	}
 
-	result := newSQLInstance(con).query.collection().find()
-	return result, nil
-}
-
-func (con *sqlConnection) update(data datatype.DataMap) (*datatype.DataMap, error) {
-	setParts := make([]string, 0)
-	values := make([]interface{}, 0)
-
-	for k, v := range data {
-		setParts = append(setParts, fmt.Sprintf("`%s` = ?", k))
-		values = append(values, v)
-	}
-
-	query := fmt.Sprintf("UPDATE `%s` SET %s", con.query.Model.Collection, strings.Join(setParts, ", "))
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
-		whereVals := con.getWhereValues()
-		values = append(values, whereVals...)
-	}
-
-	result, err := con.client.Exec(query, values...)
-	if err != nil {
-		console.Log("sqlConnection.update", err.Error())
-		return nil, err
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil || rowsAffected == 0 {
-		return nil, err
-	}
-
-	updatedRecord := newSQLInstance(con).query.WhereAll(*con.where()).FindOne(nil)
-	return updatedRecord, nil
+	return updated, nil
 }
 
 func (con *sqlConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
-	setParts := make([]string, 0)
-	values := make([]interface{}, 0)
-
-	for k, v := range data {
-		setParts = append(setParts, fmt.Sprintf("`%s` = ?", k))
-		values = append(values, v)
+	if con.client == nil {
+		return nil, errSQLNotConnected
 	}
 
-	query := fmt.Sprintf("UPDATE `%s` SET %s", con.query.Model.Collection, strings.Join(setParts, ", "))
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
-		whereVals := con.getWhereValues()
-		values = append(values, whereVals...)
-	}
-
-	_, err := con.client.Exec(query, values...)
+	where, whereArgs, err := con.whereClause()
 	if err != nil {
-		console.Log("sqlConnection.updateMany", err.Error())
 		return nil, err
 	}
 
-	result := newSQLInstance(con).query.WhereAll(*con.where()).Find(nil)
-	return result, nil
+	set, setArgs, err := con.setClause(data)
+	if err != nil {
+		return nil, err
+	}
+
+	if set != "" {
+		ctx, cancel := con.opCtx(true)
+		defer cancel()
+
+		args := append(append([]interface{}{}, setArgs...), whereArgs...)
+		if _, err := con.client.ExecContext(ctx, "UPDATE "+con.table()+" SET "+set+where, args...); err != nil {
+			logger.Error("sqlConnection.updateMany", err.Error())
+			return nil, err
+		}
+	}
+
+	// As the MongoDB backend does: the records the filter matches now.
+	return con.find(), nil
 }
 
 func (con *sqlConnection) delete() (interface{}, error) {
-	if !con.hasWhere() {
-		return nil, errors.New("filter is empty, not allowed to delete all records at once")
+	if con.client == nil {
+		return nil, errSQLNotConnected
 	}
 
-	query := fmt.Sprintf("DELETE FROM `%s` WHERE %s", con.query.Model.Collection, con.whereSQL())
-	whereVals := con.getWhereValues()
-
-	result, err := con.client.Exec(query, whereVals...)
+	where, args, err := con.whereClause()
 	if err != nil {
-		console.Log("sqlConnection.delete", err.Error())
 		return nil, err
 	}
 
-	return result, nil
-}
-
-func (con *sqlConnection) selection() *[]string {
-	return &[]string{}
-}
-
-func (con *sqlConnection) where() *datatype.DataMap {
-	return &con.query.where
-}
-
-func (con *sqlConnection) whereSQL() string {
-	conditions := make([]string, 0)
-
-	for k, v := range con.query.where {
-		if helper.Contains([]string{"AND", "OR", "NOR"}, k) {
-			conditions = append(conditions, con.extractWhereSQL(con.query.where))
-		} else {
-			conditions = append(conditions, con.extractWhereItemSQL(k, v))
-		}
+	if where == "" {
+		return nil, errors.New("filter is empty, not allowed to delete all document at once")
 	}
 
-	if len(conditions) == 0 {
-		return ""
+	ctx, cancel := con.opCtx(true)
+	defer cancel()
+
+	result, err := con.client.ExecContext(ctx, "DELETE FROM "+con.table()+where, args...)
+	if err != nil {
+		logger.Error("sqlConnection.delete", err.Error())
+		return nil, err
 	}
 
-	return strings.Join(conditions, " AND ")
-}
+	deleted, _ := result.RowsAffected()
 
-func (con *sqlConnection) extractWhereSQL(where interface{}) string {
-	return ""
-}
-
-func (con *sqlConnection) extractWhereItemSQL(key string, value interface{}) string {
-	if vm, ok := value.(map[string]interface{}); ok {
-		for op := range vm {
-			switch op {
-			case "equalTo", "$eq":
-				return fmt.Sprintf("`%s` = ?", key)
-			case "notEqualTo", "$ne":
-				return fmt.Sprintf("`%s` != ?", key)
-			case "lessThan", "$lt":
-				return fmt.Sprintf("`%s` < ?", key)
-			case "lessThanOrEqualTo", "$lte":
-				return fmt.Sprintf("`%s` <= ?", key)
-			case "greaterThan", "$gt":
-				return fmt.Sprintf("`%s` > ?", key)
-			case "greaterThanOrEqualTo", "$gte":
-				return fmt.Sprintf("`%s` >= ?", key)
-			case "in", "$in":
-				if vi, ok := vm[op].([]interface{}); ok {
-					placeholders := make([]string, len(vi))
-					for i := range placeholders {
-						placeholders[i] = "?"
-					}
-					return fmt.Sprintf("`%s` IN (%s)", key, strings.Join(placeholders, ", "))
-				}
-			case "notIn", "$nin":
-				if vi, ok := vm[op].([]interface{}); ok {
-					placeholders := make([]string, len(vi))
-					for i := range placeholders {
-						placeholders[i] = "?"
-					}
-					return fmt.Sprintf("`%s` NOT IN (%s)", key, strings.Join(placeholders, ", "))
-				}
-			}
-		}
-	} else if vi, ok := value.([]interface{}); ok {
-		placeholders := make([]string, len(vi))
-		for i := range placeholders {
-			placeholders[i] = "?"
-		}
-		return fmt.Sprintf("`%s` IN (%s)", key, strings.Join(placeholders, ", "))
-	} else {
-		return fmt.Sprintf("`%s` = ?", key)
-	}
-
-	return ""
-}
-
-func (con *sqlConnection) getWhereValues() []interface{} {
-	values := make([]interface{}, 0)
-
-	for _, v := range con.query.where {
-		if vm, ok := v.(map[string]interface{}); ok {
-			for _, val := range vm {
-				if vi, ok := val.([]interface{}); ok {
-					values = append(values, vi...)
-				} else {
-					values = append(values, val)
-				}
-			}
-		} else if vi, ok := v.([]interface{}); ok {
-			values = append(values, vi...)
-		} else {
-			values = append(values, v)
-		}
-	}
-
-	return values
-}
-
-func (con *sqlConnection) hasWhere() bool {
-	return len(con.query.where) > 0
-}
-
-func (con *sqlConnection) hasOrderBy() bool {
-	return len(con.query.orderBy) > 0
-}
-
-func (con *sqlConnection) buildSelectQuery() string {
-	query := fmt.Sprintf("SELECT * FROM `%s`", con.query.Model.Collection)
-
-	if con.hasWhere() {
-		query += " WHERE " + con.whereSQL()
-	}
-
-	return query
-}
-
-func (con *sqlConnection) orderBySQL() string {
-	if !con.hasOrderBy() {
-		return ""
-	}
-
-	parts := make([]string, 0)
-	for k, v := range con.query.orderBy {
-		direction := "ASC"
-		if strings.ToLower(v) == "desc" {
-			direction = "DESC"
-		}
-		parts = append(parts, fmt.Sprintf("`%s` %s", k, direction))
-	}
-
-	return "ORDER BY " + strings.Join(parts, ", ")
-}
-
-func (con *sqlConnection) groupBy() *[]interface{} {
-	return &[]interface{}{}
-}
-
-func (con *sqlConnection) orderBy() *[]datatype.DataMap {
-	return &[]datatype.DataMap{}
-}
-
-func (con *sqlConnection) limit() int {
-	if con.query.limit > 0 {
-		return con.query.limit
-	}
-
-	return -1
-}
-
-func (con *sqlConnection) skip() int {
-	if con.query.skip > 0 {
-		return con.query.skip
-	}
-
-	return con.query.limit * (con.query.page - 1)
-}
-
-func (con *sqlConnection) page() int {
-	if con.query.page < 1 {
-		return 1
-	}
-
-	return con.query.page
+	// Same shape as the MongoDB backend's result (callers read DeletedCount).
+	return &mongo.DeleteResult{DeletedCount: deleted, Acknowledged: true}, nil
 }
