@@ -4,11 +4,13 @@ import (
 	"compress/gzip"
 	"embed"
 	"fmt"
+	"io"
 	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/console"
@@ -27,6 +29,16 @@ type Response struct {
 	headers            MIMEHeader
 	statusCode         int
 	gz                 *gzip.Writer
+	wroteHeader        bool
+}
+
+// gzipMinBytes is the smallest body worth compressing: below this the gzip
+// framing and CPU cost outweigh the bytes saved.
+const gzipMinBytes = 1024
+
+// Compressors are large (hundreds of KB), so they're reused across responses.
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} { return gzip.NewWriter(io.Discard) },
 }
 
 // Response methods
@@ -54,8 +66,18 @@ func (res *Response) SetHeader(key string, value string) {
 	}
 }
 
+// WriteHeader sends the status and headers now. The body is then never
+// compressed: whoever called this (e.g. http.ServeContent) may already have
+// set Content-Length for the uncompressed body.
 func (res *Response) WriteHeader(statusCode int) {
+	if res.wroteHeader {
+		return
+	}
+
+	res.statusCode = statusCode
+	res.ResetHeaders()
 	(*res.httpResponseWriter).WriteHeader(statusCode)
+	res.wroteHeader = true
 }
 
 func (res *Response) Abort(code int, message string) {
@@ -104,7 +126,7 @@ func (res *Response) Abort(code int, message string) {
 		contentUrl = "static/500.html"
 	}
 
-	console.Error("Abort:", code, message)
+	logAbort(code, message)
 	res.Status(code)
 
 	if isJson {
@@ -145,43 +167,56 @@ func (res *Response) acceptsGzip() bool {
 	return false
 }
 
-func (res *Response) initGzip(w *http.ResponseWriter) error {
-	if res.gz != nil {
-		return nil
+// shouldGzip decides, before the headers go out, whether this response is
+// compressed. first is the first chunk of the body.
+func (res *Response) shouldGzip(first []byte) bool {
+	if len(first) < gzipMinBytes || !res.acceptsGzip() {
+		return false
 	}
 
-	(*w).Header().Set("content-encoding", "gzip")
-	(*w).Header().Set("vary", "accept-encoding")
+	header := (*res.httpResponseWriter).Header()
 
-	gz := gzip.NewWriter(*w)
-	res.gz = gz
-
-	return nil
+	// Already encoded, or sized for the uncompressed body.
+	return header.Get("content-encoding") == "" && header.Get("content-length") == ""
 }
 
 func (res *Response) Write(data []byte) (int, error) {
-	res.SetHeader("yekonga-application", "Yesu")
-	res.ResetHeaders()
+	if !res.wroteHeader {
+		res.SetHeader("yekonga-application", "Yesu")
+		res.ResetHeaders()
 
-	if res.acceptsGzip() {
-		if err := res.initGzip(res.httpResponseWriter); err == nil {
-			(*res.httpResponseWriter).WriteHeader(res.statusCode)
+		if res.shouldGzip(data) {
+			header := (*res.httpResponseWriter).Header()
+			header.Set("content-encoding", "gzip")
+			header.Add("vary", "accept-encoding")
 
-			return res.gz.Write(data)
+			gz := gzipWriterPool.Get().(*gzip.Writer)
+			gz.Reset(*res.httpResponseWriter)
+			res.gz = gz
 		}
-		// initGzip failed — fall through to uncompressed (headers not yet set)
+
+		(*res.httpResponseWriter).WriteHeader(res.statusCode)
+		res.wroteHeader = true
 	}
 
-	(*res.httpResponseWriter).WriteHeader(res.statusCode)
+	if res.gz != nil {
+		return res.gz.Write(data)
+	}
+
 	return (*res.httpResponseWriter).Write(data)
 }
 
 // Close must be called when the response is done to flush the gzip stream.
 func (res *Response) Close() error {
-	if res.gz != nil {
-		return res.gz.Close()
+	if res.gz == nil {
+		return nil
 	}
-	return nil
+
+	err := res.gz.Close()
+	gzipWriterPool.Put(res.gz)
+	res.gz = nil
+
+	return err
 }
 
 func (res *Response) Text(data string) {

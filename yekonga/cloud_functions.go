@@ -360,7 +360,9 @@ func (y *YekongaData) triggerCallback(model string, action TriggerAction, ctxReq
 		return result, err
 	} else {
 		if actionAccess != "" {
-			logger.Warn("cloud function %s -> %v -> %v not exists", model, action, actionAccess)
+			if missingTriggerLog.first(model + "|" + string(action) + "|" + actionAccess) {
+				logger.Warn("cloud function %s -> %v -> %v not exists", model, action, actionAccess)
+			}
 			return false, fmt.Errorf("%v -> %v -> %v action not exists", model, action, actionAccess)
 		}
 	}

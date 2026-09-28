@@ -1,7 +1,6 @@
 package yekonga
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"path/filepath"
@@ -135,6 +134,52 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 	return http.StatusOK, nil
 }
 
+// tokenPaths are the routes where a missing or invalid access token isn't an
+// error: exact paths, and path.Match patterns.
+type tokenPaths struct {
+	exact    []string
+	patterns []string
+}
+
+// tokenOptionalPaths is built once: it only depends on config.
+func (y *YekongaData) tokenOptionalPaths() *tokenPaths {
+	y.tokenPathsOnce.Do(func() {
+		config := y.Config
+		y.tokenPaths = &tokenPaths{
+			exact: []string{
+				y.AppendBaseUrl("me"),
+				y.AppendBaseUrl("logout"),
+				y.AppendBaseUrl("refresh"),
+				y.AppendBaseUrl("languages"),
+				y.AppendBaseUrl("excel-to-csv"),
+				y.AppendBaseUrl("upload"),
+				y.AppendBaseUrl("upload-files"),
+				y.AppendBaseUrl("config/data"),
+				y.AppendBaseUrl("config/report"),
+				y.AppendBaseUrl("permissions"),
+				y.AppendBaseUrl("config"),
+				y.AppendBaseUrl("tenant"),
+				y.AppendBaseUrl("tenant-config"),
+				y.AppendBaseUrl("theme.css"),
+				y.AppendBaseUrl("custom-style.css"),
+				y.AppendBaseUrl(config.RestApi),
+				y.AppendBaseUrl(config.RestAuthApi),
+				y.AppendBaseUrl(config.Graphql.ApiRoute),
+				y.AppendBaseUrl(config.Graphql.ApiAuthRoute),
+			},
+			patterns: []string{
+				y.AppendBaseUrl("me/*"),
+				y.AppendBaseUrl("refresh/*"),
+				y.AppendBaseUrl("download/*"),
+				y.AppendBaseUrl("translations/*"),
+				y.AppendBaseUrl("image/*"),
+			},
+		}
+	})
+
+	return y.tokenPaths
+}
+
 // Middleware to add token as a string
 func TokenMiddleware(req *Request, res *Response) (int, error) {
 	app := req.App
@@ -150,33 +195,16 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	}
 
 	currentPath := req.HttpRequest.URL.Path
-	ignorePaths := []string{
-		app.AppendBaseUrl("me"),
-		app.AppendBaseUrl("logout"),
-		app.AppendBaseUrl("refresh"),
-		app.AppendBaseUrl("languages"),
-		app.AppendBaseUrl("excel-to-csv"),
-		app.AppendBaseUrl("upload"),
-		app.AppendBaseUrl("upload-files"),
-		app.AppendBaseUrl("config/data"),
-		app.AppendBaseUrl("config/report"),
-		app.AppendBaseUrl("permissions"),
-		app.AppendBaseUrl("config"),
-		app.AppendBaseUrl("tenant"),
-		app.AppendBaseUrl("tenant-config"),
-		app.AppendBaseUrl("theme.css"),
-		app.AppendBaseUrl("custom-style.css"),
-		app.AppendBaseUrl(config.RestApi),
-		app.AppendBaseUrl(config.RestAuthApi),
-		app.AppendBaseUrl(config.Graphql.ApiRoute),
-		app.AppendBaseUrl(config.Graphql.ApiAuthRoute),
+	optional := app.tokenOptionalPaths()
+	mandatoryValidToken := !helper.Contains(optional.exact, currentPath)
+	for _, pattern := range optional.patterns {
+		if !mandatoryValidToken {
+			break
+		}
+		if helper.MatchPath(currentPath, pattern) {
+			mandatoryValidToken = false
+		}
 	}
-	mandatoryValidToken := (!helper.Contains(ignorePaths, currentPath) &&
-		!helper.MatchPath(currentPath, app.AppendBaseUrl("me/*")) &&
-		!helper.MatchPath(currentPath, app.AppendBaseUrl("refresh/*")) &&
-		!helper.MatchPath(currentPath, app.AppendBaseUrl("download/*")) &&
-		!helper.MatchPath(currentPath, app.AppendBaseUrl("translations/*")) &&
-		!helper.MatchPath(currentPath, app.AppendBaseUrl("image/*")))
 
 	for _, v := range req.App.publicRoutes {
 		test := helper.MatchPath(currentPath, app.AppendBaseUrl(v))
@@ -216,7 +244,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 	}
 
 	if helper.IsNotEmpty(accessToken) {
-		isValid, tokenPayloadMap = jwt.DecodeJWT(accessToken, config.Authentication.SecretToken)
+		isValid, tokenPayloadMap = jwt.DecodeJWTInto(accessToken, config.Authentication.SecretToken, &tokenPayload)
 
 		if !isValid || helper.IsEmpty(tokenPayloadMap) {
 			if mandatoryValidToken {
@@ -227,8 +255,6 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 				return http.StatusTemporaryRedirect, errors.New("Access token invalid")
 			}
 		}
-
-		json.Unmarshal([]byte(helper.ToJson(tokenPayloadMap)), &tokenPayload)
 
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
 			if mandatoryValidToken {

@@ -37,6 +37,13 @@ func EncodeJWT(claims map[string]interface{}, secretKey string) (string, error) 
 }
 
 func DecodeJWT(tokenString string, secretKey string) (bool, map[string]interface{}) {
+	return DecodeJWTInto(tokenString, secretKey, nil)
+}
+
+// DecodeJWTInto is DecodeJWT that also decodes a valid token's payload into
+// target (e.g. a struct), straight from the token instead of re-encoding the
+// map. target may be nil.
+func DecodeJWTInto(tokenString string, secretKey string, target interface{}) (bool, map[string]interface{}) {
 	parts := strings.Split(tokenString, ".")
 	if len(parts) != 3 {
 		return false, nil
@@ -49,7 +56,9 @@ func DecodeJWT(tokenString string, secretKey string) (bool, map[string]interface
 	// Verify signature
 	signatureInput := headerBase64 + "." + payloadBase64
 	expectedSignature := generateSignature(signatureInput, secretKey)
-	if signatureProvided != expectedSignature {
+	// Constant-time comparison, so response timing doesn't reveal how much of
+	// a forged signature is right.
+	if !hmac.Equal([]byte(signatureProvided), []byte(expectedSignature)) {
 		return false, nil
 	}
 
@@ -67,6 +76,10 @@ func DecodeJWT(tokenString string, secretKey string) (bool, map[string]interface
 		if time.Now().Unix() > int64(exp) {
 			return false, nil
 		}
+	}
+
+	if target != nil {
+		json.Unmarshal(payloadJSON, target)
 	}
 
 	return true, payload

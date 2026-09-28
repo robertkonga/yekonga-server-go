@@ -350,10 +350,23 @@ func (n *Namespace) EmitToClient(c *Client, event string, data interface{}) {
 		return
 	}
 
-	msg, err := json.Marshal(EventMessage{Event: event, Data: helper.ToByte((data))})
+	msg, err := encodeEvent(event, data)
 	if err != nil {
 		return
 	}
+
+	c.sendMessage(msg)
+}
+
+// encodeEvent builds the wire message for an event. Messages going to many
+// clients are encoded once and the same bytes sent to each.
+func encodeEvent(event string, data interface{}) ([]byte, error) {
+	return json.Marshal(EventMessage{Event: event, Data: helper.ToByte(data)})
+}
+
+// sendMessage queues an encoded message, dropping it if the client's buffer
+// is full rather than blocking the sender.
+func (c *Client) sendMessage(msg []byte) {
 	select {
 	case c.send <- msg:
 	default:
@@ -376,9 +389,7 @@ func (n *Namespace) SendToRoom(room, event string, data interface{}, exclude *Cl
 	}
 	n.mu.Unlock()
 
-	for _, client := range clientsInRoom {
-		n.EmitToClient(client, event, data)
-	}
+	n.sendToClients(clientsInRoom, event, data)
 }
 
 func (n *Namespace) Emit(event string, data interface{}, exclude *Client) {
@@ -389,22 +400,64 @@ func (n *Namespace) Emit(event string, data interface{}, exclude *Client) {
 }
 
 func (n *Namespace) Broadcast(event string, data interface{}, exclude *Client) {
+	n.broadcastWhere(event, data, func(client *Client) bool { return client != exclude })
+}
+
+// broadcastToTenant sends an event to the clients of tenantId and to clients
+// without a tenant (e.g. main-domain admin screens). An empty tenantId sends
+// to everyone.
+func (n *Namespace) broadcastToTenant(tenantId string, event string, data interface{}) {
+	if tenantId == "" {
+		n.broadcastWhere(event, data, func(*Client) bool { return true })
+		return
+	}
+
+	n.broadcastWhere(event, data, func(client *Client) bool {
+		clientTenant := client.tenantId()
+		return clientTenant == "" || clientTenant == tenantId
+	})
+}
+
+func (n *Namespace) broadcastWhere(event string, data interface{}, include func(*Client) bool) {
 	if n == nil {
 		return
 	}
 
 	n.mu.Lock()
-	allClients := make([]*Client, 0, len(n.Clients))
+	clients := make([]*Client, 0, len(n.Clients))
 	for _, client := range n.Clients {
-		if client != exclude {
-			allClients = append(allClients, client)
+		if include(client) {
+			clients = append(clients, client)
 		}
 	}
 	n.mu.Unlock()
 
-	for _, client := range allClients {
-		n.EmitToClient(client, event, data)
+	n.sendToClients(clients, event, data)
+}
+
+func (n *Namespace) sendToClients(clients []*Client, event string, data interface{}) {
+	if len(clients) == 0 {
+		return
 	}
+
+	msg, err := encodeEvent(event, data)
+	if err != nil {
+		return
+	}
+
+	for _, client := range clients {
+		client.sendMessage(msg)
+	}
+}
+
+// tenantId is the tenant the client connected as, resolved from its
+// connection request like any other request's; "" when it has none.
+func (c *Client) tenantId() string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+
+	return idString(c.Request.TenantId())
 }
 
 func (c *Client) On(event string, handler func(data interface{})) {

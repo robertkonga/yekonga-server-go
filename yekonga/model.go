@@ -88,6 +88,7 @@ type DataModel struct {
 	ParentKeys     []string
 	RelativeKeys   []string
 	IDKeys         []string
+	kinds          *fieldKinds // IDKeys etc. as sets; set by initialize
 	Fields         map[string]DataModelField
 	ParentFields   map[string]DataModelFieldForeignKey
 	ChildrenFields map[string]DataModelFieldForeignKey
@@ -283,6 +284,41 @@ func (m *DataModel) initialize(collection string, fields map[string]CollectionFi
 	}
 
 	sort.Strings(m.ValidFields)
+
+	m.kinds = buildFieldKinds(m)
+}
+
+// fieldKinds holds the model's field-type lists as sets, for lookups done
+// per field on every write.
+type fieldKinds struct {
+	id, date, number, float map[string]bool
+}
+
+func buildFieldKinds(m *DataModel) *fieldKinds {
+	toSet := func(names []string) map[string]bool {
+		set := make(map[string]bool, len(names))
+		for _, name := range names {
+			set[name] = true
+		}
+		return set
+	}
+
+	return &fieldKinds{
+		id:     toSet(m.IDKeys),
+		date:   toSet(m.DateFields),
+		number: toSet(m.NumberFields),
+		float:  toSet(m.FloatFields),
+	}
+}
+
+// fieldKindSets returns the sets built with the model, or builds them for a
+// model that wasn't made by initialize.
+func (m *DataModel) fieldKindSets() *fieldKinds {
+	if m.kinds != nil {
+		return m.kinds
+	}
+
+	return buildFieldKinds(m)
 }
 
 func (m *DataModel) getDataModelField(name string, field CollectionFieldConfig) *DataModelField {

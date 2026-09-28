@@ -980,7 +980,7 @@ func (con *mongodbConnection) extractWhereItem(where interface{}) (datatype.Data
 							vii = nil
 						}
 
-						if helper.Contains(con.query.Model.IDKeys, k) || k == "id" || k == "_id" {
+						if con.query.Model.fieldKindSets().id[k] || k == "id" || k == "_id" {
 							if helper.IsNotEmpty(vii) {
 								if helper.IsArray(vii) {
 									viii := helper.ToList[any](vii)

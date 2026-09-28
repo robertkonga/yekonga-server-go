@@ -95,6 +95,8 @@ type YekongaData struct {
 	tenantPayments         map[string]*tenantPaymentEntry
 	tenantPaymentsMu       sync.Mutex
 	tenantCache            *lookupCache[tenantRecords]
+	tokenPaths             *tokenPaths
+	tokenPathsOnce         sync.Once
 	tenantCatchCache       *lookupCache[*datatype.DataMap]
 	userCache              *lookupCache[*datatype.DataMap]
 

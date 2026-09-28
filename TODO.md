@@ -58,17 +58,18 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 ## P2 — Smaller, cheap to fix
 
-- [ ] **Pool gzip writers.** `initGzip` allocates a new compressor (hundreds of KB) per response, even for tiny bodies (`yekonga/response.go:156`). Use `sync.Pool` and skip compression under ~1 KB. `Response.Write` also calls `WriteHeader` on every call (:168, :175); only write the header once.
-- [ ] **Serialize socket broadcasts once.** `EmitToClient` marshals the payload for every client (`yekonga/socket.go:353`). Every create/update/delete broadcasts to *all* connected clients across all tenants (`yekonga/model_query.go:361`, `:421`, `:487`, `:699`). Marshal once and scope to a per-tenant room.
-- [ ] **Remove per-request / per-call allocations:**
+- [x] **Pool gzip writers.** Also fixed: `Download` (via `http.ServeContent`) sent gzipped bytes without `Content-Encoding` after the headers were out, corrupting downloads for browsers. `initGzip` allocates a new compressor (hundreds of KB) per response, even for tiny bodies (`yekonga/response.go:156`). Use `sync.Pool` and skip compression under ~1 KB. `Response.Write` also calls `WriteHeader` on every call (:168, :175); only write the header once.
+- [x] **Serialize socket broadcasts once.** `database` events for tenant data go to that tenant's clients and clients without a tenant. `EmitToClient` marshals the payload for every client (`yekonga/socket.go:353`). Every create/update/delete broadcasts to *all* connected clients across all tenants (`yekonga/model_query.go:361`, `:421`, `:487`, `:699`). Marshal once and scope to a per-tenant room.
+- [x] **Remove per-request / per-call allocations:**
   - `ignorePaths` rebuilt on every request in `TokenMiddleware` (`yekonga/middleware.go:161`). Build once at startup.
   - `listAll` rebuilt on every `runTriggerAction` call (`yekonga/model_query.go:1287`). Make it a package-level set.
   - Token payload decoded via `json.Unmarshal([]byte(helper.ToJson(...)))` (`yekonga/middleware.go:239`).
   - `helper.Contains` over `IDKeys`, `DateFields`, `NumberFields`, `FloatFields` per field in `formatInputDataField` (`yekonga/model_query.go:1263`). Precompute sets on `DataModel`.
-- [ ] **Reduce synchronous logging on hot paths:** `logger.Warn` for missing triggers on every query (`yekonga/cloud_functions.go:356`) and `console.Error` on every `Abort` (`yekonga/response.go:107`), which is costly under 404-scan traffic.
+- [x] **Reduce synchronous logging on hot paths:** missing-trigger warning once per model/action/role; 4xx aborts logged at most 10/s (5xx always). `logger.Warn` for missing triggers on every query (`yekonga/cloud_functions.go:356`) and `console.Error` on every `Abort` (`yekonga/response.go:107`), which is costly under 404-scan traffic.
 
 ## Bugs found during the review
 
+- [x] **JWT signature compared with `!=`** (not constant-time) in `helper/jwt`. Now `hmac.Equal`.
 - [x] **`Import` always returns an empty `data` list.** Also meant the GraphQL import mutation never attached nested children to newly created parents. Created records are now returned after the after-create triggers, and records are matched to inputs by unique keys (or id), never by default. It passes a `*[]DataMap` to `helper.ToList`, which only accepts slices (`yekonga/model_query.go`, after `createMany`).
 - [x] **Building a server changed the package-level default schemas.** `NewDatabaseStructure` added the app's collections to `DefaultExtraDatabaseStructure`, so a second `ServerConfig` in the same process saw the first one's models.
 - [x] **Summary fields shared relation keys across requests.** The count/sum/max/min/average/graph resolvers wrote the relation keys into variables captured by the closure, which every request shares, so concurrent requests could overwrite each other's keys.

@@ -109,7 +109,7 @@ func (m *DataModelQuery) Where(name string, value interface{}) *DataModelQuery {
 		m.where = make(datatype.DataMap)
 	}
 
-	if helper.Contains(m.Model.IDKeys, name) || name == "id" || name == "_id" {
+	if m.Model.fieldKindSets().id[name] || name == "id" || name == "_id" {
 		if name == "id" || name == "_id" {
 			name = "_id"
 		}
@@ -363,10 +363,7 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 
 	m.Model.App.invalidateCaches(m.Model.Name)
 
-	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
-		"action": "create",
-		"model":  m.Model.Name,
-	}, nil)
+	m.emitDatabaseEvent("create")
 
 	return result
 }
@@ -437,10 +434,7 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 
 	m.Model.App.invalidateCaches(m.Model.Name)
 
-	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
-		"action": "update",
-		"model":  m.Model.Name,
-	}, nil)
+	m.emitDatabaseEvent("update")
 
 	return result
 }
@@ -505,10 +499,7 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 
 	m.Model.App.invalidateCaches(m.Model.Name)
 
-	m.Model.App.socketServer.Of("/").Emit("database", datatype.DataMap{
-		"action": "update",
-		"model":  m.Model.Name,
-	}, nil)
+	m.emitDatabaseEvent("update")
 
 	return result
 }
@@ -671,10 +662,7 @@ ParentLoop:
 
 	m.Model.App.invalidateCaches(m.Model.Name)
 
-	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
-		"action": "import",
-		"model":  m.Model.Name,
-	}, nil)
+	m.emitDatabaseEvent("import")
 
 	return result
 }
@@ -727,10 +715,7 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 
 	m.Model.App.invalidateCaches(m.Model.Name)
 
-	m.Model.App.socketServer.Of("/").Broadcast("database", datatype.DataMap{
-		"action": "delete",
-		"model":  m.Model.Name,
-	}, nil)
+	m.emitDatabaseEvent("delete")
 
 	return result
 }
@@ -1254,7 +1239,7 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 			}
 
 			if vi, exist := input[k]; exist {
-				if helper.Contains(m.Model.IDKeys, k) {
+				if m.Model.fieldKindSets().id[k] {
 					if helper.IsNotEmpty(vi) {
 						v = helper.ObjectID(vi)
 					} else {
@@ -1266,7 +1251,7 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 			} else if field, exist := m.Model.Fields[k]; exist {
 				v = field.DefaultValue
 
-				if helper.Contains(m.Model.DateFields, string(field.Name)) && v == "now" {
+				if m.Model.fieldKindSets().date[string(field.Name)] && v == "now" {
 					v = helper.GetTimestamp(nil)
 				}
 			}
@@ -1295,13 +1280,15 @@ func (m *DataModelQuery) formatInputDataField(key string, value interface{}) int
 	var v interface{}
 
 	if helper.IsNotEmpty(value) {
-		if helper.Contains(m.Model.IDKeys, key) || key == "id" || key == "_id" {
+		kinds := m.Model.fieldKindSets()
+
+		if kinds.id[key] || key == "id" || key == "_id" {
 			v = helper.ObjectID(value)
-		} else if helper.Contains(m.Model.DateFields, key) {
+		} else if kinds.date[key] {
 			v = helper.GetTimestamp(value)
-		} else if helper.Contains(m.Model.NumberFields, key) {
+		} else if kinds.number[key] {
 			v = helper.ToInt(value)
-		} else if helper.Contains(m.Model.FloatFields, key) {
+		} else if kinds.float[key] {
 			v = helper.ToFloat(value)
 		} else {
 			v = value
@@ -1313,18 +1300,22 @@ func (m *DataModelQuery) formatInputDataField(key string, value interface{}) int
 	return v
 }
 
+// isTriggerAllAction reports whether action is one of the cross-model
+// ("...All") trigger actions.
+func isTriggerAllAction(action TriggerAction) bool {
+	switch action {
+	case BeforeFindTriggerAllAction, AfterFindTriggerAllAction,
+		BeforeCreateTriggerAllAction, AfterCreateTriggerAllAction,
+		BeforeUpdateTriggerAllAction, AfterUpdateTriggerAllAction,
+		BeforeDeleteTriggerAllAction, AfterDeleteTriggerAllAction:
+		return true
+	}
+
+	return false
+}
+
 func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}) interface{} {
 	model := m.Model
-	listAll := []string{
-		string(BeforeFindTriggerAllAction),
-		string(AfterFindTriggerAllAction),
-		string(BeforeCreateTriggerAllAction),
-		string(AfterCreateTriggerAllAction),
-		string(BeforeUpdateTriggerAllAction),
-		string(AfterUpdateTriggerAllAction),
-		string(BeforeDeleteTriggerAllAction),
-		string(AfterDeleteTriggerAllAction),
-	}
 
 	switch action {
 	case BeforeFindTriggerAction, BeforeFindTriggerAllAction:
@@ -1354,7 +1345,7 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 	var result interface{}
 	var err error
 
-	if helper.Contains(listAll, string(action)) {
+	if isTriggerAllAction(action) {
 		result, err = model.App.triggerAllCallback(action, model, m.RequestContext, &m.QueryContext)
 	} else {
 		result, err = model.App.triggerCallback(model.Name, action, m.RequestContext, &m.QueryContext)
@@ -1455,6 +1446,21 @@ func (m *DataModelQuery) recordAuditChange(action string, documentId string, old
 		DocumentId: documentId,
 		OldValues:  oldValues,
 		NewValues:  newValues,
+	})
+}
+
+// emitDatabaseEvent tells socket clients a model's data changed. A write to
+// a tenant's data only goes to that tenant's clients (and clients without a
+// tenant); other tenants' screens have nothing to refresh.
+func (m *DataModelQuery) emitDatabaseEvent(action string) {
+	tenantId := ""
+	if m.Model.HasTenant {
+		tenantId = idString(m.getTenantId())
+	}
+
+	m.Model.App.socketServer.Of("/").broadcastToTenant(tenantId, "database", datatype.DataMap{
+		"action": action,
+		"model":  m.Model.Name,
 	})
 }
 
