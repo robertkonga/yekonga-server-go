@@ -573,20 +573,17 @@ func (con *sqlConnection) recordsByID(ctx context.Context, runner sqlRunner, ids
 		return []datatype.DataMap{}, nil
 	}
 
-	args := make([]interface{}, len(ids))
-	for i, id := range ids {
-		args[i] = id
-	}
+	byID := make(map[string]datatype.DataMap, len(ids))
+	for _, chunk := range chunkStrings(ids, sqlInChunk) {
+		query := "SELECT * FROM " + con.table() + " WHERE `_id` IN (" + sqlPlaceholders(len(chunk)) + ")"
+		records, err := con.selectRecords(ctx, runner, query, stringsToArgs(chunk))
+		if err != nil {
+			return nil, err
+		}
 
-	query := "SELECT * FROM " + con.table() + " WHERE `_id` IN (" + strings.TrimSuffix(strings.Repeat("?, ", len(ids)), ", ") + ")"
-	records, err := con.selectRecords(ctx, runner, query, args)
-	if err != nil {
-		return nil, err
-	}
-
-	byID := make(map[string]datatype.DataMap, len(records))
-	for _, record := range records {
-		byID[idString(record["_id"])] = record
+		for _, record := range records {
+			byID[idString(record["_id"])] = record
+		}
 	}
 
 	ordered := make([]datatype.DataMap, 0, len(ids))
@@ -745,6 +742,9 @@ func (con *sqlConnection) update(data datatype.DataMap) (*datatype.DataMap, erro
 	return updated, nil
 }
 
+// updateMany sets data on every matching record and returns them as
+// updated, like the MongoDB backend: the matching ids are read (and locked)
+// first, so records the update moves out of the filter are still returned.
 func (con *sqlConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
 	if con.client == nil {
 		return nil, errSQLNotConnected
@@ -760,19 +760,80 @@ func (con *sqlConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap
 		return nil, err
 	}
 
-	if set != "" {
-		ctx, cancel := con.opCtx(true)
-		defer cancel()
+	ctx, cancel := con.opCtx(true)
+	defer cancel()
 
-		args := append(append([]interface{}{}, setArgs...), whereArgs...)
-		if _, err := con.client.ExecContext(ctx, "UPDATE "+con.table()+" SET "+set+where, args...); err != nil {
-			logger.Error("sqlConnection.updateMany", err.Error())
-			return nil, err
+	updated := []datatype.DataMap{}
+	err = con.inTransaction(ctx, func(tx *sql.Tx) error {
+		rows, err := tx.QueryContext(ctx, "SELECT `_id` FROM "+con.table()+where+con.orderClause(con.columnOrder)+" FOR UPDATE", whereArgs...)
+		if err != nil {
+			return err
 		}
+
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return err
+			}
+			ids = append(ids, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+
+		if len(ids) == 0 {
+			return nil
+		}
+
+		if set != "" {
+			for _, chunk := range chunkStrings(ids, sqlInChunk) {
+				args := append(append([]interface{}{}, setArgs...), stringsToArgs(chunk)...)
+				if _, err := tx.ExecContext(ctx, "UPDATE "+con.table()+" SET "+set+" WHERE `_id` IN ("+sqlPlaceholders(len(chunk))+")", args...); err != nil {
+					return err
+				}
+			}
+		}
+
+		updated, err = con.recordsByID(ctx, tx, ids)
+		return err
+	})
+
+	if err != nil {
+		logger.Error("sqlConnection.updateMany", err.Error())
+		return nil, err
 	}
 
-	// As the MongoDB backend does: the records the filter matches now.
-	return con.find(), nil
+	return &updated, nil
+}
+
+// sqlInChunk bounds the ids in one IN (...) list.
+const sqlInChunk = 1000
+
+func chunkStrings(values []string, size int) [][]string {
+	var chunks [][]string
+	for start := 0; start < len(values); start += size {
+		end := start + size
+		if end > len(values) {
+			end = len(values)
+		}
+		chunks = append(chunks, values[start:end])
+	}
+	return chunks
+}
+
+func stringsToArgs(values []string) []interface{} {
+	args := make([]interface{}, len(values))
+	for i, v := range values {
+		args[i] = v
+	}
+	return args
+}
+
+func sqlPlaceholders(n int) string {
+	return strings.TrimSuffix(strings.Repeat("?, ", n), ", ")
 }
 
 func (con *sqlConnection) delete() (interface{}, error) {

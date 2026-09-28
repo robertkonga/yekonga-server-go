@@ -241,10 +241,17 @@ func TestSQLBackendMatchesMongo(t *testing.T) {
 			return y.ModelQuery("Order").Where("code", "nope").Update(datatype.DataMap{"note": "x"}, nil)
 		})
 		compare(t, "update many", func(y *YekongaData) interface{} {
-			// (An update that changes a filtered field returns [] on both
-			// backends: UpdateMany re-reads with the original filter.)
 			updated, _ := y.ModelQuery("Order").UpdateMany(datatype.DataMap{"note": "bulk"}, datatype.DataMap{"status": "void"}).(*[]datatype.DataMap)
 			return sortedRecords(updated)
+		})
+		compare(t, "update many leaving the filter", func(y *YekongaData) interface{} {
+			// The update changes the field the filter matches on.
+			updated, _ := y.ModelQuery("Order").OrderBy("code", "asc").UpdateMany(datatype.DataMap{"status": "archived"}, datatype.DataMap{"status": "void"}).(*[]datatype.DataMap)
+			return updated
+		})
+		compare(t, "update many matching nothing", func(y *YekongaData) interface{} {
+			updated, _ := y.ModelQuery("Order").UpdateMany(datatype.DataMap{"status": "x"}, datatype.DataMap{"code": "none"}).(*[]datatype.DataMap)
+			return updated
 		})
 		compare(t, "delete", func(y *YekongaData) interface{} {
 			return y.ModelQuery("Order").Delete(datatype.DataMap{"amount": map[string]interface{}{"lessThan": 20.0}})

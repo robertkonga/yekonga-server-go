@@ -260,6 +260,42 @@ func TestMongoBackendAgainstMongo(t *testing.T) {
 		}
 	})
 
+	t.Run("updateMany returns records that leave the filter, and audits them", func(t *testing.T) {
+		for _, code := range []string{"G1", "G2", "G3"} {
+			item := newItem(code)
+			item["region"] = "west"
+			y.ModelQuery("Item").Create(item)
+		}
+
+		req := &Request{HttpRequest: httptest.NewRequest("POST", "/", nil), App: y, Context: datatype.Context{}}
+		query := y.ModelQuery("Item").SetRequestContext(&RequestContext{App: y, Request: req}).OrderBy("code", "asc")
+
+		// The filter matches on region; the update changes region.
+		result, _ := query.UpdateMany(datatype.DataMap{"region": "moved"}, datatype.DataMap{"region": "west"}).(*[]datatype.DataMap)
+		if result == nil || len(*result) != 3 {
+			t.Fatalf("UpdateMany returned %v, want the 3 updated records", result)
+		}
+
+		for i, record := range *result {
+			if want := []string{"G1", "G2", "G3"}[i]; record["code"] != want || record["region"] != "moved" {
+				t.Errorf("record %d: code %v region %v, want %s moved", i, record["code"], record["region"], want)
+			}
+			if stored := reRead(record["_id"]); !reflect.DeepEqual(record, stored) {
+				t.Errorf("record %v differs from a re-read", record["code"])
+			}
+		}
+
+		changes := req.AuditChanges()
+		if len(changes) != 3 {
+			t.Fatalf("got %d audit changes, want 3", len(changes))
+		}
+		for _, change := range changes {
+			if change.OldValues["region"] != "west" || change.NewValues["region"] != "moved" {
+				t.Errorf("audit change old %v new %v, want west -> moved", change.OldValues["region"], change.NewValues["region"])
+			}
+		}
+	})
+
 	t.Run("paginate", func(t *testing.T) {
 		all, _ := db.Collection(y.Model("Item").Collection).CountDocuments(ctx, bson.M{})
 		north, _ := db.Collection(y.Model("Item").Collection).CountDocuments(ctx, bson.M{"region": "north", "status": "pending"})

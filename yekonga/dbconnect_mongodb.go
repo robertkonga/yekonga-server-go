@@ -659,9 +659,24 @@ func (con *mongodbConnection) findOneAndUpdate(set bson.Raw, which options.Retur
 	return nil, &record, nil
 }
 
+// updateMany sets data on every matching record and returns them as
+// updated. The matching ids are read first: re-reading with the filter
+// afterwards would miss records the update moved out of it (e.g. setting
+// status void -> archived where status = void).
 func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.DataMap, error) {
-	var result *[]datatype.DataMap
-	res, err := con.collection().UpdateMany(con.writeCtx(), con.where(), datatype.DataMap{
+	ids, err := con.matchingIDs()
+	if err != nil {
+		console.Log("mongodbConnection.updateMany", err.Error())
+		return nil, err
+	}
+
+	if len(ids) == 0 {
+		return &[]datatype.DataMap{}, nil
+	}
+
+	res, err := con.collection().UpdateMany(con.writeCtx(), datatype.DataMap{
+		"_id": datatype.DataMap{"$in": ids},
+	}, datatype.DataMap{
 		"$set": data,
 	})
 
@@ -670,11 +685,72 @@ func (con *mongodbConnection) updateMany(data datatype.DataMap) (*[]datatype.Dat
 		return nil, err
 	}
 
-	if res.Acknowledged {
-		result = con.find()
+	if !res.Acknowledged {
+		return nil, nil
 	}
 
-	return result, nil
+	return con.recordsByIDs(ids)
+}
+
+// matchingIDs returns the _id of every record the query matches, in its
+// sort order. It's part of a write, so it isn't cancelled with the request.
+func (con *mongodbConnection) matchingIDs() ([]interface{}, error) {
+	opts := options.Find().SetProjection(bson.D{{Key: "_id", Value: 1}})
+	if con.hasOrderBy() {
+		opts = opts.SetSort(con.orderBy())
+	}
+
+	cursor, err := con.collection().Find(con.writeCtx(), con.where(), opts)
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(con.writeCtx())
+
+	var ids []interface{}
+	for cursor.Next(con.writeCtx()) {
+		var record struct {
+			ID interface{} `bson:"_id"`
+		}
+		if err := cursor.Decode(&record); err != nil {
+			return nil, err
+		}
+		ids = append(ids, record.ID)
+	}
+
+	return ids, cursor.Err()
+}
+
+// recordsByIDs reads records by _id, in the order of ids.
+func (con *mongodbConnection) recordsByIDs(ids []interface{}) (*[]datatype.DataMap, error) {
+	cursor, err := con.collection().Find(con.writeCtx(), datatype.DataMap{
+		"_id": datatype.DataMap{"$in": ids},
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(con.writeCtx())
+
+	byID := make(map[string]datatype.DataMap, len(ids))
+	for cursor.Next(con.writeCtx()) {
+		var record datatype.DataMap
+		if err := cursor.Decode(&record); err != nil {
+			return nil, err
+		}
+		con.addRecordFields(record)
+		byID[idString(record["_id"])] = record
+	}
+	if err := cursor.Err(); err != nil {
+		return nil, err
+	}
+
+	records := make([]datatype.DataMap, 0, len(ids))
+	for _, id := range ids {
+		if record, ok := byID[idString(id)]; ok {
+			records = append(records, record)
+		}
+	}
+
+	return &records, nil
 }
 
 func (con *mongodbConnection) delete() (interface{}, error) {
