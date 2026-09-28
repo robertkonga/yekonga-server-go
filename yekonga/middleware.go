@@ -234,7 +234,9 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		var values []string = req.HttpRequest.Header["Authorization"]
 
 		if len(values) > 0 {
-			accessToken = strings.Trim(strings.Split(values[0], "Bearer")[1], " ")
+			// Anything other than "Bearer <token>" (e.g. Basic auth added by a
+			// proxy) carries no access token. It used to panic the request.
+			accessToken, _ = bearerToken(values[0])
 		}
 	}
 

@@ -2,6 +2,7 @@ package yekonga
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"reflect"
@@ -271,6 +272,24 @@ func TestMongoBackendAgainstMongo(t *testing.T) {
 		page = *y.ModelQuery("Item").Take(10).Paginate(datatype.DataMap{"region": "north", "status": "pending"})
 		if page["total"] != north || int64(len(*page["data"].(*[]datatype.DataMap))) != north {
 			t.Errorf("filtered: total %v, %d rows, want %d", page["total"], len(*page["data"].(*[]datatype.DataMap)), north)
+		}
+	})
+
+	t.Run("distinct count past one cursor batch", func(t *testing.T) {
+		collection := db.Collection(y.Model("Item").Collection)
+		for i := 0; i < 150; i++ {
+			collection.InsertOne(ctx, bson.M{"region": "bulk", "status": fmt.Sprint("s", i)})
+		}
+
+		distinct, err := collection.Distinct(ctx, "status", bson.M{"region": "bulk"}).Raw()
+		if err != nil {
+			t.Fatal(err)
+		}
+		values, _ := distinct.Values()
+
+		got := y.ModelQuery("Item").DistinctAll([]string{"status"}).Count(datatype.DataMap{"region": "bulk"})
+		if got != int64(len(values)) || got != 150 {
+			t.Errorf("distinct count = %d, want %d (it used to stop at 101)", got, len(values))
 		}
 	})
 

@@ -14,6 +14,7 @@ import (
 	localDB "github.com/robertkonga/yekonga-server-go/plugins/database/db"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/mongo/options"
+	"github.com/robertkonga/yekonga-server-go/plugins/mysql"
 )
 
 var graphqlOperations = []string{
@@ -201,9 +202,71 @@ func (dc *DatabaseConnections) localConnect() {
 }
 
 func (dc *DatabaseConnections) mysqlConnect() {
+	dc.mysqlClient = dc.openSQL("MySQL")
 }
 
 func (dc *DatabaseConnections) sqlConnect() {
+	dc.sqlClient = dc.openSQL("SQL")
+}
+
+// openSQL opens a pool to a MySQL-compatible server; both SQL backends write
+// MySQL syntax. Pool settings reuse the database.* options the MongoDB
+// connection uses.
+func (dc *DatabaseConnections) openSQL(label string) *sql.DB {
+	db := dc.config.Database
+
+	logger.Warn(label + " database support is incomplete: some queries (e.g. findOne, filtered finds) don't work yet. MongoDB is the supported backend.")
+
+	port := string(db.Port)
+	if port == "" {
+		port = "3306"
+	}
+
+	cfg := mysql.NewConfig()
+	cfg.Net = "tcp"
+	cfg.Addr = db.Host + ":" + port
+	cfg.DBName = db.DatabaseName
+	cfg.ParseTime = true
+	if v, ok := db.Username.(string); ok {
+		cfg.User = v
+	}
+	if v, ok := db.Password.(string); ok {
+		cfg.Passwd = v
+	}
+
+	client, err := sql.Open("mysql", cfg.FormatDSN())
+	if err != nil {
+		logger.Error("Could not connect to "+label, err)
+		return nil
+	}
+
+	if db.MaxPoolSize > 0 {
+		client.SetMaxOpenConns(db.MaxPoolSize)
+	}
+	if db.MinPoolSize > 0 {
+		client.SetMaxIdleConns(db.MinPoolSize)
+	}
+	if db.MaxConnIdleTimeSeconds > 0 {
+		client.SetConnMaxIdleTime(time.Duration(db.MaxConnIdleTimeSeconds) * time.Second)
+	}
+
+	timeout := 10 * time.Second
+	if db.ConnectTimeoutSeconds > 0 {
+		timeout = time.Duration(db.ConnectTimeoutSeconds) * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// sql.Open doesn't connect; check the server is reachable now rather
+	// than on the first query. The pool keeps retrying either way.
+	if err := client.PingContext(ctx); err != nil {
+		logger.Error("Could not connect to "+label, err)
+	} else {
+		logger.Success("Connected to " + label + "!")
+	}
+
+	return client
 }
 
 func (dc *DatabaseConnections) mongodbClose() {
@@ -216,7 +279,13 @@ func (dc *DatabaseConnections) localClose() {
 }
 
 func (dc *DatabaseConnections) mysqlClose() {
+	if dc.mysqlClient != nil {
+		dc.mysqlClient.Close()
+	}
 }
 
 func (dc *DatabaseConnections) sqlClose() {
+	if dc.sqlClient != nil {
+		dc.sqlClient.Close()
+	}
 }

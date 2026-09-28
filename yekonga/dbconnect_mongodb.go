@@ -273,9 +273,12 @@ func (con *mongodbConnection) count() int64 {
 		for _, k := range con.query.distinct {
 			groupId[k] = "$" + k
 		}
+		// Count the distinct groups on the server. (The size of the cursor's
+		// first batch, used before, caps out at 101.)
 		pipeline := mongo.Pipeline{
 			{{Key: "$match", Value: con.where()}},
-			{{Key: "$group", Value: bson.M{"_id": groupId, "aggregateValue": bson.M{"$sum": 1}}}},
+			{{Key: "$group", Value: bson.M{"_id": groupId}}},
+			{{Key: "$count", Value: "aggregateValue"}},
 		}
 
 		cursorResult, err := con.collection().Aggregate(con.readCtx(), pipeline, opts)
@@ -285,7 +288,16 @@ func (con *mongodbConnection) count() int64 {
 		}
 		defer cursorResult.Close(con.writeCtx())
 
-		cursor = int64(cursorResult.RemainingBatchLength())
+		var counted struct {
+			AggregateValue int64 `bson:"aggregateValue"`
+		}
+		if cursorResult.Next(con.readCtx()) {
+			if err := cursorResult.Decode(&counted); err != nil {
+				logger.Error("mongodbConnection.count 2", err.Error())
+			}
+		}
+
+		cursor = counted.AggregateValue
 	} else {
 		if len(*con.where()) == 0 {
 			// Nothing to filter on: read the count from collection metadata

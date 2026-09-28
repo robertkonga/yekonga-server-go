@@ -463,6 +463,8 @@ func (y *YekongaData) Middleware(middleware Middleware, middlewareType Middlewar
 		y.initMiddlewares = append(y.initMiddlewares, middleware)
 	case PreloadMiddleware:
 		y.preloadMiddlewares = append(y.preloadMiddlewares, middleware)
+	case CatchMiddleware:
+		y.catchMiddlewares = append(y.catchMiddlewares, middleware)
 	default:
 		y.logger.Printf("Unknown middlewares type: %s, select between global, init, or preload", middlewareType)
 	}
@@ -528,15 +530,6 @@ func (y *YekongaData) All(path string, handler Handler) {
 
 // Static configures static file serving
 func (y *YekongaData) Static(config StaticConfig) error {
-	if y.staticConfig == nil {
-		total := 10
-		if y.Config != nil {
-			total = len(y.Config.Public)
-		}
-
-		y.staticConfig = make([]*StaticConfig, total)
-	}
-
 	// Set default values if not provided
 	if config.IndexFile == "" {
 		config.IndexFile = "index.html"
@@ -559,23 +552,21 @@ func (y *YekongaData) Static(config StaticConfig) error {
 	return nil
 }
 
+// staticConfigs returns the registered static directories. Static only ever
+// appends, so the returned slice is safe to read while more are added.
+func (y *YekongaData) staticConfigs() []*StaticConfig {
+	y.mut.RLock()
+	defer y.mut.RUnlock()
+
+	return y.staticConfig
+}
+
 // isStaticPath checks if the path is for static file serving
 func (y *YekongaData) isStaticPath(path string) bool {
-	if y.staticConfig == nil {
-		y.staticConfig = make([]*StaticConfig, 10)
-	}
+	ext := filepath.Ext(path)
 
-	count := len(y.staticConfig)
-	if count == 0 {
-		return false
-	}
-
-	for i := 0; i < count; i++ {
-		y.mut.RLock()
-		static := y.staticConfig[i]
-		y.mut.RUnlock()
-
-		if static != nil && helper.Contains(static.Extensions, filepath.Ext(path)) {
+	for _, static := range y.staticConfigs() {
+		if static != nil && helper.Contains(static.Extensions, ext) {
 			return true
 		}
 	}
@@ -585,19 +576,8 @@ func (y *YekongaData) isStaticPath(path string) bool {
 
 // handleStaticFile serves static files
 func (y *YekongaData) handleStaticFile(w http.ResponseWriter, r *http.Request) bool {
-	if y.staticConfig == nil {
-		y.staticConfig = make([]*StaticConfig, 10)
-	}
-
-	count := len(y.staticConfig)
-	if count == 0 {
-		return false
-	}
-
-	for i := 0; i < count; i++ {
-		static := y.staticConfig[i]
-
-		if helper.IsNotEmpty(static) {
+	for _, static := range y.staticConfigs() {
+		if static != nil {
 			// Remove path prefix to get relative file path
 			urlPath := strings.TrimPrefix(r.URL.Path, static.PathPrefix)
 			urlPath = strings.TrimPrefix(urlPath, "/")
@@ -757,7 +737,7 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	res := Response{
 		httpResponseWriter: &w,
-		staticConfig:       y.staticConfig,
+		staticConfig:       y.staticConfigs(),
 		request:            &req,
 		headers:            make(MIMEHeader, 0),
 		statusCode:         http.StatusOK,
@@ -863,10 +843,22 @@ func (y *YekongaData) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		var textPage []byte
 
-		// Apply middlewares
+		// No route matched: the catch middlewares run in order until one
+		// responds. An error aborts, as in the other chains. If none
+		// responds, the default page below is served. (Only the first used
+		// to run, and an empty 200 was sent when it didn't respond.)
 		for _, middleware := range y.catchMiddlewares {
-			if middleware != nil {
-				_, err = middleware(&req, &res)
+			if middleware == nil {
+				continue
+			}
+
+			status, err := middleware(&req, &res)
+			if err != nil {
+				res.Abort(status, err.Error())
+				return
+			}
+
+			if res.wroteHeader {
 				return
 			}
 		}

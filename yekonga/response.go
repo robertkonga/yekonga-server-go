@@ -250,7 +250,7 @@ func (res *Response) Json(data interface{}) {
 func (res *Response) Redirect(url string) {
 	console.Success("redirect", res.statusCode, url)
 
-	http.Redirect(*res.httpResponseWriter, res.request.HttpRequest, url, res.statusCode)
+	http.Redirect(res, res.request.HttpRequest, url, res.statusCode)
 }
 
 func (res *Response) File(filePath string) {
@@ -270,7 +270,7 @@ func (res *Response) File(filePath string) {
 
 		stat, _ := file.Stat()
 		// ServeContent handles Range requests and Content-Length perfectly
-		http.ServeContent(*res.httpResponseWriter, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
+		http.ServeContent(res, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
 		return
 	} else {
 		for i := 0; i < count; i++ {
@@ -295,7 +295,7 @@ func (res *Response) File(filePath string) {
 
 					stat, _ := file.Stat()
 					// ServeContent handles Range requests and Content-Length perfectly
-					http.ServeContent(*res.httpResponseWriter, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
+					http.ServeContent(res, res.request.HttpRequest, stat.Name(), stat.ModTime(), file)
 					return
 				}
 			}

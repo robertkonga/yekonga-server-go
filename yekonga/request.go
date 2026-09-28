@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -244,6 +245,16 @@ func (r *Request) SetContext(key string, value interface{}) {
 	}
 }
 
+// lookupContext reads a context value under the lock SetContext takes, so
+// handlers that work from several goroutines don't race.
+func (r *Request) lookupContext(key string) (interface{}, bool) {
+	r.mut.RLock()
+	defer r.mut.RUnlock()
+
+	value, exists := r.Context[key]
+	return value, exists
+}
+
 func (r *Request) GetContext(key string) interface{} {
 	r.mut.RLock()
 	defer r.mut.RUnlock()
@@ -388,7 +399,7 @@ func (r *Request) Auth() *AuthPayload {
 }
 
 func (r *Request) Client() *ClientPayload {
-	data, exists := r.Context[string(ClientPayloadKey)]
+	data, exists := r.lookupContext(string(ClientPayloadKey))
 	if !exists {
 		return nil
 	}
@@ -401,7 +412,7 @@ func (r *Request) Client() *ClientPayload {
 }
 
 func (r *Request) TokenPayload() *TokenPayload {
-	data, exists := r.Context[string(TokenPayloadKey)]
+	data, exists := r.lookupContext(string(TokenPayloadKey))
 	if !exists {
 		return nil
 	}
@@ -414,7 +425,7 @@ func (r *Request) TokenPayload() *TokenPayload {
 }
 
 func (r *Request) TenantId() interface{} {
-	data, exists := r.Context[string(CurrentTenantId)]
+	data, exists := r.lookupContext(string(CurrentTenantId))
 	if !exists {
 		return nil
 	}
@@ -427,7 +438,7 @@ func (r *Request) SetTenantId(tenantId interface{}) {
 }
 
 func (r *Request) Tenant() config.TenantConfig {
-	data, exists := r.Context[string(CurrentTenantConfig)]
+	data, exists := r.lookupContext(string(CurrentTenantConfig))
 	if !exists {
 		return config.TenantConfig{}
 	}
@@ -458,13 +469,33 @@ func (r *Request) Token() string {
 		}
 
 		if helper.IsNotEmpty(token) {
-			return helper.ToString(token)[7:] // Bearer <Token>
+			// "Bearer <token>", or the bare token. Slicing off 7 characters
+			// used to panic on shorter values and mangle bare tokens.
+			value := helper.ToString(token)
+			if bearer, ok := bearerToken(value); ok {
+				return bearer
+			}
+			return strings.TrimSpace(value)
 		}
 	} else {
 		return helper.ToString(token)
 	}
 
 	return ""
+}
+
+// bearerToken returns the token from an "Bearer <token>" Authorization value.
+// The scheme is matched case-insensitively (RFC 6750); ok is false for any
+// other value.
+func bearerToken(value string) (token string, ok bool) {
+	value = strings.TrimSpace(value)
+
+	const prefix = "bearer "
+	if len(value) < len(prefix) || !strings.EqualFold(value[:len(prefix)], prefix) {
+		return "", false
+	}
+
+	return strings.TrimSpace(value[len(prefix):]), true
 }
 
 func (r *Request) Body() interface{} {
