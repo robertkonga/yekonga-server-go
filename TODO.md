@@ -91,7 +91,7 @@ Route matching alone caps throughput at roughly 1,800 requests per second per co
 
 - [ ] Add `Benchmark*` tests for routing, middleware chain, `where()` building, and a GraphQL list query with relations, so each change above is measured.
 - [ ] Add a `net/http/pprof` endpoint behind the master key for profiling in staging.
-- [ ] Fix the non-constant format strings in `yekonga/initializer_other_routes.go` (:525, :610, :703) so `go test` passes `go vet` without `-vet=off`.
+- [x] Fix the non-constant format strings in `yekonga/initializer_other_routes.go` (:525, :610, :703) so `go test` passes `go vet` without `-vet=off`. (Also `SortMap` in `helper/helpers.go`, which printed a generic value with `%s`.)
 
 ## Suggested order
 

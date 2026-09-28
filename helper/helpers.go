@@ -543,7 +543,7 @@ func SortMap[T interface{}](options map[string]T) map[string]T {
 	fmt.Println("Sorted by Value:", keys)
 	newOptions := make(map[string]T)
 	for _, k := range keys {
-		fmt.Printf("%s: %s\n", k, options[k])
+		fmt.Printf("%s: %v\n", k, options[k])
 		newOptions[k] = options[k]
 	}
 

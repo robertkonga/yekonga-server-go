@@ -522,7 +522,7 @@ func uploadExcelFileHandler(w http.ResponseWriter, r *http.Request) {
 		// If encoding fails, we can't change the header anymore,
 		// but we can log the error.
 		fmt.Println("Error encoding JSON:", err)
-		fmt.Fprintf(w, err.Error())
+		fmt.Fprint(w, err.Error())
 	}
 }
 
@@ -607,7 +607,7 @@ func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
 		// If encoding fails, we can't change the header anymore,
 		// but we can log the error.
 		fmt.Println("Error encoding JSON:", err)
-		fmt.Fprintf(w, err.Error())
+		fmt.Fprint(w, err.Error())
 	}
 }
 
@@ -700,6 +700,6 @@ func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
 		// If encoding fails, we can't change the header anymore,
 		// but we can log the error.
 		fmt.Println("Error encoding JSON:", err)
-		fmt.Fprintf(w, err.Error())
+		fmt.Fprint(w, err.Error())
 	}
 }
