@@ -36,6 +36,7 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				port = ":" + port
 			}
 
+			defaultTheme := helper.GetValueOf(tenantConfig, "defaultTheme")
 			lightTheme := helper.GetValueOfMap(tenantConfig, "lightTheme")
 			darkTheme := helper.GetValueOfMap(tenantConfig, "darkTheme")
 			baseUrl := client.Proto + "://" + host + port
@@ -48,6 +49,12 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 
 			if helper.IsEmpty(description) {
 				description = "This is " + tenantName + " main website"
+			}
+
+			if defaultTheme == "lightTheme" {
+				defaultTheme = "light"
+			} else if defaultTheme == "darkTheme" {
+				defaultTheme = "dark"
 			}
 
 			data := datatype.DataMap{
@@ -68,6 +75,9 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				"smtp":              helper.GetValueOf(tenantConfig, "smtp"),
 				"sms":               helper.GetValueOf(tenantConfig, "sms"),
 				"whatsapp":          helper.GetValueOf(tenantConfig, "whatsapp"),
+				"lightBackground":   helper.GetValueOfString(lightTheme, "background.body"),
+				"darkBackground":    helper.GetValueOfString(darkTheme, "background.body"),
+				"defaultTheme":      defaultTheme,
 				"lightTheme":        lightTheme,
 				"darkTheme":         darkTheme,
 				"hasMembership":     helper.GetValueOf(tenantConfig, "hasMembership"),

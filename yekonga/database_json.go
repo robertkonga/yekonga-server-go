@@ -480,7 +480,7 @@ var DefaultExtraDatabaseStructure DatabaseStructure = DatabaseStructure{
 		"ipAddress": {Kind: "String", DefaultValue: nil, Required: true},
 		"type":      {Kind: "String", DefaultValue: "blacklist", Required: false, Options: []string{"whitelist", "blacklist"}},
 		"reason":    {Kind: "String", DefaultValue: nil, Required: false},
-		"source":    {Kind: "String", DefaultValue: "manual", Required: false, Options: []string{"manual", "errorGuard"}},
+		"source":    {Kind: "String", DefaultValue: "manual", Required: false, Options: []string{"manual", "errorGuard", "tenantGuard"}},
 		// Snapshot of the request that tripped an errorGuard block, kept for
 		// investigation — which endpoint was being hit, and with what.
 		"url":       {Kind: "String", DefaultValue: nil, Required: false},

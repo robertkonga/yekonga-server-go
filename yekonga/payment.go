@@ -14,6 +14,7 @@ import (
 	"github.com/robertkonga/yekonga-server-go/gateway"
 	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/helper"
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
@@ -157,6 +158,8 @@ func (y *YekongaData) CreatePayment(req *Request, provider string, input payment
 		"createdAt": now,
 		"updatedAt": now,
 	})
+	// console.Log("gateways", gateways.tenantProviders)
+	// console.Log("created", created)
 
 	record, err := toPaymentRecord(created)
 	if err != nil {
@@ -181,13 +184,14 @@ func (y *YekongaData) CreatePayment(req *Request, provider string, input payment
 	startedAt := time.Now()
 	response, providerErr := gateways.ctrl.CreatePayment(ctx, provider, input)
 	y.recordPaymentProviderRequest(req, provider, id, "createPayment", startedAt, paymentRequestData(input), response, providerErr)
+	console.Error("xxxxx", provider, response, providerErr)
 
 	update := datatype.DataMap{"updatedAt": time.Now()}
 
 	if providerErr != nil {
 		update["status"] = paymentStatusFailed
 		update["failureReason"] = providerErr.Error()
-	} else {
+	} else if helper.IsNotEmpty(response) {
 		update["status"] = string(response.Status)
 		update["providerReference"] = response.ProviderRef
 		update["checkoutUrl"] = response.CheckoutURL

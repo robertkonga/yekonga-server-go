@@ -87,6 +87,7 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 		}
 
 		if helper.IsEmpty(tenantId) && req.App.Config.TenantOnly {
+			req.App.recordTenantNotFound(req)
 			return http.StatusBadRequest, errors.New("Tenant not found for the request")
 		}
 
@@ -118,6 +119,7 @@ func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
 		if helper.IsNotEmpty(mainDomain) {
 			if host != *mainDomain {
 				if helper.IsEmpty(tenantId) {
+					req.App.recordTenantNotFound(req)
 					return http.StatusNotFound, errors.New("Tenant not found")
 				}
 			}
@@ -208,6 +210,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 
 	for _, v := range req.App.publicRoutes {
 		test := helper.MatchPath(currentPath, app.AppendBaseUrl(v))
+
 		if test {
 			mandatoryValidToken = !test
 			break

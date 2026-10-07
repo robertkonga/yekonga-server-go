@@ -78,7 +78,7 @@ func (y *YekongaData) SendEmail(data helper.EmailMessage, config *config.SMTPCon
 	}
 
 	// Initialize with your config
-	sender := helper.NewEmailSender(&y.Config.Mail.Smtp)
+	sender := helper.NewEmailSender(&y.Config.Mail.SMTP)
 
 	// Example 4: Send complex email with all features
 	err := sender.Send(&data, config)
