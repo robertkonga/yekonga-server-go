@@ -798,6 +798,13 @@ func doJSON(ctx context.Context, client *http.Client, provider, method, url stri
 		}
 		body = bytes.NewReader(b)
 	}
+	// console.Error("provider", provider)
+	// console.Error("url", url)
+	// console.Error("headers", headers)
+	// console.Error("in", in)
+	// console.Error("out", out)
+	// console.Error("body", body)
+
 	return doRaw(ctx, client, provider, method, url, headers, body, out)
 }
 
@@ -821,6 +828,7 @@ func doRaw(ctx context.Context, client *http.Client, provider, method, url strin
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+
 	if err != nil {
 		return nil, fmt.Errorf("%s: reading response: %w", provider, err)
 	}

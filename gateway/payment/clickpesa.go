@@ -81,6 +81,7 @@ func (c *clickpesa) call(ctx context.Context, method, path string, in any, out a
 	if err != nil {
 		return nil, err
 	}
+	tok = strings.TrimPrefix(tok, "Bearer ")
 	raw, err := doJSON(ctx, c.cfg.httpClient(), c.Name(), method, c.base+path, map[string]string{"Authorization": "Bearer " + tok}, in, out)
 	if err != nil {
 		var pe *ProviderError

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 // Pesapal API 3.0 (hosted checkout, East Africa).
@@ -85,8 +87,12 @@ func (p *pesapal) authToken(ctx context.Context) (string, error) {
 		Token      string `json:"token"`
 		ExpiryDate string `json:"expiryDate"`
 	}
+	// console.Error("authToken", out)
 	_, err := doJSON(ctx, p.cfg.httpClient(), p.Name(), http.MethodPost, p.base+"/api/Auth/RequestToken", nil,
 		map[string]string{"consumer_key": p.cfg.cred(KeyConsumerKey), "consumer_secret": p.cfg.cred(KeyConsumerSecret)}, &out)
+
+	console.Error("pesapal.authToken", out, err)
+
 	if err != nil {
 		return "", err
 	}
@@ -110,6 +116,8 @@ func (p *pesapal) call(ctx context.Context, method, path string, in any, out any
 	if err != nil {
 		return nil, err
 	}
+
+	tok = strings.TrimPrefix(tok, "Bearer ")
 	return doJSON(ctx, p.cfg.httpClient(), p.Name(), method, p.base+path, map[string]string{"Authorization": "Bearer " + tok}, in, out)
 }
 
