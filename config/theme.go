@@ -64,6 +64,9 @@ type TenantConfig struct {
 	Sms               any        `json:"sms"`
 	Whatsapp          any        `json:"whatsapp"`
 	OtherConfig       any        `json:"otherConfig,omitempty"`
+	LightBackground   string     `json:"lightBackground"`
+	DarkBackground    string     `json:"darkBackground"`
+	DefaultTheme      string     `json:"defaultTheme"`
 	LightTheme        LightTheme `json:"lightTheme"`
 	DarkTheme         DartTheme  `json:"darkTheme"`
 	HasMembership     bool       `json:"hasMembership"`
