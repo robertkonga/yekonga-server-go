@@ -40,6 +40,15 @@ type errorCounter struct {
 	count  int
 }
 
+// windowCounter is a fixed-window counter over an arbitrary duration, used for
+// the slow-and-low tenant-not-found guard: it resets once the current window
+// has fully elapsed, so a client must produce the whole count within one
+// window to trip.
+type windowCounter struct {
+	windowStart int64 // unix seconds of the window this count belongs to
+	count       int
+}
+
 // errorGuard blocks clients that flood the server with error responses
 // (401/403/404/etc.) within the same second — the signature of automated
 // scanning, credential stuffing, or endpoint enumeration rather than a real
@@ -48,15 +57,18 @@ type errorCounter struct {
 // permanently unless config.Security.ErrorGuard.BlockHours says otherwise.
 type errorGuard struct {
 	mut               sync.Mutex
-	counters          map[string]*errorCounter // client key -> current-second error counter
-	blocked           map[string]time.Time     // client key -> unblock time (permanentBlockUntil = forever)
-	statusCodes       map[int]bool             // status codes this guard counts as abuse
+	counters          map[string]*errorCounter  // client key -> current-second error counter
+	tenantCounters    map[string]*windowCounter // client key -> tenant-not-found window counter
+	blocked           map[string]time.Time      // client key -> unblock time (permanentBlockUntil = forever)
+	statusCodes       map[int]bool              // status codes this guard counts as abuse
 	requestsPerSecond int
 	permanent         bool
 	blockDuration     time.Duration // only used when !permanent
+	tenantLimit       int           // tenant-not-found count within tenantWindow before a permanent block; 0 = disabled
+	tenantWindow      time.Duration
 }
 
-func newErrorGuard(statusCodes []int, requestsPerSecond int, permanent bool, blockDuration time.Duration) *errorGuard {
+func newErrorGuard(statusCodes []int, requestsPerSecond int, permanent bool, blockDuration time.Duration, tenantLimit int, tenantWindow time.Duration) *errorGuard {
 	codes := make(map[int]bool, len(statusCodes))
 	for _, code := range statusCodes {
 		codes[code] = true
@@ -64,11 +76,14 @@ func newErrorGuard(statusCodes []int, requestsPerSecond int, permanent bool, blo
 
 	guard := &errorGuard{
 		counters:          make(map[string]*errorCounter),
+		tenantCounters:    make(map[string]*windowCounter),
 		blocked:           make(map[string]time.Time),
 		statusCodes:       codes,
 		requestsPerSecond: requestsPerSecond,
 		permanent:         permanent,
 		blockDuration:     blockDuration,
+		tenantLimit:       tenantLimit,
+		tenantWindow:      tenantWindow,
 	}
 
 	go guard.evictLoop()
@@ -174,6 +189,46 @@ func (g *errorGuard) recordError(key string) bool {
 	return true
 }
 
+// recordTenantNotFound registers one "tenant not found" response for key and
+// reports true only the moment it causes a transition into "blocked" — so the
+// caller persists the block record exactly once. Unlike recordError, the block
+// is always permanent (a slow host-header scan is still an attack) and the
+// count accrues over tenantWindow rather than a single second. No-op when the
+// tenant guard is disabled (tenantLimit <= 0).
+func (g *errorGuard) recordTenantNotFound(key string) bool {
+	if g.tenantLimit <= 0 {
+		return false
+	}
+
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
+	now := time.Now().Unix()
+	windowSeconds := int64(g.tenantWindow / time.Second)
+
+	counter, ok := g.tenantCounters[key]
+	if !ok || now-counter.windowStart >= windowSeconds {
+		counter = &windowCounter{windowStart: now}
+		g.tenantCounters[key] = counter
+	}
+
+	counter.count++
+
+	if counter.count < g.tenantLimit {
+		return false
+	}
+
+	delete(g.tenantCounters, key)
+
+	if _, alreadyBlocked := g.blocked[key]; alreadyBlocked {
+		return false
+	}
+
+	g.blocked[key] = permanentBlockUntil
+
+	return true
+}
+
 // evictLoop periodically drops stale entries so memory doesn't grow
 // unbounded under a sustained flood from many distinct/spoofed source IPs.
 // Permanently blocked entries (permanentBlockUntil) are never evicted here.
@@ -193,6 +248,12 @@ func (g *errorGuard) evictLoop() {
 		for key, counter := range g.counters {
 			if now.Unix()-counter.second > 5 {
 				delete(g.counters, key)
+			}
+		}
+		windowSeconds := int64(g.tenantWindow / time.Second)
+		for key, counter := range g.tenantCounters {
+			if now.Unix()-counter.windowStart >= windowSeconds {
+				delete(g.tenantCounters, key)
 			}
 		}
 		g.mut.Unlock()
@@ -222,7 +283,15 @@ func (y *YekongaData) ensureErrorGuard() {
 			blockDuration = time.Duration(cfg.BlockHours) * time.Hour
 		}
 
-		y.errorGuard = newErrorGuard(statusCodes, requestsPerSecond, permanent, blockDuration)
+		// Slow-and-low tenant-not-found guard (0 = disabled). Window defaults
+		// to an hour when a limit is set but no window is given.
+		tenantLimit := cfg.TenantNotFoundLimit
+		tenantWindow := time.Duration(cfg.TenantNotFoundWindowMinutes) * time.Minute
+		if tenantLimit > 0 && tenantWindow <= 0 {
+			tenantWindow = time.Hour
+		}
+
+		y.errorGuard = newErrorGuard(statusCodes, requestsPerSecond, permanent, blockDuration, tenantLimit, tenantWindow)
 
 		// Load existing blacklist rows immediately, so a restarted or freshly
 		// started replica honors blocks an admin (or another replica)
@@ -336,6 +405,70 @@ func (y *YekongaData) persistIpBlock(req *Request, ip string, statusCode int) {
 			"reason": fmt.Sprintf(
 				"exceeded %d error responses/second (tripped by %d %s)",
 				cfg.RequestsPerSecond, statusCode, http.StatusText(statusCode),
+			),
+			"url":     req.HttpRequest.RequestURI,
+			"method":  req.HttpRequest.Method,
+			"headers": req.HttpRequest.Header,
+			"body":    req.RawBody,
+		}
+
+		model.SkipBeforeCommit().Create(data)
+	}()
+}
+
+// recordTenantNotFound registers one "tenant not found" response against req's
+// client for the slow-and-low tenant guard. The first time this crosses the
+// configured limit within the window, it blocks the source permanently and
+// persists the block — with a snapshot of the tripping request — to the
+// IpAccessRule collection for manual admin review. No-op when the error guard
+// or the tenant guard is disabled.
+func (y *YekongaData) recordTenantNotFound(req *Request) {
+	if !y.Config.Security.ErrorGuard.Enabled || req == nil || req.HttpRequest == nil {
+		return
+	}
+
+	if y.Config.Security.ErrorGuard.TenantNotFoundLimit <= 0 {
+		return
+	}
+
+	if y.isIPWhitelisted(req.HttpRequest) {
+		return
+	}
+
+	y.ensureErrorGuard()
+
+	key := clientIP(req.HttpRequest, y.Config.Security.TrustProxyHeaders)
+
+	if y.errorGuard.recordTenantNotFound(key) {
+		y.persistTenantBlock(req, key)
+	}
+}
+
+// persistTenantBlock writes a permanent blacklist entry for ip to the
+// IpAccessRule collection, capturing the request that tripped the tenant
+// guard. It runs in the background so a burst of trips never adds latency to
+// responses already in flight.
+func (y *YekongaData) persistTenantBlock(req *Request, ip string) {
+	cfg := y.Config.Security.ErrorGuard
+
+	windowMinutes := cfg.TenantNotFoundWindowMinutes
+	if windowMinutes <= 0 {
+		windowMinutes = 60
+	}
+
+	go func() {
+		model := y.ModelQuery("IpAccessRule")
+		if model == nil {
+			return
+		}
+
+		data := datatype.DataMap{
+			"ipAddress": ip,
+			"type":      "blacklist",
+			"source":    "tenantGuard",
+			"reason": fmt.Sprintf(
+				"exceeded %d 'tenant not found' responses within %d min (host-header scanning)",
+				cfg.TenantNotFoundLimit, windowMinutes,
 			),
 			"url":     req.HttpRequest.RequestURI,
 			"method":  req.HttpRequest.Method,
