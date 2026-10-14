@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
@@ -19,6 +20,13 @@ import (
 
 	"github.com/robertkonga/yekonga-server-go/plugins/websocket"
 )
+
+const (
+	maxMessageSize = 64 * 1024      // 64KB max message size
+	pingInterval   = 30 * time.Second
+	pongWait       = 60 * time.Second
+)
+
 
 // Easier to get running with CORS. Thanks for help @Vindexus and @erkie
 var allowOriginFunc = func(r *http.Request) bool {
@@ -143,6 +151,8 @@ type Client struct {
 	conn          *websocket.Conn
 	send          chan []byte
 	eventHandlers map[string]func(data interface{})
+	pingTicker    *time.Ticker
+	done          chan struct{} // signal to stop ping goroutine
 
 	ID        string
 	Namespace *Namespace
@@ -248,6 +258,8 @@ func (s *SocketServer) ServeWS(req *Request, res *Response) {
 		conn:          conn,
 		send:          make(chan []byte, 256),
 		eventHandlers: make(map[string]func(data interface{})),
+		pingTicker:    time.NewTicker(pingInterval),
+		done:          make(chan struct{}),
 
 		ID:        clientID,
 		Namespace: namespace,
@@ -255,6 +267,14 @@ func (s *SocketServer) ServeWS(req *Request, res *Response) {
 		Request:   req,
 		Response:  res,
 	}
+
+	// Set message size and pong wait deadline
+	conn.SetReadLimit(maxMessageSize)
+	conn.SetReadDeadline(time.Now().Add(pongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 
 	namespace.addClient(client)
 
@@ -512,6 +532,7 @@ func (c *Client) SendBack(event string, data interface{}) {
 // readPump + message handling
 func (c *Client) readPump() {
 	defer func() {
+		close(c.done)
 		c.Namespace.removeClient(c, "closed")
 		c.conn.Close()
 	}()
@@ -652,9 +673,25 @@ func (c *Client) handleMessage(msg *Message) {
 }
 
 func (c *Client) writePump() {
-	defer c.conn.Close()
-	for msg := range c.send {
-		if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+	defer func() {
+		c.pingTicker.Stop()
+		close(c.done)
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case msg := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.TextMessage, msg); err != nil {
+				return
+			}
+		case <-c.pingTicker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		case <-c.done:
 			return
 		}
 	}

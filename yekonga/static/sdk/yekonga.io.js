@@ -17,16 +17,19 @@ function YekongaSocket(url, options) {
     this._url = url;
     this._opts = {
         reconnection: true,
-        reconnectionAttempts: Infinity,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 10000,
+        heartbeatInterval: 30000, // 30 seconds
     };
 
     // Merge options
-    for (var key in options) {
-        if (options.hasOwnProperty(key)) {
-            this._opts[key] = options[key];
+    if (options) {
+        for (var key in options) {
+            if (options.hasOwnProperty(key)) {
+                this._opts[key] = options[key];
+            }
         }
     }
 
@@ -37,6 +40,7 @@ function YekongaSocket(url, options) {
 
     this._reconnectAttempts = 0;
     this._reconnectTimer = null;
+    this._heartbeatTimer = null;
     this._connecting = false;
 
     this._nextMsgId = 0;
@@ -54,9 +58,7 @@ YekongaSocket.prototype.connect = function () {
     this._connecting = true;
 
     try {
-        var u = new URL(this._url);
-        var socketUrl = u.origin + '/yekonga.io/?ns=' + u.pathname;
-
+        var socketUrl = this._buildSocketUrl();
         this._ws = new WebSocket(socketUrl);
 
         this._ws.onopen = function () {
@@ -72,6 +74,7 @@ YekongaSocket.prototype.connect = function () {
 
             this._flushPendingMessages();
             this._rejoinRooms();
+            this._startHeartbeat();
             this._emitLocal('connect');
         }.bind(this);
 
@@ -80,6 +83,8 @@ YekongaSocket.prototype.connect = function () {
             this.disconnected = true;
             this._connecting = false;
             this.id = undefined;
+
+            this._stopHeartbeat();
 
             this._emitLocal('disconnect', { code: event.code, reason: event.reason });
 
@@ -106,6 +111,12 @@ YekongaSocket.prototype.connect = function () {
                         pending.ack(msg.payload !== undefined ? msg.payload : null);
                         delete this._pendingAcks[msg.msgId];
                     }
+                    return;
+                }
+
+                // Handle ping (respond with pong)
+                if (msg.type === 'ping') {
+                    this._send({ type: 'pong' });
                     return;
                 }
 
@@ -285,13 +296,49 @@ YekongaSocket.prototype.disconnect = function () {
         clearTimeout(this._reconnectTimer);
         this._reconnectTimer = null;
     }
+    this._stopHeartbeat();
     if (this._ws) {
         this._ws.close();
     }
     return this;
 };
 
+YekongaSocket.prototype.destroy = function () {
+    this.disconnect();
+    this._eventListeners = {};
+    this._rooms = {};
+    this._pendingMessages = [];
+    this._pendingAcks = {};
+    return this;
+};
+
 // === Private helpers ===
+
+YekongaSocket.prototype._buildSocketUrl = function () {
+    var u = new URL(this._url);
+    var protocol = u.protocol === 'https:' ? 'wss://' : 'ws://';
+    var ns = u.pathname || '/';
+    return protocol + u.host + '/yekonga.io/?ns=' + encodeURIComponent(ns);
+};
+
+YekongaSocket.prototype._startHeartbeat = function () {
+    var self = this;
+    if (this._heartbeatTimer) {
+        clearInterval(this._heartbeatTimer);
+    }
+    this._heartbeatTimer = setInterval(function () {
+        if (self.connected && self._ws && self._ws.readyState === WebSocket.OPEN) {
+            self._send({ type: 'ping' });
+        }
+    }, this._opts.heartbeatInterval);
+};
+
+YekongaSocket.prototype._stopHeartbeat = function () {
+    if (this._heartbeatTimer) {
+        clearInterval(this._heartbeatTimer);
+        this._heartbeatTimer = null;
+    }
+};
 
 YekongaSocket.prototype._emitLocal = function (event, data) {
     var listeners = this._eventListeners[event] || [];
