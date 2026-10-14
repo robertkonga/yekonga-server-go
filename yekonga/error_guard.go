@@ -351,7 +351,7 @@ func (y *YekongaData) checkErrorGuardBlock(w http.ResponseWriter, r *http.Reques
 		return true
 	}
 
-	http.Error(w, "forbidden", http.StatusForbidden)
+	http.Error(w, "Yekonga Forbidden", http.StatusForbidden)
 
 	return false
 }

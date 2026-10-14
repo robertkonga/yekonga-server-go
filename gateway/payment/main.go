@@ -33,6 +33,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/robertkonga/yekonga-server-go/helper/console"
 )
 
 // Provider names, as used in Config.Provider and Controller calls. They match
@@ -798,17 +800,21 @@ func doJSON(ctx context.Context, client *http.Client, provider, method, url stri
 		}
 		body = bytes.NewReader(b)
 	}
-	// console.Error("provider", provider)
-	// console.Error("url", url)
+	console.Error("url", provider, url)
 	// console.Error("headers", headers)
 	// console.Error("in", in)
 	// console.Error("out", out)
-	// console.Error("body", body)
 
 	return doRaw(ctx, client, provider, method, url, headers, body, out)
 }
 
 func doRaw(ctx context.Context, client *http.Client, provider, method, url string, headers map[string]string, body io.Reader, out any) ([]byte, error) {
+	if body != nil {
+		bodyBytes, _ := io.ReadAll(body)
+		fmt.Println("Request body:", string(bodyBytes))
+		body = io.NopCloser(bytes.NewReader(bodyBytes))
+	}
+
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err

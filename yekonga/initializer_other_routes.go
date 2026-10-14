@@ -92,19 +92,21 @@ func (y *YekongaData) GetWebConfig(req *Request) WebConfig {
 
 	logoUrl := helper.GetValueOf(tenantConfig, "logoUrl")
 	faviconUrl := helper.GetValueOf(tenantConfig, "faviconUrl")
+	tenantId := helper.GetValueOf(tenantConfig, "tenantId")
 	tenantName := helper.GetValueOf(tenantConfig, "tenantName")
 	description := helper.GetValueOf(tenantConfig, "description")
 
-	config["baseUrl"] = baseUrl
+	config["baseUrl"] = baseUrl + y.AppendBaseUrl("/")
 	config["logoUrl"] = logoUrl
 	config["faviconUrl"] = faviconUrl
 	config["host"] = client.Host
 	config["appName"] = y.Config.AppName
 	config["description"] = description
+	config["tenantId"] = tenantId
 	config["tenantName"] = tenantName
 	config["endToEndEncryption"] = y.Config.EndToEndEncryption
-	config["apiRoute"] = y.Config.Graphql.ApiRoute
-	config["authRoute"] = y.Config.Graphql.ApiAuthRoute
+	config["apiRoute"] = y.AppendBaseUrl(y.Config.Graphql.ApiRoute)
+	config["authRoute"] = y.AppendBaseUrl(y.Config.Graphql.ApiAuthRoute)
 	config["googleApiKey"] = y.Config.GoogleApiKey
 	config["googleClientId"] = y.Config.GoogleClientId
 	config["googleClientSecret"] = y.Config.GoogleClientSecret
@@ -229,6 +231,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 			"window['systemTemplateConfig'] = {};\n" +
 			"window['systemPermissions'] = " + helper.ToJson(wetConfig.SystemPermissions) + ";\n" +
 			"window['systemConfig'] = " + helper.ToJson(wetConfig.Config) + ";\n" +
+			"window['YekongaSystemConfig'] = " + helper.ToJson(wetConfig.Config) + ";\n" +
 			"window['ProfileConfig'] = " + helper.ToJson(wetConfig.ProfileConfig) + ";\n"
 
 		res.SetHeader("Cache-Control", "public, max-age=0")
@@ -429,6 +432,7 @@ func (y *YekongaData) initializerSocketRoutes() {
 		(*res.httpResponseWriter).Header().Set("access-control-allow-origin", "*")
 		(*res.httpResponseWriter).Header().Set("access-control-allow-headers", "content-type, authorization, x-requested-with, x-csrf-token, timezone, upgrade-insecure-requests")
 
+		console.Error("/yekonga.io/", req.Body())
 		y.socketServer.ServeWS(req, res)
 	})
 }

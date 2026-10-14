@@ -170,9 +170,9 @@ class YekongaCloudFunction {
         }
         
         if (window.YekongaSocket) {
-            this.socket = window.YekongaSocket(`${this.socketUrl}`, options);
-            this.socketSystem = window.YekongaSocket(`${this.socketUrl}/system`, options);
-
+            this.socket = window.YekongaSocket(`${this.socketUrl}`, { ...options, namespace: '/'});
+            this.socketSystem = window.YekongaSocket(`${this.socketUrl}`, { ...options, namespace: '/system' });
+ 
             this.socket.on('connect', () => {
                 console.debug(`${$this._socketId} connect`);
 
@@ -239,8 +239,8 @@ class YekongaCloudFunction {
     }
 
     get url() {
-        if(this._options.bassUrl) {
-            return this._options.bassUrl;
+        if(this._options.baseUrl) {
+            return this._options.baseUrl;
         }
 
         const proto = window.YekongaServer.Proto;
@@ -255,6 +255,8 @@ class YekongaCloudFunction {
         
         if(this._options.baseUrl) {
             console.log(this._options.baseUrl.split('://').pop())
+            console.log(this._options.baseUrl)
+
             return `${proto}://${this._options.baseUrl.split('://').pop()}`;
         }
 

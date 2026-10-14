@@ -198,23 +198,27 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 
 	currentPath := req.HttpRequest.URL.Path
 	optional := app.tokenOptionalPaths()
-	mandatoryValidToken := !helper.Contains(optional.exact, currentPath)
+	requireValidToken := !helper.Contains(optional.exact, currentPath)
 	for _, pattern := range optional.patterns {
-		if !mandatoryValidToken {
+		if !requireValidToken {
 			break
 		}
 		if helper.MatchPath(currentPath, pattern) {
-			mandatoryValidToken = false
+			requireValidToken = false
 		}
 	}
 
+	// Allow any static file within public directories
 	for _, v := range req.App.publicRoutes {
-		test := helper.MatchPath(currentPath, app.AppendBaseUrl(v))
-
-		if test {
-			mandatoryValidToken = !test
+		publicPath := app.AppendBaseUrl(v)
+		if strings.HasPrefix(currentPath, publicPath) || helper.MatchPath(currentPath, publicPath) {
+			requireValidToken = false
 			break
 		}
+	}
+
+	if req.App.isStaticPath(currentPath) {
+		requireValidToken = false
 	}
 
 	var isValid bool
@@ -252,7 +256,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		isValid, tokenPayloadMap = jwt.DecodeJWTInto(accessToken, config.Authentication.SecretToken, &tokenPayload)
 
 		if !isValid || helper.IsEmpty(tokenPayloadMap) {
-			if mandatoryValidToken {
+			if requireValidToken {
 				if !isJson {
 					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl(logoutUrl, domain))
 				}
@@ -262,7 +266,7 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		}
 
 		if tokenPayload.ExpiresAt.Before(helper.GetTimestamp(nil)) {
-			if mandatoryValidToken {
+			if requireValidToken {
 				if !isJson {
 					return http.StatusTemporaryRedirect, errors.New(helper.GetBaseUrl("refresh", domain) + "?" + "redirect=" + currentPath)
 				}
@@ -297,8 +301,8 @@ func TokenMiddleware(req *Request, res *Response) (int, error) {
 		req.SetContext(string(RefreshTokenKey), refreshToken)
 	}
 
-	if config.AuthorizedOnly {
-		if !(helper.IsNotEmpty(masterKey) && masterKey == config.MasterKey) && (mandatoryValidToken && helper.IsEmpty(accessToken)) {
+	if requireValidToken && config.AuthorizedOnly {
+		if !(helper.IsNotEmpty(masterKey) && masterKey == config.MasterKey) && (requireValidToken && helper.IsEmpty(accessToken)) {
 			if isJson {
 				return http.StatusUnauthorized, errors.New("Must be authorized/login")
 			}

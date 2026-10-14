@@ -10,7 +10,7 @@
 function YekongaSocket(url, options) {
     if (!(this instanceof YekongaSocket)) {
         return new YekongaSocket(url, options);
-    }
+    } 
 
     // Private variables (using naming convention)
     this._ws = null;
@@ -316,6 +316,7 @@ YekongaSocket.prototype.destroy = function () {
 
 YekongaSocket.prototype._buildSocketUrl = function () {
     var url = this._url;
+    var path = "";
     var protocol = 'ws://';
     var host = '';
     var ns = '/';
@@ -323,19 +324,22 @@ YekongaSocket.prototype._buildSocketUrl = function () {
     try {
         // Try to parse as absolute URL
         var u = new URL(url);
-        protocol = u.protocol === 'https:' ? 'wss://' : 'ws://';
+        protocol = ['https:','wss:'].includes(u.protocol) ? 'wss://' : 'ws://';
         host = u.host;
-        ns = u.pathname || '/';
+        ns = this._opts.namespace || '/';
+        path = u.pathname;
     } catch (e) {
         // Fallback: url is relative, use current window location
-        protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        protocol = ['https:','wss:'].includes(window.location.protocol) ? 'wss://' : 'ws://';
         host = window.location.host;
         ns = url.split('?')[0] || '/'; // Extract path from relative URL
     }
 
-    return protocol + host + '/yekonga.io/?ns=' + encodeURIComponent(ns);
-};
+    path = path.endsWith('/') ? path.slice(0, -1) : path;
 
+    return protocol + host + path + '/yekonga.io?ns=' + encodeURIComponent(ns);
+};
+ 
 YekongaSocket.prototype._startHeartbeat = function () {
     var self = this;
     if (this._heartbeatTimer) {

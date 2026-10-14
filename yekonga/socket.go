@@ -22,11 +22,10 @@ import (
 )
 
 const (
-	maxMessageSize = 64 * 1024      // 64KB max message size
+	maxMessageSize = 64 * 1024 // 64KB max message size
 	pingInterval   = 30 * time.Second
 	pongWait       = 60 * time.Second
 )
-
 
 // Easier to get running with CORS. Thanks for help @Vindexus and @erkie
 var allowOriginFunc = func(r *http.Request) bool {
@@ -153,6 +152,7 @@ type Client struct {
 	eventHandlers map[string]func(data interface{})
 	pingTicker    *time.Ticker
 	done          chan struct{} // signal to stop ping goroutine
+	closeDone     sync.Once      // guard against multiple close calls
 
 	ID        string
 	Namespace *Namespace
@@ -532,7 +532,9 @@ func (c *Client) SendBack(event string, data interface{}) {
 // readPump + message handling
 func (c *Client) readPump() {
 	defer func() {
-		close(c.done)
+		c.closeDone.Do(func() {
+			close(c.done)
+		})
 		c.Namespace.removeClient(c, "closed")
 		c.conn.Close()
 	}()
@@ -675,7 +677,9 @@ func (c *Client) handleMessage(msg *Message) {
 func (c *Client) writePump() {
 	defer func() {
 		c.pingTicker.Stop()
-		close(c.done)
+		c.closeDone.Do(func() {
+			close(c.done)
+		})
 		c.conn.Close()
 	}()
 
