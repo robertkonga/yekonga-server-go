@@ -315,10 +315,25 @@ YekongaSocket.prototype.destroy = function () {
 // === Private helpers ===
 
 YekongaSocket.prototype._buildSocketUrl = function () {
-    var u = new URL(this._url);
-    var protocol = u.protocol === 'https:' ? 'wss://' : 'ws://';
-    var ns = u.pathname || '/';
-    return protocol + u.host + '/yekonga.io/?ns=' + encodeURIComponent(ns);
+    var url = this._url;
+    var protocol = 'ws://';
+    var host = '';
+    var ns = '/';
+
+    try {
+        // Try to parse as absolute URL
+        var u = new URL(url);
+        protocol = u.protocol === 'https:' ? 'wss://' : 'ws://';
+        host = u.host;
+        ns = u.pathname || '/';
+    } catch (e) {
+        // Fallback: url is relative, use current window location
+        protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        host = window.location.host;
+        ns = url.split('?')[0] || '/'; // Extract path from relative URL
+    }
+
+    return protocol + host + '/yekonga.io/?ns=' + encodeURIComponent(ns);
 };
 
 YekongaSocket.prototype._startHeartbeat = function () {
