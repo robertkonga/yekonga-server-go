@@ -3,10 +3,19 @@ package yekonga
 import (
 	"strings"
 
+	"github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/helper"
 )
 
 type DatabaseStructure = map[string]map[string]CollectionFieldConfig
+
+type DatabaseStructureConnection struct {
+	DatabaseName    string
+	DatabaseSetting config.DatabaseSettings
+	Collections     DatabaseStructure
+}
+
+type MultipleDatabaseStructure []DatabaseStructureConnection
 
 type CollectionFieldConfig struct {
 	PrimaryKey   bool                            `json:"primaryKey,omitempty"`
