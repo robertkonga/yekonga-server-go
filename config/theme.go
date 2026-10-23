@@ -71,6 +71,7 @@ type TenantConfig struct {
 	DarkTheme         DartTheme  `json:"darkTheme"`
 	HasMembership     bool       `json:"hasMembership"`
 	PublicCanRegister bool       `json:"publicCanRegister"`
+	WebsiteConfig     any        `json:"websiteConfig"`
 }
 
 type Theme struct {

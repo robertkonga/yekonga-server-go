@@ -82,6 +82,7 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 				"darkTheme":         darkTheme,
 				"hasMembership":     helper.GetValueOf(tenantConfig, "hasMembership"),
 				"publicCanRegister": helper.GetValueOf(tenantConfig, "publicCanRegister"),
+				"websiteConfig":     helper.GetValueOf(tenantConfig, "websiteConfig"),
 			}
 			// console.Log("TenantConfig.data", data)
 			// console.Log("TenantConfig.tenantConfig", tenantConfig)
