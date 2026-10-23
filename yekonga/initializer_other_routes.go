@@ -319,8 +319,22 @@ func (y *YekongaData) initializerOtherRoutes() {
 
 	y.Get("/yekonga/yekonga.js", func(req *Request, res *Response) {
 		scripts := ""
+		wetConfig := y.GetWebConfig(req)
 		client := *req.Client()
 		var content []byte
+
+		var config string = "window.YekongaServer = {};\n" +
+			"window.YekongaServer.Applications = {};\n" +
+			"window.socket = null;\n" +
+			"window.socketSystem = null;\n" +
+			"window.YekongaServer.host = '" + client.Host + "';\n" +
+			"window.YekongaServer.proto = '" + client.Proto + "';\n" +
+			"window.YekongaServer.port = '" + client.Port + "';\n" +
+			"window.YekongaServer.tenantId = '" + helper.GetValueOfString(wetConfig.Config, "tenantId") + "';\n" +
+			"window.YekongaServer.baseUrl = '" + helper.GetValueOfString(wetConfig.Config, "baseUrl") + "';\n" +
+			"window.YekongaServer.graphql = '" + y.AppendBaseUrl(y.Config.Graphql.ApiRoute) + "';"
+
+		scripts += config + "\n"
 
 		content, _ = StaticFS.ReadFile("static/dk/axios.min.js")
 		scripts += string(content) + "\n"
@@ -330,17 +344,6 @@ func (y *YekongaData) initializerOtherRoutes() {
 
 		content, _ = StaticFS.ReadFile("static/sdk/yekonga.io.js")
 		scripts += string(content) + "\n"
-
-		var config string = "window.YekongaServer = {};\n" +
-			"window.YekongaServer.Applications = {};\n" +
-			"window.socket = null;\n" +
-			"window.socketSystem = null;\n" +
-			"window.YekongaServer.Host = '" + client.Host + "';\n" +
-			"window.YekongaServer.Proto = '" + client.Proto + "';\n" +
-			"window.YekongaServer.Port = '" + client.Port + "';\n" +
-			"window.YekongaServer.graphql = '" + y.Config.Graphql.ApiRoute + "';"
-
-		scripts += config + "\n"
 
 		content, _ = StaticFS.ReadFile("static/sdk/webRTC.js")
 		scripts += string(content) + "\n"

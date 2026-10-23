@@ -11,7 +11,7 @@ class YekongaCloudFunction {
 
         this._options = (options) ? options : {};
         if (!this._options.host) {
-            this._options.host = window.YekongaServer.Host;
+            this._options.host = window.YekongaServer.host;
         }
         this._socketId = this.uuid;
         this._initSocket();
@@ -148,7 +148,7 @@ class YekongaCloudFunction {
 
     _setSocketListeners() {
         const $this = this;
-        const proto = (window.YekongaServer.Proto == 'https') ? 'wss' : 'ws';
+        const proto = (window.YekongaServer.proto == 'https') ? 'wss' : 'ws';
         
         const token = window.localStorage.token || "MY_SECRET_TOKEN";
         const options = {
@@ -241,26 +241,21 @@ class YekongaCloudFunction {
     get url() {
         if(this._options.baseUrl) {
             return this._options.baseUrl;
+        } else if(window.YekongaServer.baseUrl) {
+            return window.YekongaServer.baseUrl;
         }
 
-        const proto = window.YekongaServer.Proto;
+        const proto = window.YekongaServer.proto;
         const host = this._options.host;
         
         return `${proto}://${host}`;
     }
     
     get socketUrl() {
-        const proto = (window.YekongaServer.Proto == 'https') ? 'wss' : 'ws';
+        const proto = (window.YekongaServer.proto == 'https') ? 'wss' : 'ws';
         const host = this._options.host;
-        
-        if(this._options.baseUrl) {
-            console.log(this._options.baseUrl.split('://').pop())
-            console.log(this._options.baseUrl)
 
-            return `${proto}://${this._options.baseUrl.split('://').pop()}`;
-        }
-
-        return `${proto}://${host}`;
+        return `${proto}://${this.url.split('://').pop()}`;
     }
 
     get uuid() {
@@ -271,6 +266,10 @@ class YekongaCloudFunction {
             return (c == 'x' ? r : (r & 0x3 | 0x8)).toString(16);
         });
     }
+}
+
+if(typeof window.YekongaServer == 'undefined') {
+    window.YekongaServer = {}
 }
 
 window.YekongaServer.app = function(name) {
