@@ -171,3 +171,34 @@ func (y *YekongaData) PaymentWebhook(data *PaymentWebhookData) error {
 
 	return err
 }
+
+func (y *YekongaData) ManualPaymentWebhook(req *Request, input payment.PaymentRequest) error {
+	paymentData, response, err := y.CreatePayment(req, "manual", input)
+
+	if err != nil {
+		return err
+	}
+
+	webhookData := PaymentWebhookData{
+		Event: &payment.WebhookEvent{
+			Provider: "manual",
+			Type:     "createPayment",
+			Success:  true,
+			Result: &payment.PaymentResult{
+				Provider:          "manual",
+				Reference:         input.Reference,
+				ProviderRef:       input.Reference,        // gateway order/checkout id
+				ProviderPaymentID: helper.GetHexString(8), // id needed to refund (capture id, transaction id, confirmation code)
+				Status:            payment.StatusSucceeded,
+				Amount:            input.Amount,
+				Currency:          input.Currency,
+				Method:            input.Method, // channel / payment method as reported by the gateway
+				Raw:               response.Raw,
+			},
+		},
+		Payment: paymentData,
+		Request: req,
+	}
+
+	return y.PaymentWebhook(&webhookData)
+}

@@ -1027,3 +1027,112 @@ func TestTwoCheckoutFlow(t *testing.T) {
 		t.Fatalf("tampered webhook: want ErrInvalidWebhook, got %v", err)
 	}
 }
+
+func TestManualPaymentProvider(t *testing.T) {
+	ctx := context.Background()
+	c := newTestController(t, Config{Provider: ProviderManual})
+
+	// CreatePayment should create a pending record
+	res, err := c.CreatePayment(ctx, ProviderManual, PaymentRequest{
+		Reference: "cash_001",
+		Amount:    100.50,
+		Currency:  "USD",
+		Method:    "cash",
+		Description: "Payment for order #123",
+		Customer: Customer{Name: "John Doe", Email: "john@example.com"},
+	})
+	if err != nil {
+		t.Fatalf("CreatePayment failed: %v", err)
+	}
+	if res.Status != StatusPending || res.Reference != "cash_001" {
+		t.Fatalf("CreatePayment: want StatusPending, got %v", res.Status)
+	}
+
+	// VerifyPayment should return the pending record
+	verify, err := c.VerifyPayment(ctx, ProviderManual, VerifyRequest{Reference: "cash_001"})
+	if err != nil {
+		t.Fatalf("VerifyPayment failed: %v", err)
+	}
+	if verify.Status != StatusPending || verify.Amount != 100.50 {
+		t.Fatalf("VerifyPayment: want StatusPending with amount 100.50, got %v with amount %v", verify.Status, verify.Amount)
+	}
+
+	// Get the manual provider to call custom methods
+	p, err := c.Get(ProviderManual)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	manual, ok := p.(*manualProvider)
+	if !ok {
+		t.Fatalf("provider is not *manualProvider")
+	}
+
+	// UpdatePaymentStatus to mark as succeeded
+	if err := manual.UpdatePaymentStatus("cash_001", StatusSucceeded, "admin_user", "Received in-person"); err != nil {
+		t.Fatalf("UpdatePaymentStatus failed: %v", err)
+	}
+
+	// Verify the status changed
+	verify, err = c.VerifyPayment(ctx, ProviderManual, VerifyRequest{Reference: "cash_001"})
+	if err != nil || verify.Status != StatusSucceeded {
+		t.Fatalf("VerifyPayment after update: want StatusSucceeded, got %v", verify.Status)
+	}
+
+	// Test refund on succeeded payment
+	refund, err := c.Refund(ctx, ProviderManual, RefundRequest{
+		Reference:         "cash_001",
+		ProviderPaymentID: "cash_001",
+		Amount:            50.00,
+		Currency:          "USD",
+		Reason:            "Partial refund requested",
+	})
+	if err != nil {
+		t.Fatalf("Refund failed: %v", err)
+	}
+	if refund.Status != StatusRefunded {
+		t.Fatalf("Refund: want StatusRefunded, got %v", refund.Status)
+	}
+
+	// Test CancelPayment on pending record
+	c.CreatePayment(ctx, ProviderManual, PaymentRequest{
+		Reference: "cash_002",
+		Amount:    50,
+		Currency:  "USD",
+		Method:    "bank_transfer",
+	})
+	cancel, err := c.CancelPayment(ctx, ProviderManual, CancelRequest{
+		Reference: "cash_002",
+		Reason:    "Customer withdrew request",
+	})
+	if err != nil {
+		t.Fatalf("CancelPayment failed: %v", err)
+	}
+	if cancel.Status != StatusFailed {
+		t.Fatalf("CancelPayment: want StatusFailed, got %v", cancel.Status)
+	}
+
+	// Test GetRecord
+	record, err := manual.GetRecord("cash_001")
+	if err != nil || record.Reference != "cash_001" || record.RecordedBy != "admin_user" {
+		t.Fatalf("GetRecord: got unexpected record %+v, err %v", record, err)
+	}
+
+	// Test GetAllRecords
+	all := manual.GetAllRecords()
+	if len(all) < 2 {
+		t.Fatalf("GetAllRecords: want >= 2 records, got %d", len(all))
+	}
+
+	// Test unsupported operations
+	if _, err := c.PushUSSD(ctx, ProviderManual, PushRequest{
+		Reference: "test",
+		Amount:    100,
+		Currency:  "USD",
+		Phone:     "+1234567890",
+	}); !errors.Is(err, ErrNotSupported) {
+		t.Fatalf("PushUSSD: want ErrNotSupported, got %v", err)
+	}
+	if _, err := c.ListPayments(ctx, ProviderManual, ListRequest{}); !errors.Is(err, ErrNotSupported) {
+		t.Fatalf("ListPayments: want ErrNotSupported, got %v", err)
+	}
+}

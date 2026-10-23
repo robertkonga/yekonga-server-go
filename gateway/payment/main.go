@@ -4,7 +4,7 @@
 // Provider interface, the factory registry and the Controller that routes a
 // call to the right gateway by name. Each gateway lives in its own file
 // (flutterwave.go, paypal.go, pesapal.go, selcom.go, clickpesa.go, azampay.go,
-// stripe.go, twocheckout.go) and registers itself here.
+// stripe.go, twocheckout.go, manual.go) and registers itself here.
 //
 //	ctrl, _ := payment_providers.NewController(
 //		payment_providers.Config{Provider: "flutterwave", Credentials: map[string]string{
@@ -16,6 +16,17 @@
 //		Customer: payment_providers.Customer{Name: "Jane Doe", Email: "jane@example.com"},
 //	})
 //	// redirect the payer to res.CheckoutURL
+//
+// For manual cash/physical payments, use the "manual" provider (no credentials needed):
+//
+//	ctrl, _ := payment_providers.NewController(
+//		payment_providers.Config{Provider: "manual"},
+//	)
+//	res, _ := ctrl.CreatePayment(ctx, "manual", payment_providers.PaymentRequest{
+//		Reference: paymentId, Amount: 100, Currency: "USD", Method: "cash",
+//		Customer: payment_providers.Customer{Name: "Jane Doe"},
+//	})
+//	// returns StatusPending; admin later calls UpdatePaymentStatus to mark complete
 //
 // The package only depends on the standard library.
 package payment
@@ -48,6 +59,7 @@ const (
 	ProviderAzamPay     = "azampay"
 	ProviderStripe      = "stripe"
 	Provider2Checkout   = "2checkout"
+	ProviderManual      = "manual"
 )
 
 // Credential keys understood by the providers (Config.Credentials).
