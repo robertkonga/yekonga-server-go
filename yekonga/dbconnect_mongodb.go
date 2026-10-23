@@ -31,7 +31,7 @@ func (con *mongodbConnection) collection() *mongo.Collection {
 
 	// Get collection
 	collection := con.client.
-		Database(con.query.Model.Config.Database.DatabaseName).
+		Database(con.query.Model.DatabaseSetting.DatabaseName).
 		Collection(con.query.Model.Collection)
 
 	return collection

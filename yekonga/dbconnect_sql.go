@@ -69,8 +69,8 @@ func (con *sqlConnection) opCtx(write bool) (context.Context, context.CancelFunc
 		ctx = context.WithoutCancel(ctx)
 	}
 
-	if cfg := con.query.Model.Config; cfg != nil && cfg.Database.QueryTimeoutSeconds > 0 {
-		return context.WithTimeout(ctx, time.Duration(cfg.Database.QueryTimeoutSeconds)*time.Second)
+	if seconds := con.query.Model.DatabaseSetting.QueryTimeoutSeconds; seconds > 0 {
+		return context.WithTimeout(ctx, time.Duration(seconds)*time.Second)
 	}
 
 	return ctx, func() {}

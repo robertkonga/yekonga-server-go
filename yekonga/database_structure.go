@@ -9,13 +9,89 @@ import (
 
 type DatabaseStructure = map[string]map[string]CollectionFieldConfig
 
+// DatabaseStructureConnection is a group of collections stored in their own
+// database. Without a DatabaseSetting (no kind) the collections use the
+// config's database connection; DatabaseName, when set, picks another
+// database on that connection (or overrides DatabaseSetting's).
 type DatabaseStructureConnection struct {
-	DatabaseName    string
-	DatabaseSetting config.DatabaseSettings
-	Collections     DatabaseStructure
+	DatabaseName    string                  `json:"databaseName,omitempty"`
+	DatabaseSetting config.DatabaseSettings `json:"databaseSetting"`
+	Collections     DatabaseStructure       `json:"collections"`
 }
 
+// MultipleDatabaseStructure spreads the data models over several databases.
+// With config databasePrefix set, the built-in collections (authorizations,
+// tenants, payments, ...) each go to their group's database,
+// <databasePrefix>_<group> on the config's connection, unless an entry with
+// its own database declares them.
 type MultipleDatabaseStructure []DatabaseStructureConnection
+
+// isDefault reports whether the entry uses the config's database as is.
+func (s DatabaseStructureConnection) isDefault() bool {
+	return s.DatabaseSetting.Kind == "" && s.DatabaseName == ""
+}
+
+// settings is the database the entry's collections use.
+func (s DatabaseStructureConnection) settings(defaults config.DatabaseSettings) config.DatabaseSettings {
+	settings := defaults
+	if s.DatabaseSetting.Kind != "" {
+		settings = s.DatabaseSetting
+	}
+
+	if s.DatabaseName != "" {
+		settings.DatabaseName = s.DatabaseName
+	}
+
+	return settings
+}
+
+// groupDatabaseName is the database of a group of built-in collections.
+func groupDatabaseName(cfg *config.YekongaConfig, group string) string {
+	return cfg.DatabasePrefix + "_" + group
+}
+
+// combine merges every entry's collections with the built-in ones, as
+// NewDatabaseStructure does for a single structure, and returns the database
+// settings of each collection not on the config's database, keyed as in the
+// result. With config databasePrefix set the built-in collections go to their
+// group's database; an entry with its own database still takes the ones it
+// declares.
+func (structures MultipleDatabaseStructure) combine(cfg *config.YekongaConfig) (*DatabaseStructure, map[string]config.DatabaseSettings) {
+	extra := DatabaseStructure{}
+	entrySettings := map[string]config.DatabaseSettings{}
+
+	for _, entry := range structures {
+		for k, v := range entry.Collections {
+			k = helper.ToCamelCase(helper.Pluralize(k))
+			if existing, ok := extra[k]; ok {
+				mergeExtraCollectionFields(existing, v)
+			} else {
+				extra[k] = databaseCollectionFieldConfigsFromMap(v)
+			}
+
+			if !entry.isDefault() {
+				entrySettings[k] = entry.settings(cfg.Database)
+			}
+		}
+	}
+
+	structure, groups := newDatabaseStructure(extra, cfg, false)
+	settings := map[string]config.DatabaseSettings{}
+
+	if cfg.DatabasePrefix != "" {
+		for k, group := range groups {
+			groupSettings := cfg.Database
+			groupSettings.DatabaseName = groupDatabaseName(cfg, group)
+			settings[k] = groupSettings
+		}
+	}
+
+	for k, s := range entrySettings {
+		settings[k] = s
+	}
+
+	return structure, settings
+}
 
 type CollectionFieldConfig struct {
 	PrimaryKey   bool                            `json:"primaryKey,omitempty"`

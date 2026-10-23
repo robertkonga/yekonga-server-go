@@ -77,7 +77,8 @@ type YekongaData struct {
 	databaseStructure      *DatabaseStructure
 	graphqlBuild           *GraphqlAutoBuild
 	socketServer           *SocketServer
-	dbConnect              *DatabaseConnections
+	dbConnect              *DatabaseConnections            // the config's database
+	dbConnects             map[string]*DatabaseConnections // every database a model uses, by databaseConnectionKey
 	staticConfig           []*StaticConfig
 	logger                 *log.Logger
 	cronjob                *Cronjob
@@ -99,18 +100,28 @@ type YekongaData struct {
 	tokenPathsOnce         sync.Once
 	tenantCatchCache       *lookupCache[*datatype.DataMap]
 	userCache              *lookupCache[*datatype.DataMap]
-
-	Config   *mainConfig.YekongaConfig
-	RootPath string
-	IsDev    bool
+	useMultipleDatabases   bool
+	Config                 *mainConfig.YekongaConfig
+	RootPath               string
+	IsDev                  bool
 }
 
 // NewYekonga creates a new instance of Yekonga server
 func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStructure) *YekongaData {
+	return setServerConfigMultiple(config, MultipleDatabaseStructure{{Collections: databaseStructure}}, false)
+}
+
+// ServerConfigMultiple is ServerConfig with the models spread over several
+// databases; see MultipleDatabaseStructure.
+func ServerConfigMultiple(config mainConfig.YekongaConfig, databaseStructures MultipleDatabaseStructure) *YekongaData {
+	return setServerConfigMultiple(config, databaseStructures, true)
+}
+
+func setServerConfigMultiple(config mainConfig.YekongaConfig, databaseStructures MultipleDatabaseStructure, isMultiple bool) *YekongaData {
 	logger.LogoLarge()
 	mainConfig.SetYekongaConfig(&config)
-	databaseStructureCombined := NewDatabaseStructure(databaseStructure, &config)
-	systemModels := NewSystemModels(&config, databaseStructureCombined)
+	databaseStructureCombined, modelDatabases := databaseStructures.combine(&config)
+	systemModels := newSystemModels(&config, databaseStructureCombined, modelDatabases)
 	dbConnect := NewDatabaseConnections(&config)
 	resolverChartGroupData := SetDataGroups(systemModels)
 	exPath := "./"
@@ -127,6 +138,7 @@ func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStr
 		IsDev:    IsDev,
 
 		dbConnect:              dbConnect,
+		dbConnects:             map[string]*DatabaseConnections{databaseConnectionKey(&config, config.Database): dbConnect},
 		models:                 systemModels,
 		resolverChartGroupData: resolverChartGroupData,
 		databaseStructure:      databaseStructureCombined,
@@ -145,17 +157,20 @@ func ServerConfig(config mainConfig.YekongaConfig, databaseStructure DatabaseStr
 		authTriggerFunctions:   make(map[TriggerAction]TriggerFunction),
 		publicRoutes:           make([]string, 0),
 		logger:                 &log.Logger{},
+		useMultipleDatabases:   isMultiple,
 	}
 
 	Server.initLookupCaches()
 
-	dbConnect.appPath = Server.HomeDirectory()
 	SetSystemModelDBconnection(Server, &systemModels)
 
 	graphqlBuild := NewGraphqlAutoBuild(Server, systemModels)
 	Server.graphqlBuild = graphqlBuild
 
-	dbConnect.connect()
+	for _, dc := range Server.dbConnects {
+		dc.appPath = Server.HomeDirectory()
+		dc.connect()
+	}
 	go Server.ensureIndexes()
 	Server.ensureSQLSchema()
 	Server.initialize()
@@ -174,6 +189,15 @@ func ServerLoad(configFile string, databaseFile string) {
 
 func ServerConfigJson(configFile string, databaseFile string) {
 	ServerLoad(configFile, databaseFile)
+}
+
+// ServerLoadMultiple is ServerLoad for a database structure file listing
+// several databases; see NewMultipleDatabaseStructureFile.
+func ServerLoadMultiple(configFile string, databaseFile string) {
+	config := mainConfig.NewYekongaConfig(configFile)
+	databaseStructures := NewMultipleDatabaseStructureFile(databaseFile)
+
+	ServerConfigMultiple(*config, databaseStructures)
 }
 
 func (y *YekongaData) Model(name string) *DataModel {

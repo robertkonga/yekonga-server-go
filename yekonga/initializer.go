@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -459,86 +460,72 @@ func NewDatabaseStructureFile(file string, config *config.YekongaConfig) *Databa
 	}
 
 	structure := generateExtraDatabaseStructure(file)
-	databaseStructure := NewDatabaseStructure(structure, config)
+	databaseStructure := NewDatabaseStructure(structure, config, false)
 
 	return databaseStructure
 }
 
-func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *config.YekongaConfig) *DatabaseStructure {
-	var databaseAuthStructure = DefaultAuthDatabaseStructure
-	var databaseTenantStructure = DefaultTenantDatabaseStructure
-	var databaseBillingStructure = DefaultBillingDatabaseStructure
-	var databasePaymentStructure = DefaultPaymentDatabaseStructure
-	var databaseTenantCatchStructure = DefaultTenantCatchDatabaseStructure
+// Groups of built-in collections. With config databasePrefix set each group
+// is stored in its own database, <databasePrefix>_<group>.
+const (
+	authDatabaseGroup        = "authorizations"
+	tenantDatabaseGroup      = "tenants"
+	tenantCatchDatabaseGroup = "tenant_catches"
+	billingDatabaseGroup     = "billing"
+	paymentDatabaseGroup     = "payments"
+	extraDatabaseGroup       = "extra"
+	appDatabaseGroup         = "app"
+)
+
+func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *config.YekongaConfig, isMultipleDatabases bool) *DatabaseStructure {
+	databaseStructure, _ := newDatabaseStructure(extraDatabaseStructure, config, isMultipleDatabases)
+
+	return databaseStructure
+}
+
+// newDatabaseStructure is NewDatabaseStructure that also returns the group of
+// each built-in collection in the result.
+func newDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *config.YekongaConfig, isMultipleDatabases bool) (*DatabaseStructure, map[string]string) {
+	groups := map[string]string{}
 	// Built on a copy: the Default* structures are package-level and must not
 	// pick up this app's collections (e.g. when a process builds two servers).
 	var databaseStructure = make(DatabaseStructure, len(DefaultExtraDatabaseStructure))
 	for k, v := range DefaultExtraDatabaseStructure {
 		databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
+		groups[k] = extraDatabaseGroup
+	}
+
+	addDefaults := func(group string, defaults DatabaseStructure) {
+		for k, v := range defaults {
+			k = helper.ToCamelCase(helper.Pluralize(k))
+			if existing, ok := databaseStructure[k]; ok {
+				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
+			} else {
+				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
+				groups[k] = group
+			}
+		}
 	}
 
 	if config.IsAuthorizationServer {
-		for k, v := range databaseAuthStructure {
-			k = helper.ToCamelCase(helper.Pluralize(k))
-			if existing, ok := databaseStructure[k]; ok {
-				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-			} else {
-				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-			}
-		}
+		addDefaults(authDatabaseGroup, DefaultAuthDatabaseStructure)
 	}
 
 	if config.HasTenantCatch {
-		for k, v := range databaseTenantCatchStructure {
-			k = helper.ToCamelCase(helper.Pluralize(k))
-			if existing, ok := databaseStructure[k]; ok {
-				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-			} else {
-				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-			}
-		}
+		addDefaults(tenantCatchDatabaseGroup, DefaultTenantCatchDatabaseStructure)
 	}
 
 	if config.HasTenant {
-		for k, v := range databaseTenantStructure {
-			k = helper.ToCamelCase(helper.Pluralize(k))
-			if existing, ok := databaseStructure[k]; ok {
-				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-			} else {
-				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-			}
-		}
+		addDefaults(tenantDatabaseGroup, DefaultTenantDatabaseStructure)
 
 		if config.HasTenantBilling {
-			for k, v := range databaseBillingStructure {
-				k = helper.ToCamelCase(helper.Pluralize(k))
-				if existing, ok := databaseStructure[k]; ok {
-					mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-				} else {
-					databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-				}
-			}
-
-			for k, v := range databasePaymentStructure {
-				k = helper.ToCamelCase(helper.Pluralize(k))
-				if existing, ok := databaseStructure[k]; ok {
-					mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-				} else {
-					databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-				}
-			}
+			addDefaults(billingDatabaseGroup, DefaultBillingDatabaseStructure)
+			addDefaults(paymentDatabaseGroup, DefaultPaymentDatabaseStructure)
 		}
 	}
 
 	if (!config.HasTenant || (config.HasTenant && !config.HasTenantBilling)) && config.HasPaymentModule {
-		for k, v := range databasePaymentStructure {
-			k = helper.ToCamelCase(helper.Pluralize(k))
-			if existing, ok := databaseStructure[k]; ok {
-				mergeExtraCollectionFields(existing, extraDatabaseStructure[k])
-			} else {
-				databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
-			}
-		}
+		addDefaults(paymentDatabaseGroup, DefaultPaymentDatabaseStructure)
 	}
 
 	for k, v := range extraDatabaseStructure {
@@ -550,12 +537,52 @@ func NewDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 		}
 	}
 
-	return &databaseStructure
+	return &databaseStructure, groups
+}
 
+// NewMultipleDatabaseStructureFile reads a database structure file holding a
+// list of entries instead of one structure:
+//
+//	[
+//	  {"collections": {...}},
+//	  {"databaseName": "reports", "collections": {...}},
+//	  {"databaseSetting": {"kind": "mysql", "host": "...", ...}, "collections": {...}}
+//	]
+//
+// Each entry's collections use the same shape as a single database.json.
+func NewMultipleDatabaseStructureFile(file string) MultipleDatabaseStructure {
+	if !helper.FileExists(file) {
+		file = helper.GetPath(file)
+	}
+
+	var entries []struct {
+		DatabaseName    string                                       `json:"databaseName"`
+		DatabaseSetting config.DatabaseSettings                      `json:"databaseSetting"`
+		Collections     map[string]map[string]map[string]interface{} `json:"collections"`
+	}
+
+	data, err := os.ReadFile(file)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	if err := json.Unmarshal(data, &entries); err != nil {
+		fmt.Println(err)
+	}
+
+	structures := make(MultipleDatabaseStructure, 0, len(entries))
+	for _, entry := range entries {
+		structures = append(structures, DatabaseStructureConnection{
+			DatabaseName:    entry.DatabaseName,
+			DatabaseSetting: entry.DatabaseSetting,
+			Collections:     databaseStructureFromMap(entry.Collections),
+		})
+	}
+
+	return structures
 }
 
 func generateExtraDatabaseStructure(file string) DatabaseStructure {
-	structure := DatabaseStructure{}
 	var extraDatabaseStructure map[string]map[string]map[string]interface{}
 	data, err := helper.LoadJSONFile(file)
 
@@ -564,6 +591,14 @@ func generateExtraDatabaseStructure(file string) DatabaseStructure {
 	}
 
 	json.Unmarshal(helper.ToByte(data), &extraDatabaseStructure)
+
+	return databaseStructureFromMap(extraDatabaseStructure)
+}
+
+// databaseStructureFromMap builds a DatabaseStructure from the raw JSON shape
+// of a database structure file.
+func databaseStructureFromMap(extraDatabaseStructure map[string]map[string]map[string]interface{}) DatabaseStructure {
+	structure := DatabaseStructure{}
 
 	for collection, fields := range extraDatabaseStructure {
 		fieldConfigs := make(map[string]CollectionFieldConfig, len(fields))

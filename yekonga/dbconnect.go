@@ -3,6 +3,7 @@ package yekonga
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -68,6 +69,7 @@ type dataModelQueryStructure interface {
 
 type DatabaseConnections struct {
 	config        *config.YekongaConfig
+	settings      config.DatabaseSettings
 	appPath       string
 	mongodbClient *mongo.Client
 	localClient   *localDB.DB
@@ -76,19 +78,67 @@ type DatabaseConnections struct {
 }
 
 func NewDatabaseConnections(config *config.YekongaConfig) *DatabaseConnections {
+	return newDatabaseConnections(config, config.Database)
+}
+
+// newDatabaseConnections connects to settings' database instead of the
+// config's.
+func newDatabaseConnections(config *config.YekongaConfig, settings config.DatabaseSettings) *DatabaseConnections {
 	dc := &DatabaseConnections{
-		config: config,
+		config:   config,
+		settings: settings,
 	}
 
 	return dc
 }
 
+// databaseConnectionKey identifies the connection settings need; settings
+// with the same key share one connection.
+func databaseConnectionKey(cfg *config.YekongaConfig, settings config.DatabaseSettings) string {
+	switch settings.Kind {
+	case config.DBTypeMongodb:
+		// One client serves every database on the server.
+		settings.DatabaseName = ""
+	case config.DBTypeMysql, config.DBTypeSql:
+	default:
+		return "local:" + localDatabaseDirectory(cfg, settings)
+	}
+
+	key, _ := json.Marshal(settings)
+
+	return string(key)
+}
+
+// localDatabaseDirectory is the directory of a local database: "database"
+// for the config's database, "database_<name>" for any other.
+func localDatabaseDirectory(cfg *config.YekongaConfig, settings config.DatabaseSettings) string {
+	if settings.DatabaseName == "" || settings.DatabaseName == cfg.Database.DatabaseName {
+		return "database"
+	}
+
+	return "database_" + helper.ToSlug(settings.DatabaseName)
+}
+
+// databaseConnection is the connection for settings, created on first use.
+// Called while the server is being set up, before any request.
+func (y *YekongaData) databaseConnection(settings config.DatabaseSettings) *DatabaseConnections {
+	key := databaseConnectionKey(y.Config, settings)
+	if dc, ok := y.dbConnects[key]; ok {
+		return dc
+	}
+
+	dc := newDatabaseConnections(y.Config, settings)
+	y.dbConnects[key] = dc
+
+	return dc
+}
+
 func (dc *DatabaseConnections) connect() {
-	if dc.config.Database.Kind == config.DBTypeMongodb {
+	if dc.settings.Kind == config.DBTypeMongodb {
 		dc.mongodbConnect()
-	} else if dc.config.Database.Kind == config.DBTypeMysql {
+	} else if dc.settings.Kind == config.DBTypeMysql {
 		dc.mysqlConnect()
-	} else if dc.config.Database.Kind == config.DBTypeSql {
+	} else if dc.settings.Kind == config.DBTypeSql {
 		dc.sqlConnect()
 	} else {
 		dc.localConnect()
@@ -97,11 +147,11 @@ func (dc *DatabaseConnections) connect() {
 }
 
 func (dc *DatabaseConnections) close() {
-	if dc.config.Database.Kind == config.DBTypeMongodb {
+	if dc.settings.Kind == config.DBTypeMongodb {
 		dc.mongodbClose()
-	} else if dc.config.Database.Kind == config.DBTypeMysql {
+	} else if dc.settings.Kind == config.DBTypeMysql {
 		dc.mysqlClose()
-	} else if dc.config.Database.Kind == config.DBTypeSql {
+	} else if dc.settings.Kind == config.DBTypeSql {
 		dc.sqlClose()
 	} else {
 		dc.localClose()
@@ -112,30 +162,30 @@ func (dc *DatabaseConnections) close() {
 func (dc *DatabaseConnections) mongodbConnect() {
 	// // Set MongoDB URI
 	srv := ""
-	if dc.config.Database.Srv {
+	if dc.settings.Srv {
 		srv = "+srv"
 	}
 
 	connectionUrl := ""
-	if helper.IsEmpty(dc.config.Database.Port) || string(dc.config.Database.Port) == "80" {
+	if helper.IsEmpty(dc.settings.Port) || string(dc.settings.Port) == "80" {
 		connectionUrl = fmt.Sprintf(
 			"mongodb%s://%v",
 			srv,
-			dc.config.Database.Host,
+			dc.settings.Host,
 		)
 	} else {
 		connectionUrl = fmt.Sprintf(
 			"mongodb%s://%v:%v",
 			srv,
-			dc.config.Database.Host,
-			dc.config.Database.Port,
+			dc.settings.Host,
+			dc.settings.Port,
 		)
 	}
 
 	// logger.Info("connectionUrl", connectionUrl)
 	clientOptions := options.Client().ApplyURI(connectionUrl)
 
-	db := dc.config.Database
+	db := dc.settings
 	if db.MaxPoolSize > 0 {
 		clientOptions.SetMaxPoolSize(uint64(db.MaxPoolSize))
 	}
@@ -156,16 +206,16 @@ func (dc *DatabaseConnections) mongodbConnect() {
 		clientOptions.SetTimeout(time.Duration(db.QueryTimeoutSeconds) * time.Second)
 	}
 
-	if dc.config.Database.Username != nil {
-		// logger.Error(dc.config.Database)
+	if dc.settings.Username != nil {
+		// logger.Error(dc.settings)
 		var username string
 		var password string
 
-		if v, ok := dc.config.Database.Username.(string); ok {
+		if v, ok := dc.settings.Username.(string); ok {
 			username = v
 		}
 
-		if v, ok := dc.config.Database.Password.(string); ok {
+		if v, ok := dc.settings.Password.(string); ok {
 			password = v
 		}
 
@@ -189,7 +239,7 @@ func (dc *DatabaseConnections) mongodbConnect() {
 }
 
 func (dc *DatabaseConnections) localConnect() {
-	dbPath := dc.appPath + string(os.PathSeparator) + "database"
+	dbPath := dc.appPath + string(os.PathSeparator) + localDatabaseDirectory(dc.config, dc.settings)
 	client, err := localDB.OpenDB(dbPath)
 
 	if err != nil {
@@ -213,7 +263,7 @@ func (dc *DatabaseConnections) sqlConnect() {
 // MySQL syntax. Pool settings reuse the database.* options the MongoDB
 // connection uses.
 func (dc *DatabaseConnections) openSQL(label string) *sql.DB {
-	db := dc.config.Database
+	db := dc.settings
 
 	port := string(db.Port)
 	if port == "" {

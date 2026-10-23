@@ -13,11 +13,24 @@ import (
 
 // sqlClient is the connection for the configured SQL kind, or nil.
 func (y *YekongaData) sqlClient() *sql.DB {
-	switch y.Config.Database.Kind {
+	return y.dbConnect.sqlClientFor(y.Config.Database.Kind)
+}
+
+// sqlClient is the connection to the model's SQL database, or nil.
+func (m *DataModel) sqlClient() *sql.DB {
+	return m.DBConnect.sqlClientFor(m.DatabaseType)
+}
+
+func (dc *DatabaseConnections) sqlClientFor(kind config.DatabaseType) *sql.DB {
+	if dc == nil {
+		return nil
+	}
+
+	switch kind {
 	case config.DBTypeMysql:
-		return y.dbConnect.mysqlClient
+		return dc.mysqlClient
 	case config.DBTypeSql:
-		return y.dbConnect.sqlClient
+		return dc.sqlClient
 	}
 
 	return nil
@@ -50,25 +63,32 @@ func sqlColumnType(field DataModelField, indexed bool) string {
 
 // ensureSQLSchema creates missing tables and columns for every model from
 // database.json. Existing columns are never changed or dropped. Indexes are
-// then created in the background, as for MongoDB. Turn it off with config
-// database.disableAutoMigrate.
+// then created in the background, as for MongoDB. Each model goes to its own
+// database. Turn it off with database.disableAutoMigrate, in the config or in
+// the model's own database settings.
 func (y *YekongaData) ensureSQLSchema() {
-	client := y.sqlClient()
-	if client == nil || y.Config.Database.DisableAutoMigrate {
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
+	indexModels := []*DataModel{}
+
 	for _, model := range y.sortedModels() {
+		client := model.sqlClient()
+		if client == nil || model.DatabaseSetting.DisableAutoMigrate {
+			continue
+		}
+
 		if err := ensureSQLTable(ctx, client, model); err != nil {
 			logger.Error("Could not create table", model.Collection, err.Error())
 		}
+
+		if !model.DatabaseSetting.DisableAutoIndexes {
+			indexModels = append(indexModels, model)
+		}
 	}
 
-	if !y.Config.Database.DisableAutoIndexes {
-		go y.ensureSQLIndexes()
+	if len(indexModels) > 0 {
+		go ensureSQLIndexes(indexModels)
 	}
 }
 
@@ -132,14 +152,11 @@ func ensureSQLTable(ctx context.Context, client *sql.DB, model *DataModel) error
 }
 
 // ensureSQLIndexes creates the indexes from modelIndexes that are missing.
-func (y *YekongaData) ensureSQLIndexes() {
-	client := y.sqlClient()
-	if client == nil {
-		return
-	}
-
-	for _, model := range y.sortedModels() {
-		ensureSQLModelIndexes(client, model)
+func ensureSQLIndexes(models []*DataModel) {
+	for _, model := range models {
+		if client := model.sqlClient(); client != nil {
+			ensureSQLModelIndexes(client, model)
+		}
 	}
 }
 

@@ -46,27 +46,42 @@ func modelIndexes(model *DataModel) []modelIndex {
 // ensureIndexes creates any missing indexes from modelIndexes. It runs at
 // startup in the background: creating an index that already exists is a
 // no-op, and MongoDB builds new ones without blocking reads and writes.
-// Turn it off with config database.disableAutoIndexes.
+// Turn it off with database.disableAutoIndexes, in the config or in the
+// model's own database settings.
 func (y *YekongaData) ensureIndexes() {
-	if y.Config.Database.Kind != config.DBTypeMongodb || y.Config.Database.DisableAutoIndexes {
-		return
+	models := make([]*DataModel, 0, len(y.models))
+	for _, model := range y.models {
+		if !model.DatabaseSetting.DisableAutoIndexes {
+			models = append(models, model)
+		}
 	}
 
-	y.createModelIndexes()
+	createIndexes(models)
 }
 
 // createModelIndexes creates the indexes from modelIndexes for every model.
 func (y *YekongaData) createModelIndexes() {
-	client := y.dbConnect.mongodbClient
-	if client == nil {
-		return
+	models := make([]*DataModel, 0, len(y.models))
+	for _, model := range y.models {
+		models = append(models, model)
 	}
 
-	db := client.Database(y.Config.Database.DatabaseName)
+	createIndexes(models)
+}
+
+// createIndexes creates the indexes from modelIndexes for the MongoDB models,
+// each in its own database.
+func createIndexes(models []*DataModel) {
 	created := 0
 
-	for _, model := range y.models {
-		collection := db.Collection(model.Collection)
+	for _, model := range models {
+		if model.DatabaseType != config.DBTypeMongodb || model.DBConnect == nil || model.DBConnect.mongodbClient == nil {
+			continue
+		}
+
+		collection := model.DBConnect.mongodbClient.
+			Database(model.DatabaseSetting.DatabaseName).
+			Collection(model.Collection)
 
 		for _, index := range modelIndexes(model) {
 			if ensureIndex(collection, index) {

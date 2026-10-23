@@ -93,13 +93,25 @@ type DataModel struct {
 	ParentFields   map[string]DataModelFieldForeignKey
 	ChildrenFields map[string]DataModelFieldForeignKey
 	DatabaseType   config.DatabaseType
+	// DatabaseSetting is the database this model is stored in: the config's
+	// database unless a MultipleDatabaseStructure entry gave it another.
+	DatabaseSetting config.DatabaseSettings
 }
 
 func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructure) map[string]*DataModel {
+	return newSystemModels(config, database, nil)
+}
+
+// newSystemModels is NewSystemModels with each collection in settings stored
+// in that database instead of the config's.
+func newSystemModels(config *config.YekongaConfig, database *DatabaseStructure, settings map[string]config.DatabaseSettings) map[string]*DataModel {
 	var models map[string]*DataModel = map[string]*DataModel{}
 
 	for k, v := range *database {
 		model := newDataModel(config, k, v)
+		if s, ok := settings[k]; ok {
+			model.setDatabaseSetting(s)
+		}
 		models[model.Name] = model
 	}
 
@@ -146,7 +158,7 @@ func NewSystemModels(config *config.YekongaConfig, database *DatabaseStructure) 
 func SetSystemModelDBconnection(app *YekongaData, systemModels *map[string]*DataModel) {
 	for _, m := range *systemModels {
 		m.App = app
-		m.DBConnect = app.dbConnect
+		m.DBConnect = app.databaseConnection(m.DatabaseSetting)
 	}
 }
 
@@ -177,13 +189,18 @@ func SetDataGroups(models map[string]*DataModel) map[string]ResolverChartGroupDa
 
 func newDataModel(config *config.YekongaConfig, collection string, fields map[string]CollectionFieldConfig) *DataModel {
 	model := DataModel{
-		Config:       config,
-		DatabaseType: config.Database.Kind,
+		Config: config,
 	}
 
+	model.setDatabaseSetting(config.Database)
 	model.initialize(collection, fields)
 
 	return &model
+}
+
+func (m *DataModel) setDatabaseSetting(settings config.DatabaseSettings) {
+	m.DatabaseSetting = settings
+	m.DatabaseType = settings.Kind
 }
 
 func (m *DataModel) initialize(collection string, fields map[string]CollectionFieldConfig) {
