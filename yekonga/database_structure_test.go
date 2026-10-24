@@ -45,8 +45,8 @@ func TestMultipleDatabaseStructureConnections(t *testing.T) {
 		databaseName string
 		onDefault    bool
 	}{
-		{"Order", mainConfig.DBTypeMongodb, "main-host", "main", true},
-		{"Event", mainConfig.DBTypeMongodb, "main-host", "reports", true}, // same server, so the same client
+		{"Order", mainConfig.DBTypeMongodb, "main-host", "yekonga_app", true}, // the app's own collections
+		{"Event", mainConfig.DBTypeMongodb, "main-host", "reports", true},     // same server, so the same client
 		{"Ledger", mainConfig.DBTypeMysql, "billing-host", "billing", false},
 		{"Journal", mainConfig.DBTypeMysql, "billing-host", "archive", false},
 		{"Metric", mainConfig.DBTypeMongodb, "analytics-host", "analytics", false}, // another MongoDB server, its own client
@@ -84,8 +84,8 @@ func TestMultipleDatabaseStructureConnections(t *testing.T) {
 	}
 }
 
-// A single structure (ServerConfig) splits the built-in collections only when
-// databasePrefix is set.
+// A single structure (ServerConfig) splits the collections into their groups'
+// databases only when databasePrefix is set.
 func TestDatabasePrefixSplitsDefaults(t *testing.T) {
 	tests := []struct {
 		prefix string
@@ -93,7 +93,7 @@ func TestDatabasePrefixSplitsDefaults(t *testing.T) {
 	}{
 		{"", map[string]string{"Order": "main", "User": "main", "Tenant": "main", "Notification": "main"}},
 		{"yekonga", map[string]string{
-			"Order":        "main",
+			"Order":        "yekonga_app",
 			"User":         "yekonga_authorizations",
 			"Tenant":       "yekonga_tenants",
 			"Notification": "yekonga_extra",

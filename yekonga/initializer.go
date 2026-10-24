@@ -465,8 +465,9 @@ func NewDatabaseStructureFile(file string, config *config.YekongaConfig) *Databa
 	return databaseStructure
 }
 
-// Groups of built-in collections. With config databasePrefix set each group
-// is stored in its own database, <databasePrefix>_<group>.
+// Groups of collections: the built-in ones, and "app" for the app's own
+// (database.json). With config databasePrefix set each group is stored in its
+// own database, <databasePrefix>_<group>.
 const (
 	authDatabaseGroup        = "authorizations"
 	tenantDatabaseGroup      = "tenants"
@@ -528,12 +529,15 @@ func newDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 		addDefaults(paymentDatabaseGroup, DefaultPaymentDatabaseStructure)
 	}
 
+	// The app's own collections; fields added to a built-in one leave it in
+	// its group.
 	for k, v := range extraDatabaseStructure {
 		k = helper.ToCamelCase(helper.Pluralize(k))
 		if existing, ok := databaseStructure[k]; ok {
 			mergeExtraCollectionFields(existing, v)
 		} else {
 			databaseStructure[k] = databaseCollectionFieldConfigsFromMap(v)
+			groups[k] = appDatabaseGroup
 		}
 	}
 

@@ -276,7 +276,7 @@ type YekongaConfig struct {
 	Cache                   Cache            `json:"cache"`                   // In-memory caches configuration
 	Security                Security         `json:"security"`                // Security configuration
 	Database                DatabaseSettings `json:"database"`                // Database configuration
-	DatabasePrefix          string           `json:"databasePrefix"`          // When set, built-in collections go to <databasePrefix>_<group> databases (authorizations, tenants, tenant_catches, billing, payments, extra); empty = all on database.databaseName
+	DatabasePrefix          string           `json:"databasePrefix"`          // When set, collections go to <databasePrefix>_<group> databases (built-in: authorizations, tenants, tenant_catches, billing, payments, extra; database.json's: app); empty = all on database.databaseName
 	Authentication          Authentication   `json:"authentication"`          // Authentication configuration
 	Ports                   Ports            `json:"ports"`                   // Port configuration
 	Mail                    Mail             `json:"mail"`                    // Mail configuration

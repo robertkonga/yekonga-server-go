@@ -1961,7 +1961,7 @@ YekongaConfig parameters:
 | `namingConvention` | string | Table naming convention |
 | `columnNamingConvention` | string | Column naming convention |
 | `namingConventionOptions` | []string | Available naming conventions |
-| `databasePrefix` | string | When set, built-in collections are stored in `<databasePrefix>_<group>` databases on the `database` connection, e.g. `yekonga_authorizations`, `yekonga_tenants` (groups: `authorizations`, `tenants`, `tenant_catches`, `billing`, `payments`, `extra`); empty = everything in `database.databaseName` |
+| `databasePrefix` | string | When set, collections are stored in `<databasePrefix>_<group>` databases on the `database` connection, e.g. `yekonga_authorizations`, `yekonga_tenants`, `yekonga_app` (built-in groups: `authorizations`, `tenants`, `tenant_catches`, `billing`, `payments`, `extra`; the collections in `database.json`: `app`); empty = everything in `database.databaseName` |
 | `public` | []string | Public routes/actions |
 | `cloud` | string | Cloud provider name |
 | `logFile` | string | Log file path |
