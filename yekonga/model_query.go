@@ -315,6 +315,10 @@ func (m *DataModelQuery) Skip(value int) *DataModelQuery {
 }
 
 func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
+	if err := m.syncWriteAllowed(); err != nil {
+		return err
+	}
+
 	if !m.skipTenant {
 		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 			tenantId := m.getTenantId()
@@ -347,6 +351,10 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		return err
 	}
 
+	if result != nil {
+		m.recordSyncChanges(syncActionCreate, []datatype.DataMap{*result}, nil)
+	}
+
 	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
 	if helper.IsMap(triggerAfter) {
 		v := helper.ToDataMap(triggerAfter)
@@ -371,6 +379,10 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 }
 
 func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interface{} {
+	if err := m.syncWriteAllowed(); err != nil {
+		return err
+	}
+
 	m.WhereAll(where)
 	m.addTenantId()
 
@@ -414,6 +426,10 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		return err
 	}
 
+	if result != nil {
+		m.recordSyncChanges(syncActionUpdate, []datatype.DataMap{*result}, syncFields(formatted))
+	}
+
 	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAllAction, result)
 	if helper.IsMap(triggerAfter) {
 		v := helper.ToDataMap(triggerAfter)
@@ -442,6 +458,10 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 }
 
 func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) interface{} {
+	if err := m.syncWriteAllowed(); err != nil {
+		return err
+	}
+
 	m.WhereAll(where)
 	m.addTenantId()
 
@@ -466,11 +486,16 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 		auditOldValues = m.collection().find()
 	}
 
-	result, err := m.collection().updateMany(*(m.formatInputData(data, UpdateInputAction)))
+	formatted := *(m.formatInputData(data, UpdateInputAction))
+	result, err := m.collection().updateMany(formatted)
 
 	if err != nil {
 		console.Log(err.Error())
 		return err
+	}
+
+	if result != nil {
+		m.recordSyncChanges(syncActionUpdate, *result, syncFields(formatted))
 	}
 
 	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAllAction, result)
@@ -507,6 +532,10 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 }
 
 func (m *DataModelQuery) Import(data []interface{}, uniqueKeys []string) interface{} {
+	if err := m.syncWriteAllowed(); err != nil {
+		return err
+	}
+
 	if !m.skipTenant {
 		if m.Model.HasTenant && m.RequestContext != nil && (m.Model.App.Config.HasTenant || m.Model.App.Config.HasTenantCatch) {
 			tenantId := m.getTenantId()
@@ -615,6 +644,8 @@ ParentLoop:
 
 			status = true
 			message = "SUCCESS"
+
+			m.recordSyncChanges(syncActionCreate, *createData, nil)
 		}
 
 		triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, createData)
@@ -670,6 +701,10 @@ ParentLoop:
 }
 
 func (m *DataModelQuery) Delete(where interface{}) interface{} {
+	if err := m.syncWriteAllowed(); err != nil {
+		return err
+	}
+
 	m.WhereAll(where)
 	m.addTenantId()
 
@@ -688,8 +723,9 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 			m.WhereAll(helper.ToDataMap(triggerBefore))
 		}
 	}
+	// The deleted records' ids, for the audit trail and the sync log.
 	var auditOldValues *[]datatype.DataMap
-	if m.auditEnabled() {
+	if m.auditEnabled() || m.syncEnabled() {
 		auditOldValues = m.collection().find()
 	}
 
@@ -697,6 +733,10 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 
 	if err != nil {
 		return err
+	}
+
+	if auditOldValues != nil {
+		m.recordSyncChanges(syncActionDelete, *auditOldValues, nil)
 	}
 
 	triggerAfter := m.runTriggerAction(AfterDeleteTriggerAllAction, result)

@@ -81,6 +81,7 @@ func (y *YekongaData) initialize() {
 
 	y.initializerSocketRoutes()
 	y.initializePaymentRoutes()
+	y.initializeSyncRoutes()
 
 	for _, public := range y.Config.Public {
 		if strings.HasPrefix(public, "/") {
@@ -475,6 +476,7 @@ const (
 	billingDatabaseGroup     = "billing"
 	paymentDatabaseGroup     = "payments"
 	extraDatabaseGroup       = "extra"
+	syncDatabaseGroup        = "sync"
 	appDatabaseGroup         = "app"
 )
 
@@ -527,6 +529,10 @@ func newDatabaseStructure(extraDatabaseStructure DatabaseStructure, config *conf
 
 	if (!config.HasTenant || (config.HasTenant && !config.HasTenantBilling)) && config.HasPaymentModule {
 		addDefaults(paymentDatabaseGroup, DefaultPaymentDatabaseStructure)
+	}
+
+	if config.Sync.Enabled {
+		addDefaults(syncDatabaseGroup, DefaultSyncDatabaseStructure)
 	}
 
 	// The app's own collections; fields added to a built-in one leave it in

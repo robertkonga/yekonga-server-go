@@ -62,6 +62,7 @@ A comprehensive, production-ready Go server framework that provides out-of-the-b
   - [GraphQL Queries](#graphql-queries)
   - [GraphQL Mutations](#graphql-mutations)
   - [GraphQL Subscriptions](#graphql-subscriptions)
+- [Offline Sync (Cloud + Edge)](#offline-sync-cloud--edge)
 - [Helper Functions Reference](#helper-functions-reference)
   - [Type Conversion](#type-conversion)
   - [Type Checking](#type-checking)
@@ -1090,6 +1091,92 @@ app.Get("/products/:id", func(req *yekonga.Request, res *yekonga.Response) {
 
 ---
 
+## Offline Sync (Cloud + Edge)
+
+One app can run in two places at once and keep both copies of the data in step:
+
+- **Cloud** (`sync.role: "cloud"`): the central server. It serves every tenant online, including tenants that only ever work online.
+- **Edge** (`sync.role: "edge"`): the same app installed on a server at a tenant's premises, holding only that tenant's data. People on the local network keep working when the internet is down. Desktop and web clients talk to the edge on the LAN, or to the cloud from anywhere.
+
+The edge always starts the connection, so it needs no public address. Each round it downloads its data the first time, pushes its own changes, then pulls the cloud's. A round runs every `intervalSeconds` and a few seconds after a local write. While the cloud is unreachable, rounds fail quietly and resume where they stopped once it's back.
+
+### How it works
+
+- Every write made through `ModelQuery` (REST, GraphQL, cloud functions, triggers, cron jobs) to a synced model goes into a `SyncChange` log with a copy of the record. The log is what gets exchanged, so writes made straight to the database, bypassing the framework, aren't synced.
+- Records keep their ObjectIDs everywhere, so records created offline on two sides never clash.
+- Changes are merged **field by field**: if the edge changed `grade` and the cloud changed `notes`, both survive. If both changed the same field, the later change wins (a hybrid logical clock orders changes across servers, so keep server clocks roughly right with NTP). With `strategy: "manual"` the local value is kept and the other one is saved in `SyncConflict` for an admin to review.
+- A delete loses to a later change to the same record, and the other way round.
+- Received changes don't run triggers again: their side effects (SMS, emails, derived writes) already happened where the change was made, and derived writes arrive as changes of their own.
+
+### What each edge gets (scope)
+
+| Scope | Default for | An edge gets |
+|-------|-------------|--------------|
+| `tenant` | models with a `tenantId` field | its tenant's records |
+| `tenantSelf` | `Tenant` | its own tenant record |
+| `relation` | `User` (through `TenantUser.userId`) | records linked to its tenant. Password hashes come too, so users can sign in offline. A user linked later comes down with the link |
+| `global` | models without `tenantId` | every record |
+
+The cloud checks every pushed change: an edge can't change another tenant's records, and the tenant id is always set from its credentials.
+
+### Who can write (owner)
+
+`any` (the default for tenant data) lets both sides write. `cloud` makes a model read-only on edges: this is the default for the tenant record, billing, and `global` models (an edge changing them would change them for every tenant). `edge` makes a model read-only on the cloud for tenants that run an edge; tenants without one can still edit it online.
+
+Not synced by default, because they belong to one server: `RefreshToken`, `LoginAttempt`, `UserVerification`, `IpAccessRule`, `SocketMessage`, `UserDeviceCommand`, `PaymentProviderRequest`, `AuditTrail`. List one in `sync.models` to sync it anyway. Each side issues its own login tokens.
+
+### Setting up
+
+1. On the cloud, turn sync on:
+
+```json
+"sync": { "enabled": true, "role": "cloud" }
+```
+
+2. Register each edge on the cloud, from Go or over HTTP with the master key. The key is shown once; only its hash is stored.
+
+```go
+nodeId, nodeKey, err := app.CreateSyncNode(tenantId, "Main office")
+```
+
+```bash
+curl -X POST https://app.example.com/sync/nodes -H "master-key: $MASTER_KEY" \
+  -H "Content-Type: application/json" -d '{"tenantId": "...", "name": "Main office"}'
+```
+
+3. Install the same app on the edge server, with its own database and:
+
+```json
+"sync": {
+  "enabled": true,
+  "role": "edge",
+  "upstreamUrl": "https://app.example.com",
+  "nodeId": "<nodeId>",
+  "nodeKey": "<nodeKey>",
+  "tenantId": "<tenantId>",
+  "models": {
+    "Invoice": { "owner": "cloud" },
+    "Mark": { "strategy": "manual" }
+  }
+}
+```
+
+Give the cloud the same `models` settings. On the edge, requests on hosts that match no tenant domain (the LAN address) are served as `tenantId`.
+
+To cut an edge off (a lost or replaced server), call `app.SetSyncNodeActive(nodeId, false)` on the cloud. Its requests are then refused; register a new node for the replacement.
+
+### On the edge
+
+```go
+app.SyncNow()              // start a round now, e.g. from a "sync" button
+err := app.SyncOnce()      // run a round and wait for it
+status := app.SyncStatus() // online, lastSyncAt, lastError, pending, openConflicts
+```
+
+`GET /sync/status` returns the same to signed-in users, for an "offline, 12 changes pending" indicator.
+
+---
+
 ## Helper Functions Reference
 
 The helper package provides 120+ utility functions for common operations.
@@ -1961,7 +2048,7 @@ YekongaConfig parameters:
 | `namingConvention` | string | Table naming convention |
 | `columnNamingConvention` | string | Column naming convention |
 | `namingConventionOptions` | []string | Available naming conventions |
-| `databasePrefix` | string | When set, collections are stored in `<databasePrefix>_<group>` databases on the `database` connection, e.g. `yekonga_authorizations`, `yekonga_tenants`, `yekonga_app` (built-in groups: `authorizations`, `tenants`, `tenant_catches`, `billing`, `payments`, `extra`; the collections in `database.json`: `app`); empty = everything in `database.databaseName` |
+| `databasePrefix` | string | When set, collections are stored in `<databasePrefix>_<group>` databases on the `database` connection, e.g. `yekonga_authorizations`, `yekonga_tenants`, `yekonga_app` (built-in groups: `authorizations`, `tenants`, `tenant_catches`, `billing`, `payments`, `extra`, `sync`; the collections in `database.json`: `app`); empty = everything in `database.databaseName` |
 | `public` | []string | Public routes/actions |
 | `cloud` | string | Cloud provider name |
 | `logFile` | string | Log file path |
@@ -1979,6 +2066,7 @@ YekongaConfig parameters:
 | `ports` | [object](#ports-configuration) | Server port settings |
 | `mail` | [object](#mail-configuration) | Email configuration |
 | `adminCredential` | [object](#admin-credential) | Admin user credentials |
+| `sync` | [object](#sync-configuration) | Cloud/edge offline sync |
 
 ### Nested Configuration Objects
 
@@ -2079,6 +2167,25 @@ YekongaConfig parameters:
 |----------|------|-------------|
 | `username` | interface{} | Admin username |
 | `password` | interface{} | Admin password |
+
+#### Sync Configuration
+
+See [Offline Sync](#offline-sync-cloud--edge).
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `enabled` | bool | Turn sync on (needs `mongodb`, `mysql` or `sql`; the `local` file database can't sync) |
+| `role` | string | `cloud` (the central server) or `edge` (an on-premises server for one tenant) |
+| `route` | string | Route prefix of the cloud's sync endpoints; empty = `/sync` |
+| `upstreamUrl` | string | Edge: the cloud's base URL |
+| `nodeId` | string | Edge: its `SyncNode` id, from `CreateSyncNode` |
+| `nodeKey` | string | Edge: the key issued with it |
+| `tenantId` | string | Edge: the tenant it serves (required with `hasTenant`) |
+| `intervalSeconds` | int | Edge: seconds between sync rounds; 0 = 30. A local write also starts one a few seconds later |
+| `batchSize` | int | Changes per request; 0 = 500 |
+| `retentionDays` | int | Days a change stays in the log; 0 = 30, negative = forever. An edge offline longer downloads its data again |
+| `excludeModels` | []string | Models never synced |
+| `models` | object | Per-model settings by model name: `owner` (`any`, `cloud`, `edge`), `strategy` (`lastWriteWins`, `manual`), `scope` (`tenant`, `global`, `relation`), `through` (`<Model>.<field>` for `relation`) |
 
 ### Example Configuration
 

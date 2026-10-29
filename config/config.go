@@ -207,6 +207,35 @@ type DatabaseSettings struct { // Database configuration
 	DisableAutoMigrate            bool `json:"disableAutoMigrate"`            // MySQL/SQL: skip creating missing tables and columns from database.json at startup
 }
 
+type SyncRole string
+
+const (
+	SyncRoleCloud SyncRole = "cloud" // The central server: serves every tenant online and the edges' sync requests
+	SyncRoleEdge  SyncRole = "edge"  // An on-premises server for one tenant: works offline, syncs with the cloud when it can reach it
+)
+
+type SyncModel struct { // How one model syncs; the cloud and its edges should use the same settings
+	Owner    string `json:"owner"`    // Side allowed to write it: "any", "cloud" or "edge"; the other side has it read-only. Empty = "cloud" for billing and data shared by all tenants, "any" otherwise
+	Strategy string `json:"strategy"` // When both sides changed the same field while apart: "lastWriteWins" (default: the later change is kept) or "manual" (the local value is kept and the incoming one is held in a SyncConflict for an admin)
+	Scope    string `json:"scope"`    // Records an edge gets: "tenant" (its tenant's; default for models with tenantId), "global" (all; default otherwise), "relation" (those linked to its tenant through `through`)
+	Through  string `json:"through"`  // For scope "relation": <Model>.<field> holding this model's ids for a tenant, e.g. "TenantUser.userId" (the default for User)
+}
+
+type Sync struct { // Two-way data sync between the cloud server and on-premises (edge) servers
+	Enabled         bool                 `json:"enabled"`         // Enable sync; needs a mongodb, mysql or sql database
+	Role            SyncRole             `json:"role"`            // "cloud" or "edge"
+	Route           string               `json:"route"`           // Route prefix of the cloud's sync endpoints; empty = /sync
+	UpstreamUrl     string               `json:"upstreamUrl"`     // Edge: the cloud server's base URL, e.g. https://app.example.com
+	NodeId          string               `json:"nodeId"`          // Edge: id of this edge's SyncNode record on the cloud (see CreateSyncNode)
+	NodeKey         string               `json:"nodeKey"`         // Edge: the secret key issued with that SyncNode
+	TenantId        string               `json:"tenantId"`        // Edge: tenant this edge serves; requests on hosts that match no tenant (a LAN address) are served as this tenant
+	IntervalSeconds int                  `json:"intervalSeconds"` // Edge: seconds between sync rounds; 0 = default (30). A local write also starts a round a few seconds later
+	BatchSize       int                  `json:"batchSize"`       // Changes per push/pull request; 0 = default (500)
+	RetentionDays   int                  `json:"retentionDays"`   // Days a change stays in the SyncChange log; 0 = default (30), negative = forever. An edge offline for longer re-downloads its data
+	ExcludeModels   []string             `json:"excludeModels"`   // Models never synced, besides the built-in ones (sessions, login attempts, OTPs, logs)
+	Models          map[string]SyncModel `json:"models"`          // Per-model settings keyed by model name (e.g. "Invoice"); listing a model syncs it even if it's excluded by default
+}
+
 type ApiGateway struct { // API Gateway configuration for external services
 	SMS      SMSGatewayConfig      `json:"sms"`      // SMS gateway configuration
 	Whatsapp WhatsappGatewayConfig `json:"whatsapp"` // WhatsApp gateway configuration
@@ -277,7 +306,8 @@ type YekongaConfig struct {
 	Cache                   Cache            `json:"cache"`                   // In-memory caches configuration
 	Security                Security         `json:"security"`                // Security configuration
 	Database                DatabaseSettings `json:"database"`                // Database configuration
-	DatabasePrefix          string           `json:"databasePrefix"`          // When set, collections go to <databasePrefix>_<group> databases (built-in: authorizations, tenants, tenant_catches, billing, payments, extra; database.json's: app); empty = all on database.databaseName
+	DatabasePrefix          string           `json:"databasePrefix"`          // When set, collections go to <databasePrefix>_<group> databases (built-in: authorizations, tenants, tenant_catches, billing, payments, extra, sync; database.json's: app); empty = all on database.databaseName
+	Sync                    Sync             `json:"sync"`                    // Cloud/edge data sync configuration
 	Authentication          Authentication   `json:"authentication"`          // Authentication configuration
 	Ports                   Ports            `json:"ports"`                   // Port configuration
 	Mail                    Mail             `json:"mail"`                    // Mail configuration

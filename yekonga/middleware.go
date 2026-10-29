@@ -73,6 +73,12 @@ func ClientMiddleware(req *Request, res *Response) (int, error) {
 }
 
 func TenantCatchMiddleware(req *Request, res *Response) (int, error) {
+	// An edge calls the cloud's sync endpoints on any host; its tenant comes
+	// from its SyncNode.
+	if req.App.isSyncPath(req.HttpRequest.URL.Path) {
+		return http.StatusOK, nil
+	}
+
 	client := *req.Client()
 	host := client.OriginDomain()
 	// console.Log("host", client)
@@ -353,6 +359,11 @@ func ApplicationIDMiddleware(req *Request, res *Response) (int, error) {
 	// Payment gateways can't send the application key; their webhooks are
 	// authenticated by the provider's own signature check instead.
 	if req.App.isPaymentWebhookPath(req.HttpRequest.URL.Path) {
+		return http.StatusOK, nil
+	}
+
+	// Edges authenticate to the sync endpoints with their node key.
+	if req.App.isSyncPath(req.HttpRequest.URL.Path) {
 		return http.StatusOK, nil
 	}
 

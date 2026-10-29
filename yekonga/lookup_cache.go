@@ -149,6 +149,14 @@ func (y *YekongaData) tenantByHost(host string) (tenant *datatype.DataMap, tenan
 		},
 	})
 
+	if edgeTenantId := y.sync.edgeTenantId(); helper.IsEmpty(tenant) && edgeTenantId != "" {
+		// An edge is reached on LAN addresses no tenant has as its domain;
+		// there it serves its own tenant.
+		tenant = y.ModelQuery(tenantModelName).SkipTenant().SkipBeforeCommit().FindOne(datatype.DataMap{
+			"_id": edgeTenantId,
+		})
+	}
+
 	if helper.IsEmpty(tenant) {
 		tenant = nil
 	} else if _, ok := y.models[tenantConfigModelName]; ok {

@@ -101,6 +101,7 @@ type YekongaData struct {
 	tenantCatchCache       *lookupCache[*datatype.DataMap]
 	userCache              *lookupCache[*datatype.DataMap]
 	useMultipleDatabases   bool
+	sync                   *syncEngine // nil unless config sync.enabled
 	Config                 *mainConfig.YekongaConfig
 	RootPath               string
 	IsDev                  bool
@@ -173,6 +174,10 @@ func setServerConfigMultiple(config mainConfig.YekongaConfig, databaseStructures
 	}
 	go Server.ensureIndexes()
 	Server.ensureSQLSchema()
+	Server.sync = newSyncEngine(Server)
+	if Server.sync != nil {
+		Server.sync.loadClocks()
+	}
 	Server.initialize()
 	Server.cronjob = NewCronjob(Server)
 	Server.setNotification()
@@ -946,6 +951,7 @@ func (y *YekongaData) Start(address interface{}) {
 
 	logRunningServer(serverPort, y.Config.Ports.Secure)
 	y.runWhenReady()
+	y.sync.start()
 
 	httpServer := y.newHTTPServer(serverPort)
 
