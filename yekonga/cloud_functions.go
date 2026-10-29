@@ -58,6 +58,7 @@ const (
 type ContextKey string
 
 const (
+	TokenKey            ContextKey = "token"
 	AccessTokenKey      ContextKey = "access_token"
 	RefreshTokenKey     ContextKey = "refresh_token"
 	UserInfoPayloadKey  ContextKey = "userInfoPayload"

@@ -214,8 +214,13 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 				username = helper.PhoneFormat(username)
 			}
 			if helper.IsNotEmpty(username) {
-				// user = g.yekonga.GetUser(username, false)
-				u := g.yekonga.OTPVerification(username, password, usernameType, true, req.Request)
+				var u *datatype.DataMap
+				if loginType == "password" {
+					// AttemptLogin checks the password hash; only an existing user may try.
+					u = g.yekonga.ModelQuery("User").SkipTenant().SkipBeforeCommit().SetRequest(req.Request, &Response{}).Where("username", username).FindOne(nil)
+				} else {
+					u = g.yekonga.OTPVerification(username, password, usernameType, true, req.Request)
+				}
 				if helper.IsNotEmpty(u) {
 					user = *u
 				}
@@ -293,12 +298,15 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							user[helper.ToVariable(string(AccessTokenKey))] = accessToken
 							user[helper.ToVariable(string(RefreshTokenKey))] = refreshToken
 						} else {
+							user[helper.ToVariable(string(TokenKey))] = "Cookie is set"
 							user[helper.ToVariable(string(AccessTokenKey))] = "Cookie is set"
 							user[helper.ToVariable(string(RefreshTokenKey))] = "Cookie is set"
 						}
 
 						g.yekonga.setAuthCookies(req, accessToken, refreshToken, moduleName)
 					}
+
+					// console.Info("cookieEnabled", cookieEnabled, user)
 
 					return user, nil
 				} else if e != nil {
