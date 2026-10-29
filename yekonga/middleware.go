@@ -164,6 +164,8 @@ func (y *YekongaData) tokenOptionalPaths() *tokenPaths {
 				y.AppendBaseUrl("tenant-config"),
 				y.AppendBaseUrl("theme.css"),
 				y.AppendBaseUrl("custom-style.css"),
+				y.AppendBaseUrl("generate/qrcode.png"),
+				y.AppendBaseUrl("generate/qrcode.svg"),
 				y.AppendBaseUrl(config.RestApi),
 				y.AppendBaseUrl(config.RestAuthApi),
 				y.AppendBaseUrl(config.Graphql.ApiRoute),

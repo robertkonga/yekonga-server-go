@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	_ "image/gif"  // register decoder for QR icons
+	_ "image/jpeg" // register decoder for QR icons
 	"image/png"
 	"io"
 	"log"
@@ -2193,6 +2195,9 @@ func GenerateQR(content string, outputPath interface{}) error {
 	return GenerateQRWithIcon(content, "", outputPath)
 }
 
+// GenerateQRWithIcon writes a QR code to outputPath, optionally with an icon in
+// the center. The format follows the output extension: ".svg" writes an SVG,
+// anything else writes a PNG. An empty outputPath writes a PNG with a random name.
 func GenerateQRWithIcon(content string, iconPath string, outputPath interface{}) error {
 	size := 512
 	padding := 10
@@ -2205,6 +2210,34 @@ func GenerateQRWithIcon(content string, iconPath string, outputPath interface{})
 	// Remove default border
 	qr.DisableBorder = true
 
+	if IsEmpty(outputPath) {
+		outputPath = GetPath("./" + UUID() + ".png")
+	}
+
+	output := ToString(outputPath)
+
+	var data []byte
+	if strings.EqualFold(filepath.Ext(output), ".svg") {
+		data, err = qrToSVG(qr, iconPath, size, padding)
+	} else {
+		data, err = qrToPNG(qr, iconPath, size, padding)
+	}
+	if err != nil {
+		return err
+	}
+
+	os.MkdirAll(filepath.Dir(output), os.ModePerm)
+
+	// Save to file
+	if err := os.WriteFile(output, data, 0644); err != nil {
+		console.Warn("Create", output, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func qrToPNG(qr *qrcode.QRCode, iconPath string, size int, padding int) ([]byte, error) {
 	// Create the QR image (e.g., 512x512)
 	qrImg := qr.Image(size)
 
@@ -2243,13 +2276,13 @@ func GenerateQRWithIcon(content string, iconPath string, outputPath interface{})
 		// 4. Open the Favicon/Icon
 		file, err := os.Open(iconPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		defer file.Close()
 
 		iconImg, _, err := image.Decode(file)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		// Draw a white background for the icon
 		whiteRect := image.Rect(0, 0, int(iconSize)+16, int(iconSize)+16)
@@ -2263,22 +2296,65 @@ func GenerateQRWithIcon(content string, iconPath string, outputPath interface{})
 		draw.Draw(finalImg, scaledIcon.Bounds().Add(offset), scaledIcon, image.Point{}, draw.Over)
 	}
 
-	if IsEmpty(outputPath) {
-		outputPath = GetPath("./" + UUID() + ".png")
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, finalImg); err != nil {
+		return nil, err
 	}
 
-	output := ToString(outputPath)
-	os.MkdirAll(filepath.Dir(output), os.ModePerm)
+	return buf.Bytes(), nil
+}
 
-	// 6. Save to file
-	out, err := os.Create(output)
-	if err != nil {
-		console.Warn("Create", output, err.Error())
-		return err
+func qrToSVG(qr *qrcode.QRCode, iconPath string, size int, padding int) ([]byte, error) {
+	bitmap := qr.Bitmap()
+	modules := len(bitmap)
+	newSize := size + (padding * 2)
+
+	// Dark modules as one path in module units, merging horizontal runs
+	var d strings.Builder
+	for y, row := range bitmap {
+		for x := 0; x < len(row); {
+			if !row[x] {
+				x++
+				continue
+			}
+			run := 1
+			for x+run < len(row) && row[x+run] {
+				run++
+			}
+			fmt.Fprintf(&d, "M%d %dh%dv1h-%dz", x, y, run, run)
+			x += run
+		}
 	}
-	defer out.Close()
 
-	return png.Encode(out, finalImg)
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" shape-rendering="crispEdges">`, newSize, newSize, newSize, newSize)
+	fmt.Fprintf(&buf, `<rect width="%d" height="%d" fill="#ffffff"/>`, newSize, newSize)
+	fmt.Fprintf(&buf, `<path transform="translate(%d %d) scale(%s)" fill="#000000" d="%s"/>`,
+		padding, padding, strconv.FormatFloat(float64(size)/float64(modules), 'f', -1, 64), d.String())
+
+	if IsNotEmpty(iconPath) {
+		// Icon is ~20% of the QR code size, centered on a white square
+		iconSize := size / 5
+		offset := (newSize - iconSize) / 2
+
+		data, err := os.ReadFile(iconPath)
+		if err != nil {
+			return nil, err
+		}
+
+		mimeType := http.DetectContentType(data)
+		if strings.EqualFold(filepath.Ext(iconPath), ".svg") {
+			mimeType = "image/svg+xml"
+		}
+
+		fmt.Fprintf(&buf, `<rect x="%d" y="%d" width="%d" height="%d" fill="#ffffff"/>`, offset-8, offset-8, iconSize+16, iconSize+16)
+		fmt.Fprintf(&buf, `<image x="%d" y="%d" width="%d" height="%d" preserveAspectRatio="xMidYMid meet" href="data:%s;base64,%s"/>`,
+			offset, offset, iconSize, iconSize, mimeType, base64.StdEncoding.EncodeToString(data))
+	}
+
+	buf.WriteString(`</svg>`)
+
+	return buf.Bytes(), nil
 }
 
 func ToBase64Image(filePath string) string {

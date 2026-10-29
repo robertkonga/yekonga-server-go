@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/robertkonga/yekonga-server-go/datatype"
 	"github.com/robertkonga/yekonga-server-go/helper"
@@ -317,6 +319,56 @@ func (y *YekongaData) initializerOtherRoutes() {
 		res.Download(file, title)
 	})
 
+	y.Get("/generate/qrcode.:ext", func(req *Request, res *Response) {
+		ext := strings.ToLower(req.Param("ext"))
+		data := req.Query("data")
+
+		contentType := map[string]string{
+			"png": "image/png",
+			"svg": "image/svg+xml",
+		}[ext]
+		if contentType == "" {
+			res.Status(http.StatusBadRequest)
+			res.Json(datatype.DataMap{"error": "Unsupported extension, use png or svg"})
+			return
+		}
+		if data == "" {
+			res.Status(http.StatusBadRequest)
+			res.Json(datatype.DataMap{"error": "Query key 'data' is required"})
+			return
+		}
+
+		iconPath, cleanup := y.qrIconPath(req)
+		defer cleanup()
+
+		// GenerateQRWithIcon picks the format from the output extension.
+		file := filepath.Join(os.TempDir(), helper.UUID()+"."+ext)
+		defer os.Remove(file)
+
+		err := helper.GenerateQRWithIcon(data, iconPath, file)
+		if err != nil && iconPath != "" {
+			// The favicon may be in a format that can't be decoded (e.g. .ico),
+			// so fall back to a plain QR code rather than failing the request.
+			console.Warn("qrcode icon", iconPath, err.Error())
+			err = helper.GenerateQRWithIcon(data, "", file)
+		}
+		if err != nil {
+			res.Status(http.StatusInternalServerError)
+			res.Json(datatype.DataMap{"error": err.Error()})
+			return
+		}
+
+		content, err := os.ReadFile(file)
+		if err != nil {
+			res.Status(http.StatusInternalServerError)
+			res.Json(datatype.DataMap{"error": err.Error()})
+			return
+		}
+
+		res.SetHeader("content-type", contentType)
+		res.Byte(content)
+	})
+
 	y.Get("/yekonga/yekonga.js", func(req *Request, res *Response) {
 		scripts := ""
 		wetConfig := y.GetWebConfig(req)
@@ -415,6 +467,65 @@ func (y *YekongaData) initializerOtherRoutes() {
 		res.SetHeader("content-type", "image/jpeg")
 		res.Byte(content)
 	})
+}
+
+// qrIconPath returns a local file for the tenant's favicon (or the branding
+// favicon when there is no tenant), and a cleanup func for any temp download.
+// It returns "" when there is no usable favicon.
+func (y *YekongaData) qrIconPath(req *Request) (string, func()) {
+	noop := func() {}
+
+	faviconUrl := y.Config.Branding.FaviconUrl
+	if tenantConfig := y.GetTenantConfig(req); tenantConfig != nil && tenantConfig.FaviconUrl != "" {
+		faviconUrl = tenantConfig.FaviconUrl
+	}
+	if faviconUrl == "" {
+		return "", noop
+	}
+
+	u, err := url.Parse(faviconUrl)
+	if err != nil {
+		return "", noop
+	}
+
+	// Favicons served by this server live under public/, so prefer the local file.
+	urlPath := strings.TrimPrefix(u.Path, strings.TrimSuffix(y.Config.BaseUrl, "/"))
+	publicDir := helper.GetPath("public")
+	localFile := filepath.Join(publicDir, filepath.FromSlash(path.Clean("/"+urlPath)))
+	if info, err := os.Stat(localFile); err == nil && info.Mode().IsRegular() {
+		return localFile, noop
+	}
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", noop
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(faviconUrl)
+	if err != nil {
+		return "", noop
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", noop
+	}
+
+	file, err := os.CreateTemp("", "qr-icon-*"+path.Ext(u.Path))
+	if err != nil {
+		return "", noop
+	}
+	cleanup := func() { os.Remove(file.Name()) }
+
+	// Cap the download: a favicon has no business being large.
+	_, err = io.Copy(file, io.LimitReader(resp.Body, 5<<20))
+	file.Close()
+	if err != nil {
+		cleanup()
+		return "", noop
+	}
+
+	return file.Name(), cleanup
 }
 
 func (y *YekongaData) initializerSocketRoutes() {
