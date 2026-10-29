@@ -238,6 +238,7 @@ type YekongaConfig struct {
 	Debug                   bool             `json:"debug"`                   // Enable or disable debug mode
 	Cors                    bool             `json:"cors"`                    // Enable or disable CORS
 	ResetOTP                bool             `json:"resetOTP"`                // Enable or disable OTP reset
+	FixedOTP                string           `json:"fixedOTP"`                // Use this OTP code instead of a random one (ignored in production)
 	Environment             string           `json:"environment"`             // Application environment (e.g., development, production)
 	HasTenant               bool             `json:"hasTenant"`               // Enable multi-tenancy
 	TenantOnly              bool             `json:"tenantOnly"`              // Restrict access to tenants only

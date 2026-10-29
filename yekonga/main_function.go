@@ -92,6 +92,22 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 	return user
 }
 
+// fixedOTPCode is Config.FixedOTP outside production, so every OTP can be a
+// known code while developing.
+func fixedOTPCode() string {
+	if config.Config.Environment == "production" {
+		return ""
+	}
+	return config.Config.FixedOTP
+}
+
+func newOTPCode() string {
+	if fixed := fixedOTPCode(); fixed != "" {
+		return fixed
+	}
+	return helper.GetRandomInt(4)
+}
+
 func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string, canCreate bool, target string, req *Request) *datatype.DataMap {
 	const userModelName = "User"
 	const tenantUserModelName = "TenantUser"
@@ -162,8 +178,10 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 			var u interface{}
 
 			if helper.IsEmpty(otpCode) {
-				otpCode = helper.GetRandomInt(4)
+				otpCode = newOTPCode()
 				otpCreatedAt = helper.GetTimestamp(nil)
+			} else if fixed := fixedOTPCode(); fixed != "" {
+				otpCode = fixed
 			}
 
 			userBody := datatype.DataMap{
@@ -186,7 +204,7 @@ func (y *YekongaData) SetOTPVerification(value interface{}, usernameType string,
 				user = v
 			}
 		} else if isOwner || isTenantUser || canCreate || notTenant {
-			otpCode = helper.GetRandomInt(4)
+			otpCode = newOTPCode()
 			otpCreatedAt = helper.GetTimestamp(nil)
 			var u interface{}
 
