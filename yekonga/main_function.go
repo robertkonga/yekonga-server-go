@@ -635,8 +635,9 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 			Whatsapp:     helper.GetValueOfString(user, "whatsapp"),
 			ModuleName:   input.ModuleName,
 			Roles:        make([]string, 0), // ["admin", "finance"],
-			Permissions:  permissions,       // ["payroll.read", "asset.write"],
-			ExpiresAt:    time.Now().Add(time.Minute * accessTokenExpireTime),
+			Permissions:  make([]string, 0), // ["payroll.read", "asset.write"],
+			// Permissions:  permissions,       // ["payroll.read", "asset.write"],
+			ExpiresAt: time.Now().Add(time.Minute * accessTokenExpireTime),
 		}
 
 		// console.Info("payloadData", payloadData)

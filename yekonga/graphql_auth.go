@@ -268,7 +268,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 						profileId := helper.GetValueOfString(user, "profileId")
 						tenantId := helper.GetValueOfString(user, "tenantId")
 						adminId := helper.GetValueOfString(user, "adminId")
-						permissions := g.yekonga.GetUserPermission(tenantId, userId, moduleName)
+						// permissions := g.yekonga.GetUserPermission(tenantId, userId, moduleName)
 						accessTokenExpireTime := req.App.Config.AccessTokenExpireTime
 						if accessTokenExpireTime <= 0 {
 							accessTokenExpireTime = 15 // default 15 minutes
@@ -287,7 +287,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							Whatsapp:     helper.GetValueOfString(user, "whatsapp"),
 							ModuleName:   moduleName,
 							Roles:        make([]string, 0), // ["admin", "finance"],
-							Permissions:  permissions,       // ["payroll.read", "asset.write"],
+							Permissions:  make([]string, 0), // ["payroll.read", "asset.write"],
 							ExpiresAt:    helper.GetTimestamp(nil).Add(time.Minute * accessTokenExpireTime),
 						}
 
