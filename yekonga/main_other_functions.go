@@ -91,6 +91,7 @@ func (y *YekongaData) GetTenantConfig(req *Request) *config.TenantConfig {
 			if err != nil {
 				return nil
 			}
+			config.ApplyDefaults()
 			return &config
 		}
 	}

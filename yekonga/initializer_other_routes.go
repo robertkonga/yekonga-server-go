@@ -356,8 +356,8 @@ func (y *YekongaData) initializerOtherRoutes() {
 		res.Byte([]byte(scripts))
 	})
 
-	y.Get("/theme.css", runCustomCSS(y))
-	y.Get("/custom-style.css", runCustomCSS(y))
+	y.Get("/theme.css", runCustomCSS(y, true))
+	y.Get("/custom-style.css", runCustomCSS(y, false))
 
 	if y.Config.ApiPlaygroundEnable || y.Config.AuthPlaygroundEnable {
 		y.Get("/playground", func(req *Request, res *Response) {
@@ -440,18 +440,24 @@ func (y *YekongaData) initializerSocketRoutes() {
 	})
 }
 
-func runCustomCSS(y *YekongaData) Handler {
+// runCustomCSS serves the SetCustomCSS output. With themeFallback, a missing
+// or empty custom CSS is replaced by the tenant's (or default) theme variables.
+func runCustomCSS(y *YekongaData, themeFallback bool) Handler {
 	return func(req *Request, res *Response) {
-		content := "/* @charset \"UTF-8\"; */" +
-			"" +
-			""
+		content := "/* @charset \"UTF-8\"; */\n"
+		css := ""
 
 		custom, err := y.CustomCSS(req, res)
 		if err == nil && helper.IsNotEmpty(custom) {
 			if str, ok := custom.(string); ok {
-				content += str
+				css = str
 			}
 		}
+
+		if themeFallback && strings.TrimSpace(css) == "" {
+			css = ThemeCSS(y.requestTheme(req), req.Client().OriginDomain())
+		}
+		content += css
 
 		res.SetHeader("Cache-Control", "public, max-age=0")
 		res.SetHeader("content-type", "text/css; charset=utf-8")
