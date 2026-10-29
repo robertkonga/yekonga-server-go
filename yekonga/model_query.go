@@ -56,6 +56,8 @@ type DataModelQuery struct {
 	groupByRaw       map[string]interface{}
 	skipBeforeCommit bool
 	skipTenant       bool
+	// Why a trigger refused the last write, for the client (see VetoReason).
+	vetoReason error
 }
 
 func NewDataModelQuery(model *DataModel) DataModelQuery {
@@ -1355,9 +1357,32 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 		// if m.Model.Name == "Outlet" {
 		// 	logger.Error("runTriggerAction", action, err.Error())
 		// }
+
+		// A trigger that refuses a write (returns false) explains why in its error.
+		if v, ok := result.(bool); ok && !v {
+			m.vetoReason = err
+		}
 	}
 
 	return result
+}
+
+// VetoReason is the error a trigger gave when it refused this query's write,
+// or nil when no trigger refused it.
+func (m *DataModelQuery) VetoReason() error {
+	return m.vetoReason
+}
+
+// failureMessage explains a write that did not happen: the refusing trigger's
+// reason, else the error the write returned, else fallback.
+func failureMessage(model *DataModelQuery, outcome interface{}, fallback string) string {
+	if reason := model.VetoReason(); reason != nil && reason.Error() != "" {
+		return reason.Error()
+	}
+	if err, ok := outcome.(error); ok && err != nil {
+		return err.Error()
+	}
+	return fallback
 }
 
 func (m *DataModelQuery) addTenantId() {

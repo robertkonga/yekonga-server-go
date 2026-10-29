@@ -1215,6 +1215,8 @@ func (g *GraphqlAutoBuild) getMutationCreateField(collection string, foreignKey 
 				result["status"] = true
 				result["message"] = "Success"
 				result["data"] = helper.ToMap[interface{}](created)
+			} else {
+				result["message"] = failureMessage(model, created, "Fail")
 			}
 			// console.Success("create", result)
 
@@ -1421,6 +1423,8 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 				result["status"] = true
 				result["message"] = "Success"
 				result["data"] = helper.ToMap[interface{}](updated)
+			} else {
+				result["message"] = failureMessage(model, updated, "Fail")
 			}
 
 			// console.Success("updated", result)
@@ -1458,7 +1462,8 @@ func (g *GraphqlAutoBuild) getMutationDeleteField(collection string, foreignKey 
 			result["status"] = false
 			result["message"] = "Fail"
 			result["data"] = nil
-			deleted := helper.ToMap[interface{}](model.Delete(nil))
+			outcome := model.Delete(nil)
+			deleted := helper.ToMap[interface{}](outcome)
 			deletedCount := helper.ToFloat(helper.GetValueOf(deleted, "DeletedCount"))
 
 			// console.Log("deletedCount", deletedCount)
@@ -1468,6 +1473,8 @@ func (g *GraphqlAutoBuild) getMutationDeleteField(collection string, foreignKey 
 				result["status"] = true
 				result["message"] = "Success"
 				result["data"] = nil
+			} else {
+				result["message"] = failureMessage(model, outcome, "Fail")
 			}
 
 			return result, nil
