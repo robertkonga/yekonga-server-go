@@ -181,6 +181,7 @@ func (y *YekongaData) tokenOptionalPaths() *tokenPaths {
 				y.AppendBaseUrl("me/*"),
 				y.AppendBaseUrl("refresh/*"),
 				y.AppendBaseUrl("download/*"),
+				y.AppendBaseUrl("download/drive/*"),
 				y.AppendBaseUrl("translations/*"),
 				y.AppendBaseUrl("image/*"),
 			},

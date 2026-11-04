@@ -1177,6 +1177,38 @@ status := app.SyncStatus() // online, lastSyncAt, lastError, pending, openConfli
 
 ---
 
+## File Uploads
+
+`POST /upload` (one file, form field `file`) and `POST /upload-files` (several, form field `files`) take `multipart/form-data` and return `{"status": "success", "files": ["<url>", ...]}`. PNG, JPEG and WebP images are resized to 1400px wide and saved as `.webp`.
+
+Where the files go is set by `storage` in `config.json`:
+
+```json
+"storage": {
+  "driver": "googleDrive",
+  "googleDrive": {
+    "keyFile": "./service-keys.json",
+    "folderId": "<drive folder id>",
+    "public": false
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `driver` | `local` (the default) saves to `public/uploads` and returns `/uploads/<name>` URLs. `googleDrive` uploads to Google Drive and returns `/download/drive/<fileId>.<ext>` URLs |
+| `googleDrive.keyFile` | Google service-account JSON key, looked up next to the executable and then in the working directory. Empty = `service-keys.json` |
+| `googleDrive.folderId` | Drive folder uploads go under. Share it with the service account's email (a service account has no storage of its own) |
+| `googleDrive.public` | Also make each file readable by anyone with its Drive link |
+
+Each tenant's uploads go into its own folder inside `folderId`, named `<tenant name> (<tenantId>)` and created on the tenant's first upload. The folder is tagged with the tenant ID in its Drive `appProperties` and found again by that tag, so renaming it in Drive is safe. If it is deleted, the next upload creates a new one. Uploads on a request with no tenant go straight into `folderId`.
+
+`GET /download/drive/:fileId` streams a Drive file through the server, so the Drive files don't need to be public. It is shown in the browser by default; add `?download` to save it, or `?title=report.pdf` to save it under that name.
+
+From Go, the same Drive calls are in the helper package: `helper.UploadGoogleDrive`, `helper.CreateGoogleDriveFolder`, `helper.ShareGoogleDriveFile` and `helper.DownloadGoogleDrive`.
+
+---
+
 ## Helper Functions Reference
 
 The helper package provides 120+ utility functions for common operations.

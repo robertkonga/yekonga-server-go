@@ -236,6 +236,23 @@ type Sync struct { // Two-way data sync between the cloud server and on-premises
 	Models          map[string]SyncModel `json:"models"`          // Per-model settings keyed by model name (e.g. "Invoice"); listing a model syncs it even if it's excluded by default
 }
 
+// Storage drivers for uploaded files (YekongaConfig.Storage.Driver).
+const (
+	StorageLocal       = "local"       // public/uploads on this server
+	StorageGoogleDrive = "googleDrive" // a Google Drive folder
+)
+
+type Storage struct { // Where the /upload and /upload-files routes put uploaded files
+	Driver      string             `json:"driver"`      // "local" (default) saves to public/uploads; "googleDrive" uploads to Google Drive and serves files back through /download/drive/:fileId
+	GoogleDrive GoogleDriveStorage `json:"googleDrive"` // Google Drive settings, used when driver is "googleDrive"
+}
+
+type GoogleDriveStorage struct { // Google Drive storage for uploaded files
+	KeyFile  string `json:"keyFile"`  // Path to the service-account JSON key; relative paths are looked up next to the executable, then in the working directory. Empty = service-keys.json
+	FolderId string `json:"folderId"` // Drive folder ID uploads go under (share it with the service account's email); each tenant gets its own subfolder here. Empty = the service account's own root
+	Public   bool   `json:"public"`   // Also make each uploaded file readable by anyone with its Drive link
+}
+
 type ApiGateway struct { // API Gateway configuration for external services
 	SMS      SMSGatewayConfig      `json:"sms"`      // SMS gateway configuration
 	Whatsapp WhatsappGatewayConfig `json:"whatsapp"` // WhatsApp gateway configuration
@@ -308,6 +325,7 @@ type YekongaConfig struct {
 	Database                DatabaseSettings `json:"database"`                // Database configuration
 	DatabasePrefix          string           `json:"databasePrefix"`          // When set, collections go to <databasePrefix>_<group> databases (built-in: authorizations, tenants, tenant_catches, billing, payments, extra, sync; database.json's: app); empty = all on database.databaseName
 	Sync                    Sync             `json:"sync"`                    // Cloud/edge data sync configuration
+	Storage                 Storage          `json:"storage"`                 // Uploaded files storage: local disk or Google Drive
 	Authentication          Authentication   `json:"authentication"`          // Authentication configuration
 	Ports                   Ports            `json:"ports"`                   // Port configuration
 	Mail                    Mail             `json:"mail"`                    // Mail configuration

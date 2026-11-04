@@ -135,11 +135,11 @@ var tenantConfigPrivateKeys = []string{"smtp", "sms", "whatsapp"}
 func (y *YekongaData) initializerOtherRoutes() {
 
 	y.All("/upload", func(req *Request, res *Response) {
-		uploadFileHandler(*res.httpResponseWriter, req.HttpRequest)
+		y.uploadFileHandler(*res.httpResponseWriter, req)
 	})
 
 	y.All("/upload-files", func(req *Request, res *Response) {
-		uploadMultipleFileHandler(*res.httpResponseWriter, req.HttpRequest)
+		y.uploadMultipleFileHandler(*res.httpResponseWriter, req)
 	})
 
 	y.All("/excel-to-csv", func(req *Request, res *Response) {
@@ -304,6 +304,10 @@ func (y *YekongaData) initializerOtherRoutes() {
 			"error": "Tenant config not found",
 		})
 	})
+
+	// Files uploaded with the googleDrive storage driver.
+	y.Get("/download/drive/:fileId", y.serveGoogleDriveFile)
+	y.Get("/download/drive/:fileId.:ext", y.serveGoogleDriveFile)
 
 	y.All("/download/:filename.:ext", func(req *Request, res *Response) {
 		filename := req.Param("filename")
@@ -641,7 +645,7 @@ func uploadExcelFileHandler(w http.ResponseWriter, r *http.Request) {
 		"csv":    fileData,
 	}
 
-	// 4. Encode directly to the response writer
+	// 3. Encode directly to the response writer
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		// If encoding fails, we can't change the header anymore,
 		// but we can log the error.
@@ -650,180 +654,96 @@ func uploadExcelFileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func uploadFileHandler(w http.ResponseWriter, r *http.Request) {
+// parseUploadForm checks the request is multipart and parses it, writing the
+// error response itself when it fails.
+func parseUploadForm(w http.ResponseWriter, r *http.Request) bool {
 	contentType := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(contentType, "multipart/form-data") {
 		http.Error(w, "Expected multipart/form-data", http.StatusUnsupportedMediaType)
-		return
+		return false
 	}
 
 	// to account for form headers and boundaries.
 	maxUploadSize := int64(310 << 20) // ~310 MB
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
-	// 1. Parse the multipart form (max 32MB in memory)
-	err := r.ParseMultipartForm(32 << 20)
-
-	if err != nil {
+	// Parse the multipart form (max 32MB in memory)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
 		console.Error(err.Error())
 		http.Error(w, "Form too large", http.StatusBadRequest)
+		return false
+	}
+
+	return true
+}
+
+func writeUploadedFiles(w http.ResponseWriter, fileNames []string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	data := map[string]interface{}{
+		"status": "success",
+		"files":  fileNames,
+	}
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		console.Error("Error encoding JSON:", err.Error())
+	}
+}
+
+// uploadTenantId is the tenant an upload belongs to ("" for none).
+func uploadTenantId(req *Request) string {
+	if tenantId := req.TenantId(); helper.IsNotEmpty(tenantId) {
+		return helper.ToString(tenantId)
+	}
+	return ""
+}
+
+// uploadFileHandler stores the single file sent as "file" with the
+// configured storage driver (config.storage) and returns its URL.
+func (y *YekongaData) uploadFileHandler(w http.ResponseWriter, req *Request) {
+	r := req.HttpRequest
+	if !parseUploadForm(w, r) {
 		return
 	}
 
-	fileNames := []string{}
-	// 2. Retrieve the file from form data
-	file, handler, err := r.FormFile("file")
-
+	_, fileHeader, err := r.FormFile("file")
 	if err != nil {
 		console.Error(err.Error())
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
 
-	// 3. Create the destination directory if it doesn't exist
-	uploadDir := filepath.Join(helper.GetPath("public"), "uploads")
-	os.MkdirAll(uploadDir, os.ModePerm)
-
-	fileExt := filepath.Ext(handler.Filename)
-	// 4. Create a local file to save the uploaded data
-	savedFile := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
-	dst, err := os.Create(savedFile)
+	uploadedUrl, err := y.saveUploadedFile(fileHeader, r.Host, uploadTenantId(req))
 	if err != nil {
+		console.Error("upload:", err.Error())
 		http.Error(w, "Error saving the file", http.StatusInternalServerError)
 		return
 	}
-	defer dst.Close()
-	uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(dst.Name()), r.Host)
-	fileNames = append(fileNames, uploadedUrl)
 
-	// 5. Copy the uploaded file to the destination
-	if _, err := io.Copy(dst, file); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
-		// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
-		targetFile := strings.TrimSuffix(savedFile, fileExt) + ".webp"
-
-		err := helper.ResizeFile(savedFile, targetFile, helper.ResizeOptions{
-			MaxWidth:     1400,                                              // 900 was default value
-			OutputFormat: strings.TrimPrefix(filepath.Ext(targetFile), "."), // "webp",
-			Quality:      80,
-		})
-		if err == nil {
-			savedFile = targetFile
-		}
-	}
-
-	// 1. Set the header so the client (Vue/Postman) knows it's JSON
-	w.Header().Set("Content-Type", "application/json")
-
-	// 2. Prepare your data
-	data := map[string]interface{}{
-		"status": "success",
-		"files":  fileNames,
-	}
-
-	// 4. Encode directly to the response writer
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// If encoding fails, we can't change the header anymore,
-		// but we can log the error.
-		fmt.Println("Error encoding JSON:", err)
-		fmt.Fprint(w, err.Error())
-	}
+	writeUploadedFiles(w, []string{uploadedUrl})
 }
 
-func uploadMultipleFileHandler(w http.ResponseWriter, r *http.Request) {
-	contentType := r.Header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "multipart/form-data") {
-		http.Error(w, "Expected multipart/form-data", http.StatusUnsupportedMediaType)
+// uploadMultipleFileHandler stores every file sent as "files" with the
+// configured storage driver (config.storage) and returns their URLs.
+func (y *YekongaData) uploadMultipleFileHandler(w http.ResponseWriter, req *Request) {
+	r := req.HttpRequest
+	if !parseUploadForm(w, r) {
 		return
 	}
 
-	// to account for form headers and boundaries.
-	maxUploadSize := int64(310 << 20) // ~310 MB
-	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-
-	// 1. Parse the multipart form (max 32MB in memory)
-	err := r.ParseMultipartForm(32 << 20)
-	if err != nil {
-		http.Error(w, "Forms too large", http.StatusBadRequest)
-		return
-	}
-
-	// 2. Get the files from the specific key
-	fileNames := []string{}
 	files := r.MultipartForm.File["files"]
-
-	uploadDir := filepath.Join(helper.GetPath("public"), "uploads")
-	os.MkdirAll(uploadDir, os.ModePerm)
+	fileNames := make([]string, 0, len(files))
 
 	for _, fileHeader := range files {
-		// Open the uploaded file
-		file, err := (*fileHeader).Open()
+		uploadedUrl, err := y.saveUploadedFile(fileHeader, r.Host, uploadTenantId(req))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer file.Close()
-
-		// 3. Create destination path
-		fileExt := filepath.Ext(fileHeader.Filename)
-		savedFile := filepath.Join(uploadDir, helper.GetHexString(24)+fileExt)
-		dst, err := os.Create(savedFile)
-		if err != nil {
-			console.Log("Saving file to:", err.Error())
-
+			console.Error("upload:", fileHeader.Filename, err.Error())
 			http.Error(w, "Unable to save file", http.StatusInternalServerError)
 			return
 		}
-		defer dst.Close()
-
-		console.Log("Saving file to:", savedFile)
-		// 4. Copy the data
-		if _, err := io.Copy(dst, file); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if helper.Contains([]string{".png", ".jpg", ".jpeg", ".webp"}, fileExt) {
-			// 5️⃣  Convert WebP input → JPEG output (WebP decode is supported)
-			targetFile := strings.TrimSuffix(savedFile, fileExt) + ".webp"
-
-			err := helper.ResizeFile(savedFile, targetFile, helper.ResizeOptions{
-				MaxWidth:     1400,                                              // 900 was default value
-				OutputFormat: strings.TrimPrefix(filepath.Ext(targetFile), "."), // "webp",
-				Quality:      80,
-			})
-			if err == nil {
-				savedFile = targetFile
-			}
-		}
-
-		uploadedUrl := helper.GetBaseUrl("uploads/"+filepath.Base(savedFile), r.Host)
 		fileNames = append(fileNames, uploadedUrl)
-
-		fmt.Printf("Saved: %s\n", fileHeader.Filename)
 	}
 
-	// 1. Set the header so the client (Vue/Postman) knows it's JSON
-	w.Header().Set("Content-Type", "application/json")
-
-	// 2. Prepare your data
-	data := map[string]interface{}{
-		"status": "success",
-		"files":  fileNames,
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-	// 4. Encode directly to the response writer
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// If encoding fails, we can't change the header anymore,
-		// but we can log the error.
-		fmt.Println("Error encoding JSON:", err)
-		fmt.Fprint(w, err.Error())
-	}
+	writeUploadedFiles(w, fileNames)
 }

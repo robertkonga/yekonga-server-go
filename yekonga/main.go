@@ -20,6 +20,7 @@ import (
 	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
+	"golang.org/x/sync/singleflight"
 )
 
 const COOKIE_ENABLED_KEY = "YEKONGA_ENABLED"
@@ -95,6 +96,9 @@ type YekongaData struct {
 	paymentControllerOnce  sync.Once
 	tenantPayments         map[string]*tenantPaymentEntry
 	tenantPaymentsMu       sync.Mutex
+	driveFolders           map[string]string // tenant ID -> its Google Drive upload folder ID
+	driveFoldersMu         sync.RWMutex
+	driveFolderFlight      singleflight.Group
 	tenantCache            *lookupCache[tenantRecords]
 	tokenPaths             *tokenPaths
 	tokenPathsOnce         sync.Once
@@ -178,6 +182,7 @@ func setServerConfigMultiple(config mainConfig.YekongaConfig, databaseStructures
 	if Server.sync != nil {
 		Server.sync.loadClocks()
 	}
+	Server.initStorage()
 	Server.initialize()
 	Server.cronjob = NewCronjob(Server)
 	Server.setNotification()
