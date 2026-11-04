@@ -286,6 +286,12 @@ func ConvertExcelToCSV(excelPath string) (string, error) {
 	return csvPath, nil
 }
 
+func Excel() *excelize.File {
+	f := excelize.NewFile()
+
+	return f
+}
+
 // Convert scientific notation to full number string
 func ScientificToString(value string) (string, error) {
 	f, err := strconv.ParseFloat(value, 64)

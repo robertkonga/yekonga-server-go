@@ -1688,6 +1688,21 @@ func GetMapValue(data interface{}, key string) interface{} {
 			return nil
 		}
 		m = *x
+	case bson.M:
+		m = x
+	case bson.D:
+		// Nested MongoDB documents decode as bson.D, an ordered key/value list.
+		first, rest, nested := strings.Cut(key, ".")
+		for _, e := range x {
+			if e.Key == first {
+				if !nested {
+					return e.Value
+				}
+				return GetMapValue(e.Value, rest)
+			}
+		}
+
+		return nil
 	}
 
 	if m != nil {
