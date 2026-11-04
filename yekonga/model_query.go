@@ -330,18 +330,9 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 	}
 
 	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeCreateTriggerAllAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
+		var ok bool
+		if data, ok = m.runInputTriggers(BeforeCreateTriggerAllAction, BeforeCreateTriggerAction, data); !ok {
 			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeCreateTriggerAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
 		}
 	}
 
@@ -355,17 +346,7 @@ func (m *DataModelQuery) Create(data datatype.DataMap) interface{} {
 		m.recordSyncChanges(syncActionCreate, []datatype.DataMap{*result}, nil)
 	}
 
-	triggerAfter := m.runTriggerAction(AfterCreateTriggerAllAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
-
-	triggerAfter = m.runTriggerAction(AfterCreateTriggerAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
+	result = m.runRecordTriggers(AfterCreateTriggerAllAction, AfterCreateTriggerAction, result)
 
 	if result != nil {
 		m.recordAuditChange("create", m.auditDocumentId(*result), nil, *result)
@@ -387,18 +368,9 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	m.addTenantId()
 
 	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAllAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
+		var ok bool
+		if data, ok = m.runInputTriggers(BeforeUpdateTriggerAllAction, BeforeUpdateTriggerAction, data); !ok {
 			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeUpdateTriggerAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
 		}
 	}
 
@@ -430,17 +402,7 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 		m.recordSyncChanges(syncActionUpdate, []datatype.DataMap{*result}, syncFields(formatted))
 	}
 
-	triggerAfter := m.runTriggerAction(AfterUpdateTriggerAllAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
-
-	triggerAfter = m.runTriggerAction(AfterUpdateTriggerAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
+	result = m.runRecordTriggers(AfterUpdateTriggerAllAction, AfterUpdateTriggerAction, result)
 
 	if result != nil {
 		var oldValues datatype.DataMap
@@ -466,18 +428,9 @@ func (m *DataModelQuery) UpdateMany(data datatype.DataMap, where interface{}) in
 	m.addTenantId()
 
 	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeUpdateTriggerAllAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
+		var ok bool
+		if data, ok = m.runInputTriggers(BeforeUpdateTriggerAllAction, BeforeUpdateTriggerAction, data); !ok {
 			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeUpdateTriggerAction, data)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			data = helper.ToDataMap(triggerBefore)
 		}
 	}
 
@@ -708,21 +661,10 @@ func (m *DataModelQuery) Delete(where interface{}) interface{} {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeDeleteTriggerAllAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeDeleteTriggerAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
+	if !m.skipBeforeCommit && !m.runWhereTriggers(BeforeDeleteTriggerAllAction, BeforeDeleteTriggerAction) {
+		return nil
 	}
+
 	// The deleted records' ids, for the audit trail and the sync log.
 	var auditOldValues *[]datatype.DataMap
 	if m.auditEnabled() || m.syncEnabled() {
@@ -814,40 +756,67 @@ func (m *DataModelQuery) prepareFind(where interface{}) bool {
 	m.WhereAll(where)
 	m.addTenantId()
 
-	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
+	if m.skipBeforeCommit {
+		return true
+	}
+
+	return m.runWhereTriggers(BeforeFindTriggerAllAction, BeforeFindTriggerAction)
+}
+
+// runWhereTriggers runs the all-models trigger, then the model's own trigger,
+// on the query's where. The model's trigger sees the all-models trigger's
+// changes. A trigger returning false vetoes the query (false is returned); one
+// returning a map has it merged into the where.
+func (m *DataModelQuery) runWhereTriggers(allAction, action TriggerAction) bool {
+	for _, a := range [...]TriggerAction{allAction, action} {
+		result := m.runTriggerAction(a, m.where)
+		if v, ok := result.(bool); ok && !v {
 			return false
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
 		}
 
-		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return false
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
+		if helper.IsMap(result) {
+			m.WhereAll(helper.ToDataMap(result))
 		}
 	}
 
 	return true
 }
 
-// finishFindOne runs the after-find triggers on a fetched record.
-func (m *DataModelQuery) finishFindOne(result *datatype.DataMap) *datatype.DataMap {
-	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
+// runInputTriggers runs the all-models trigger, then the model's own trigger,
+// on a write's input. A trigger returning false vetoes the write (ok is
+// false); one returning a map replaces the input.
+func (m *DataModelQuery) runInputTriggers(allAction, action TriggerAction, data datatype.DataMap) (datatype.DataMap, bool) {
+	for _, a := range [...]TriggerAction{allAction, action} {
+		result := m.runTriggerAction(a, data)
+		if v, ok := result.(bool); ok && !v {
+			return data, false
+		}
+
+		if helper.IsMap(result) {
+			data = helper.ToDataMap(result)
+		}
 	}
 
-	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
+	return data, true
+}
+
+// runRecordTriggers runs the all-models after-trigger, then the model's own,
+// on a single record. A trigger returning a map replaces the record.
+func (m *DataModelQuery) runRecordTriggers(allAction, action TriggerAction, result *datatype.DataMap) *datatype.DataMap {
+	for _, a := range [...]TriggerAction{allAction, action} {
+		triggerAfter := m.runTriggerAction(a, result)
+		if helper.IsMap(triggerAfter) {
+			v := helper.ToDataMap(triggerAfter)
+			result = &v
+		}
 	}
 
 	return result
+}
+
+// finishFindOne runs the after-find triggers on a fetched record.
+func (m *DataModelQuery) finishFindOne(result *datatype.DataMap) *datatype.DataMap {
+	return m.runRecordTriggers(AfterFindTriggerAllAction, AfterFindTriggerAction, result)
 }
 
 func (m *DataModelQuery) Find(where interface{}) *[]datatype.DataMap {
@@ -877,175 +846,56 @@ func (m *DataModelQuery) finishFind(result *[]datatype.DataMap) *[]datatype.Data
 }
 
 func (m *DataModelQuery) Paginate(where interface{}) *datatype.DataMap {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		triggerBefore := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
-
-		triggerBefore = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := triggerBefore.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(triggerBefore) {
-			m.WhereAll(helper.ToDataMap(triggerBefore))
-		}
+	if !m.prepareFind(where) {
+		return nil
 	}
 
-	result := m.collection().pagination()
-
-	triggerAfter := m.runTriggerAction(AfterFindTriggerAllAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
-
-	triggerAfter = m.runTriggerAction(AfterFindTriggerAction, result)
-	if helper.IsMap(triggerAfter) {
-		v := helper.ToDataMap(triggerAfter)
-		result = &v
-	}
-
-	return result
+	return m.runRecordTriggers(AfterFindTriggerAllAction, AfterFindTriggerAction, m.collection().pagination())
 }
 
 func (m *DataModelQuery) Summary(where interface{}) *datatype.DataMap {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return nil
 	}
 
 	return m.collection().summary()
 }
 
 func (m *DataModelQuery) Count(where interface{}) int64 {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return 0
 	}
 
 	return int64(m.collection().count())
 }
 
 func (m *DataModelQuery) Sum(target string, where interface{}) float64 {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return 0
 	}
 
 	return float64(m.collection().sum(target))
 }
 
 func (m *DataModelQuery) Max(target string, where interface{}) interface{} {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return nil
 	}
 
 	return m.collection().max(target)
 }
 
 func (m *DataModelQuery) Min(target string, where interface{}) interface{} {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return nil
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return nil
 	}
 
 	return m.collection().min(target)
 }
 
 func (m *DataModelQuery) Average(target string, where interface{}) float64 {
-	m.WhereAll(where)
-	m.addTenantId()
-
-	if !m.skipBeforeCommit {
-		result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
-
-		result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-		if v, ok := result.(bool); ok && !v {
-			return 0
-		} else if helper.IsMap(result) {
-			m.WhereAll(helper.ToDataMap(result))
-		}
+	if !m.prepareFind(where) {
+		return 0
 	}
 
 	return m.collection().average(target)
@@ -1124,18 +974,8 @@ func (m *DataModelQuery) Graph(where interface{}, p *graphql.ResolveParams) inte
 		m.Skip(v)
 	}
 
-	result := m.runTriggerAction(BeforeFindTriggerAllAction, m.where)
-	if v, ok := result.(bool); ok && !v {
+	if !m.runWhereTriggers(BeforeFindTriggerAllAction, BeforeFindTriggerAction) {
 		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
-	}
-
-	result = m.runTriggerAction(BeforeFindTriggerAction, m.where)
-	if v, ok := result.(bool); ok && !v {
-		return nil
-	} else if helper.IsMap(result) {
-		m.WhereAll(helper.ToDataMap(result))
 	}
 
 	whereFilter := make(map[string]FilterValue)
@@ -1423,6 +1263,17 @@ func failureMessage(model *DataModelQuery, outcome interface{}, fallback string)
 		return err.Error()
 	}
 	return fallback
+}
+
+// ClearTenantId removes the tenant filter from the query, including one that
+// addTenantId or Where(TenantIDKey, ...) already added, and stops it being
+// added again when the query runs. Like SkipTenant, it also stops Create and
+// Import stamping the caller's tenant on new records.
+func (m *DataModelQuery) ClearTenantId() *DataModelQuery {
+	m.skipTenant = true
+	delete(m.where, TenantIDKey)
+
+	return m
 }
 
 func (m *DataModelQuery) addTenantId() {
