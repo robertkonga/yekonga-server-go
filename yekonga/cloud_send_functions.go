@@ -173,11 +173,16 @@ func (y *YekongaData) PaymentWebhook(data *PaymentWebhookData) error {
 }
 
 func (y *YekongaData) ManualPaymentWebhook(req *Request, input payment.PaymentRequest) error {
+	input.Status = string(payment.StatusSucceeded)
 	paymentData, response, err := y.CreatePayment(req, "manual", input)
 
 	if err != nil {
 		return err
 	}
+
+	// (*paymentData)["status"] = payment.StatusSucceeded
+	// (*paymentData)["isPaid"] = true
+	// (*paymentData)["paidAt"] = helper.GetTimestamp(nil)
 
 	webhookData := PaymentWebhookData{
 		Event: &payment.WebhookEvent{

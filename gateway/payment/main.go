@@ -136,6 +136,7 @@ type PaymentRequest struct {
 	Amount        float64
 	Currency      string // ISO 4217
 	Description   string
+	Status        string
 	Method        string // any of "system", "selcom", "clickpesa", "azampay", "flutterwave", "pesapal", "stripe", "paypal", "2checkout", "manual", "cash"
 	Channel       string // any of "vodacom", "tigo", "airtel", "halotel", "ttcl", "zantel", "mobile_money", "card", "bank_transfer", "paypal", "qr", "cash", "manual"
 	PaymentMethod string // any of "manual", "card", "bank_transfer", "mobile_money", "paypal", "crypto"

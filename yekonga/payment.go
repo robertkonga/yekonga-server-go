@@ -14,7 +14,6 @@ import (
 	"github.com/robertkonga/yekonga-server-go/gateway"
 	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/helper"
-	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
@@ -64,12 +63,19 @@ func (y *YekongaData) isPaymentWebhookPath(path string) bool {
 }
 
 // PaymentController returns the payment gateways configured in
-// config.apiGateway.payment.providers, built once on first use. Use it for
-// calls CreatePayment doesn't cover (refunds, verification, USSD push), or
-// call Use on it to install a custom provider.
+// config.apiGateway.payment.providers, built once on first use. The manual
+// provider is always available, so CreatePayment(req, "manual", ...) works
+// without configuring it; a "manual" entry in the config replaces the default.
+// Use it for calls CreatePayment doesn't cover (refunds, verification, USSD
+// push), or call Use on it to install a custom provider.
 func (y *YekongaData) PaymentController() (*payment.Controller, error) {
 	y.paymentControllerOnce.Do(func() {
 		ctrl, _ := payment.NewController()
+
+		if err := ctrl.Add(payment.Config{Provider: payment.ProviderManual}); err != nil {
+			y.paymentControllerErr = fmt.Errorf("payment provider %q: %w", payment.ProviderManual, err)
+			return
+		}
 
 		for _, p := range y.Config.ApiGateway.Payment.Providers {
 			provider, err := gateway.NewPaymentProvider(paymentConfigFrom(p))
@@ -155,6 +161,7 @@ func (y *YekongaData) CreatePayment(req *Request, provider string, input payment
 		"status":    paymentStatusPending,
 		"metadata":  metadata,
 		"isPaid":    false,
+		"paidAt":    nil,
 		"createdAt": now,
 		"updatedAt": now,
 	})
@@ -184,7 +191,7 @@ func (y *YekongaData) CreatePayment(req *Request, provider string, input payment
 	startedAt := time.Now()
 	response, providerErr := gateways.ctrl.CreatePayment(ctx, provider, input)
 	y.recordPaymentProviderRequest(req, provider, id, "createPayment", startedAt, paymentRequestData(input), response, providerErr)
-	console.Error("xxxxx", provider, response, providerErr)
+	// console.Error("xxxxx", provider, response, providerErr)
 
 	update := datatype.DataMap{"updatedAt": time.Now()}
 
@@ -199,6 +206,12 @@ func (y *YekongaData) CreatePayment(req *Request, provider string, input payment
 
 	if helper.IsNotEmpty(response) {
 		update["transactionData"] = response.Raw
+	}
+
+	if provider == "manual" && input.Status == paymentStatusSucceeded {
+		update["isPaid"] = true
+		update["paidAt"] = time.Now()
+		update["status"] = string(paymentStatusSucceeded)
 	}
 
 	if updated, err := toPaymentRecord(y.modelQueryFor(req, PaymentModelName).Where("id", id).Update(update, nil)); err == nil {
