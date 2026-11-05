@@ -420,7 +420,7 @@ func (y *YekongaData) setTriggerAll(action TriggerAction, fn TriggerAllFunction)
 }
 
 // AddCloudFunction registers a new cloud function
-func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModel, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
+func (y *YekongaData) triggerAllCallback(action TriggerAction, model *DataModelQuery, ctxRequest *RequestContext, ctxQuery *QueryContext) (interface{}, error) {
 	y.mut.RLock()
 	fn := y.triggerAllFunctions[action]
 	y.mut.RUnlock()

@@ -60,7 +60,7 @@ func TestTriggerCallbackLookup(t *testing.T) {
 
 func TestTriggerCallbackConcurrent(t *testing.T) {
 	y := &YekongaData{}
-	y.setTriggerAll(BeforeFindTriggerAllAction, func(*DataModel, *RequestContext, *QueryContext) (interface{}, error) {
+	y.setTriggerAll(BeforeFindTriggerAllAction, func(*DataModelQuery, *RequestContext, *QueryContext) (interface{}, error) {
 		return nil, nil
 	})
 

@@ -52,7 +52,7 @@ type Middleware func(req *Request, res *Response) (int, error)
 type CloudFunction func(interface{}, *RequestContext) (interface{}, error)
 type BackendCloudFunction func(interface{}) (interface{}, error)
 type TriggerFunction func(*RequestContext, *QueryContext) (interface{}, error)
-type TriggerAllFunction func(*DataModel, *RequestContext, *QueryContext) (interface{}, error)
+type TriggerAllFunction func(*DataModelQuery, *RequestContext, *QueryContext) (interface{}, error)
 type ActionCloudFunction func(*RequestContext, *QueryContext) (GraphqlActionResult, error)
 
 var Server *YekongaData

@@ -1228,7 +1228,7 @@ func (m *DataModelQuery) runTriggerAction(action TriggerAction, data interface{}
 	var err error
 
 	if isTriggerAllAction(action) {
-		result, err = model.App.triggerAllCallback(action, model, m.RequestContext, &m.QueryContext)
+		result, err = model.App.triggerAllCallback(action, m, m.RequestContext, &m.QueryContext)
 	} else {
 		result, err = model.App.triggerCallback(model.Name, action, m.RequestContext, &m.QueryContext)
 	}
