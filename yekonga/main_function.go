@@ -66,10 +66,9 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 		tenantId = helper.ObjectID("000000000000000000000000")
 	}
 
-	user = y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
-
-	if helper.IsNotEmpty(user) {
-		otpCode := helper.GetValueOf(user, "otpCode")
+	checkUser := y.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
+	if helper.IsNotEmpty(checkUser) {
+		otpCode := helper.GetValueOf(checkUser, "otpCode")
 		timestamp := helper.GetTimestamp(nil)
 
 		if helper.IsNotEmpty(password) && otpCode == password {
@@ -77,14 +76,13 @@ func (y *YekongaData) OTPVerification(username interface{}, password string, use
 				otpCode = nil
 			}
 
-			y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Where("username", username).Update(datatype.DataMap{
+			y.ModelQuery(userVerificationModelName).SkipBeforeCommit().SetRequest(req, &Response{}).Where("tenantId", tenantId).Where("username", username).Update(datatype.DataMap{
 				"otpCode":       otpCode,
 				"otpVerifiedAt": timestamp,
 				"updatedAt":     timestamp,
 			}, nil)
 
-			u := y.GetUser(*user, isOwner || canCreate)
-
+			u := y.GetUser(checkUser, isOwner || canCreate)
 			user = &u
 		}
 	}
@@ -467,7 +465,10 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 		user = y.OTPVerification(input.Username, input.Password, input.UsernameType, true, req.Request)
 
 		if helper.IsNotEmpty(user) {
-			userId := helper.GetValueOfString(user, "id")
+			userId := helper.GetValueOfString(user, "userId")
+			if helper.IsEmpty(userId) {
+				userId = helper.GetValueOfString(user, "id")
+			}
 			checkPassword = true
 
 			if !isGlobalPassword {
@@ -515,12 +516,15 @@ func (y *YekongaData) AttemptLogin(ctx context.Context, input AttemptData) (*dat
 	}
 
 	if helper.IsEmpty(user) {
-		console.Log("User Login Attempt Failed: User does not exists", body)
-		return nil, errors.New("User does not exists")
+		console.Error("User Login Attempt Failed: User does not exists")
+		return nil, errors.New("Wrong credential")
 	}
 
-	userId := helper.GetValueOfString(user, "id")
 	isBanned := helper.GetValueOfBoolean(user, "isBanned")
+	userId := helper.GetValueOfString(user, "userId")
+	if helper.IsEmpty(userId) {
+		userId = helper.GetValueOfString(user, "id")
+	}
 
 	if isBanned {
 		return nil, errors.New("You are banned from accessing " + config.Config.AppName)
@@ -566,6 +570,7 @@ func (y *YekongaData) GetLoginData(req *RequestContext, input *LoginData) *datat
 	var userId string = input.UserID
 
 	user := y.GetUser(datatype.DataMap{"userId": userId}, false)
+
 	profileIds := GetProfileIds(y, userId)
 	publicKeys := []string{
 		"id",

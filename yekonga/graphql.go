@@ -12,6 +12,7 @@ import (
 	"github.com/robertkonga/yekonga-server-go/helper/console"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
 	"github.com/robertkonga/yekonga-server-go/plugins/graphql"
+	"github.com/robertkonga/yekonga-server-go/plugins/mongo-driver/bson"
 )
 
 type EmptyKey string
@@ -128,17 +129,13 @@ func (g *GraphqlAutoBuild) initialize() {
 	for k, v := range g.Database {
 		k = helper.ToCamelCase(helper.Singularize(k))
 
-		// if k == "AuthUserPermission" {
-		// 	console.Log(k, v.ParentKeys)
-		// 	console.Log(k, helper.ToJson(v.ParentFields))
-		// }
-
 		for ki, vi := range v.ParentFields {
 			var foreignKey string = vi.ForeignKey
 			var targetKey string = vi.PrimaryKey
 
 			if helper.IsNotEmpty(vi.Model) {
-				fieldConfig := g.getRelativeQueryField(ki, vi.Model.Name, true, foreignKey, targetKey)
+				parentAsChild := vi.Many
+				fieldConfig := g.getRelativeQueryField(ki, vi.Model.Name, !parentAsChild, foreignKey, targetKey)
 				g.QueryTypes[k].AddFieldConfig(ki, fieldConfig)
 
 				whereInputA := helper.ToCamelCase("where_" + k + "_input")
@@ -160,7 +157,6 @@ func (g *GraphqlAutoBuild) initialize() {
 				} else {
 					console.Error("ParentFields: dimensionWhereInput", dimensionWhereInput)
 				}
-
 			}
 		}
 
@@ -224,7 +220,7 @@ func (g *GraphqlAutoBuild) initializeDefaultCustomQuery() {
 		options := helper.GetValueOfList(data, "options")
 		advancedOptions := helper.GetValueOfBoolean(data, "options")
 
-		console.Log("params.source", data)
+		// console.Log("params.source", data)
 		resultQuery := `
 		query{result:customFormValues{
 			userId,
@@ -1381,6 +1377,7 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 			var model = g.yekonga.ModelQuery(name)
 			var result datatype.DataMap = make(datatype.DataMap)
 			g.setModelParams(model, &p, foreignKey, targetKey, false)
+			// console.Info("getMutationUpdateField.data", data)
 
 			result["success"] = false
 			result["status"] = false
@@ -1426,7 +1423,6 @@ func (g *GraphqlAutoBuild) getMutationUpdateField(collection string, foreignKey 
 			} else {
 				result["message"] = failureMessage(model, updated, "Fail")
 			}
-
 			// console.Success("updated", result)
 
 			return result, nil
@@ -1924,8 +1920,8 @@ func (g *GraphqlAutoBuild) addOrderByInputType(collection string, model *DataMod
 }
 
 func (g *GraphqlAutoBuild) getQueryField(name string, field *DataModelField) *graphql.Field {
-
-	scalar := graphql.String
+	var scalar graphql.Output
+	scalar = graphql.String
 
 	_v := field.Kind
 
@@ -1948,6 +1944,13 @@ func (g *GraphqlAutoBuild) getQueryField(name string, field *DataModelField) *gr
 		scalar = ScalarAnyType
 	case DataModelArray:
 		scalar = ScalarArrayType
+	}
+
+	if field.IsArray {
+		if _v == DataModelID {
+			scalar = graphql.NewList(ScalarIDType)
+			// scalar = ScalarArrayType
+		}
 	}
 
 	f := &graphql.Field{
@@ -1971,8 +1974,8 @@ func (g *GraphqlAutoBuild) getRelativeQueryField(fieldName string, modelName str
 }
 
 func (g *GraphqlAutoBuild) getInputField(name string, field *DataModelField) *graphql.InputObjectFieldConfig {
-
-	scalar := graphql.String
+	var scalar graphql.Input
+	scalar = graphql.String
 
 	_v := field.Kind
 
@@ -1995,6 +1998,13 @@ func (g *GraphqlAutoBuild) getInputField(name string, field *DataModelField) *gr
 		scalar = ScalarAnyType
 	case DataModelArray:
 		scalar = ScalarArrayType
+	}
+
+	if field.IsArray {
+		if _v == DataModelID {
+			scalar = graphql.NewList(ScalarIDType)
+			// scalar = ScalarArrayType
+		}
 	}
 
 	var f *graphql.InputObjectFieldConfig
@@ -2149,6 +2159,10 @@ func (g *GraphqlAutoBuild) getWhereInputField(collection string, name string, fi
 		scalar = ScalarArrayType
 	}
 
+	if field.IsArray {
+		scalar = ScalarArrayType
+	}
+
 	operations := [...]string{
 		"equalTo",
 		"notEqualTo",
@@ -2239,6 +2253,7 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 
 			if helper.Contains(model.Model.ParentKeys, foreignKey) {
 				model.Where(foreignKey, localParent[targetKey])
+
 				if isParent {
 					model.Where(targetKey, localParent[foreignKey])
 				} else {
@@ -2309,8 +2324,15 @@ func (g *GraphqlAutoBuild) setModelParams(model *DataModelQuery, p *graphql.Reso
 					model.Where("_id", nil)
 					return false
 				}
-
-				model.Where(targetKey, localParent[foreignKey])
+				if helper.IsArray(localParent[foreignKey]) {
+					list := helper.ToList[bson.ObjectID](localParent[foreignKey])
+					// console.Error("localParent[foreignKey]", targetKey, helper.TypeOf(list[0]), list[0])
+					model.Where(targetKey, datatype.DataMap{
+						"in": list,
+					})
+				} else {
+					model.Where(targetKey, localParent[foreignKey])
+				}
 			}
 		}
 	}

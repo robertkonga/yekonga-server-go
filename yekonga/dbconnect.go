@@ -206,7 +206,7 @@ func (dc *DatabaseConnections) mongodbConnect() {
 		clientOptions.SetTimeout(time.Duration(db.QueryTimeoutSeconds) * time.Second)
 	}
 
-	if dc.settings.Username != nil {
+	if helper.IsNotEmpty(dc.settings.Username) {
 		// logger.Error(dc.settings)
 		var username string
 		var password string
@@ -278,10 +278,10 @@ func (dc *DatabaseConnections) openSQL(label string) *sql.DB {
 	// Arguments are escaped client-side instead of preparing each statement,
 	// which would cost an extra round trip per query.
 	cfg.InterpolateParams = true
-	if v, ok := db.Username.(string); ok {
+	if v, ok := db.Username.(string); ok && helper.IsNotEmpty(v) {
 		cfg.User = v
 	}
-	if v, ok := db.Password.(string); ok {
+	if v, ok := db.Password.(string); ok && helper.IsNotEmpty(v) {
 		cfg.Passwd = v
 	}
 

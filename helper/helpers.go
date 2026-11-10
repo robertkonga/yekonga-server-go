@@ -1430,7 +1430,6 @@ func GetChildRelativeName(parent string, collection string, primaryKey string, f
 }
 
 func GetParentRelativeName(collection string, primaryKey string, foreignKey string) string {
-
 	var classVariable = ToVariable(foreignKey)
 	var testKey = ToUnderscore(foreignKey)
 

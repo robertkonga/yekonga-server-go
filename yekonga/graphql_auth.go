@@ -130,7 +130,7 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 						}
 					}
 				} else if !tenantConfig.PublicCanRegister {
-					return nil, errors.New("User does not exist at all")
+					return nil, errors.New("User is not authorized")
 				}
 			} else {
 				triggerResult, _ := g.yekonga.authTriggerCallback(BeforeOtpTriggerAction, req, &QueryContext{
@@ -169,6 +169,9 @@ func _otp(g *GraphqlAutoBuild) *graphql.Field {
 }
 
 func _login(g *GraphqlAutoBuild) *graphql.Field {
+	const userModelName = "User"
+	const userVerificationModelName = "UserVerification"
+
 	// var foreignKey string
 	// var targetKey string
 	// var name string = "User"
@@ -196,6 +199,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 		Resolve: func(p graphql.ResolveParams) (interface{}, error) {
 			req, _ := p.Context.Value(RequestContextKey).(*RequestContext)
 			var input = helper.ToDataMap(g.getInputData(p.Args))
+			var tenantId = req.Request.TenantId()
 			var user datatype.DataMap
 			var username = helper.GetValueOfString(input, "username")
 			var usernameType = helper.GetValueOfString(input, "usernameType")
@@ -214,13 +218,12 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 				username = helper.PhoneFormat(username)
 			}
 			if helper.IsNotEmpty(username) {
-				var u *datatype.DataMap
-				if loginType == "password" {
-					// AttemptLogin checks the password hash; only an existing user may try.
-					u = g.yekonga.ModelQuery("User").SkipTenant().SkipBeforeCommit().SetRequest(req.Request, &Response{}).Where("username", username).FindOne(nil)
-				} else {
-					u = g.yekonga.OTPVerification(username, password, usernameType, true, req.Request)
+				u := g.yekonga.ModelQuery(userModelName).SkipTenant().SkipBeforeCommit().SetRequest(req.Request, &Response{}).Where("username", username).FindOne(nil)
+
+				if helper.IsEmpty(u) {
+					u = g.yekonga.ModelQuery(userVerificationModelName).SkipTenant().SkipBeforeCommit().SetRequest(req.Request, &Response{}).Where("tenantId", tenantId).Where("username", username).FindOne(nil)
 				}
+
 				if helper.IsNotEmpty(u) {
 					user = *u
 				}
@@ -255,7 +258,6 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 
 					attemptData.UserID = userId
 					attemptData.ProfileID = helper.GetValueOfString(user, "profileId")
-					// console.Info(user)
 
 					g.yekonga.RecordLoginAttempt("success", p.Context, attemptData)
 					g.yekonga.authTriggerCallback(AfterLoginTriggerAction, req, &QueryContext{
@@ -291,7 +293,6 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 							ExpiresAt:    helper.GetTimestamp(nil).Add(time.Minute * accessTokenExpireTime),
 						}
 
-						// console.Info("refreshTokenData", refreshTokenData)
 						refreshToken := g.yekonga.getRefreshToken(*req.Client, refreshTokenData, rememberMe)
 
 						if helper.IsEmpty(cookieEnabled) {
@@ -306,8 +307,6 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 						g.yekonga.setAuthCookies(req, accessToken, refreshToken, moduleName)
 					}
 
-					// console.Info("cookieEnabled", cookieEnabled, user)
-
 					return user, nil
 				} else if e != nil {
 					g.yekonga.RecordLoginAttempt("fail", p.Context, AttemptData{
@@ -318,6 +317,14 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 
 					return nil, e
 				}
+
+				g.yekonga.RecordLoginAttempt("fail", p.Context, AttemptData{
+					Username:     username,
+					UsernameType: usernameType,
+					LoginType:    loginType,
+				})
+
+				return nil, errors.New("Wrong credential")
 			}
 
 			g.yekonga.RecordLoginAttempt("fail", p.Context, AttemptData{
@@ -326,7 +333,7 @@ func _login(g *GraphqlAutoBuild) *graphql.Field {
 				LoginType:    loginType,
 			})
 
-			return nil, errors.New("Wrong credential")
+			return nil, errors.New("User does not exists")
 		},
 	}
 }

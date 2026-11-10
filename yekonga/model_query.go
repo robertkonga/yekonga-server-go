@@ -379,6 +379,7 @@ func (m *DataModelQuery) Update(data datatype.DataMap, where interface{}) interf
 	var err error
 
 	formatted := *(m.formatInputData(data, UpdateInputAction))
+	// console.Error("formatted", formatted)
 
 	if withPrevious, ok := m.collection().(interface {
 		updateWithPrevious(datatype.DataMap) (*datatype.DataMap, *datatype.DataMap, error)
@@ -1102,6 +1103,7 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 	switch action {
 	case CreateInputAction, ImportInputAction:
 		for _, k := range m.Model.ValidFields {
+			field, fieldExist := m.Model.Fields[k]
 			var v interface{} = nil
 
 			if k == "id" {
@@ -1123,14 +1125,18 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 			if vi, exist := input[k]; exist {
 				if m.Model.fieldKindSets().id[k] {
 					if helper.IsNotEmpty(vi) {
-						v = helper.ObjectID(vi)
+						if helper.IsArray(vi) {
+							v = helper.ToList[bson.ObjectID](vi)
+						} else {
+							v = helper.ObjectID(vi)
+						}
 					} else {
 						v = vi
 					}
 				} else {
 					v = vi
 				}
-			} else if field, exist := m.Model.Fields[k]; exist {
+			} else if fieldExist {
 				v = field.DefaultValue
 
 				if m.Model.fieldKindSets().date[string(field.Name)] && v == "now" {
@@ -1160,12 +1166,29 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 
 func (m *DataModelQuery) formatInputDataField(key string, value interface{}) interface{} {
 	var v interface{}
+	field, exist := m.Model.Fields[key]
 
 	if helper.IsNotEmpty(value) {
 		kinds := m.Model.fieldKindSets()
 
 		if kinds.id[key] || key == "id" || key == "_id" {
-			v = helper.ObjectID(value)
+			if exist {
+				if field.IsArray {
+					if helper.IsArray(value) {
+						v = helper.ToList[bson.ObjectID](value)
+					} else {
+						v = []bson.ObjectID{helper.ObjectID(value)}
+					}
+				} else {
+					if helper.IsArray(value) {
+						v = helper.ToList[bson.ObjectID](value)
+					} else {
+						v = helper.ObjectID(value)
+					}
+				}
+			} else {
+				v = helper.ObjectID(value)
+			}
 		} else if kinds.date[key] {
 			v = helper.GetTimestamp(value)
 		} else if kinds.number[key] {

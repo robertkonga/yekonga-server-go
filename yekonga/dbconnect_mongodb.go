@@ -63,11 +63,13 @@ func (con *mongodbConnection) findOne() *datatype.DataMap {
 	}
 	localWhere := con.where()
 
-	// if con.query.Model.Name == "Certificate" {
-	// 	console.Log("mongodbConnection.findOne", "Cursor: %v", localWhere)
+	// if con.query.Model.Name == "User" {
+	// 	test := helper.GetValueOf(localWhere, "_id.$eq")
+	// 	console.Log("mongodbConnection.findOne", "Cursor:", helper.TypeOf(test), localWhere)
 	// }
 
 	res := con.collection().FindOne(con.readCtx(), localWhere, opts)
+
 	err := res.Decode(&result)
 	if err != nil {
 		// logger.Error("mongodbConnection.findOne", err.Error())
@@ -122,7 +124,6 @@ func (con *mongodbConnection) find() *[]datatype.DataMap {
 			logger.Error("mongodbConnection.find 0", err.Error())
 		}
 	} else {
-
 		// Find with limit and skip
 		opts := options.Find()
 

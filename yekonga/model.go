@@ -60,6 +60,7 @@ type DataModelFieldForeignKey struct {
 	ModelName  string
 	PrimaryKey string
 	ForeignKey string
+	Many       bool
 }
 
 type DataModel struct {
@@ -123,6 +124,9 @@ func newSystemModels(config *config.YekongaConfig, database *DatabaseStructure, 
 				parentForeign.PrimaryKey,
 				parentForeign.ForeignKey,
 			)
+			if parentForeign.Many {
+				parentName = helper.Pluralize(parentName)
+			}
 
 			if _, ok := models[parentForeign.ModelName]; ok {
 				parentForeign.Model = models[parentForeign.ModelName]
@@ -131,7 +135,6 @@ func newSystemModels(config *config.YekongaConfig, database *DatabaseStructure, 
 			if _, ok := m.ParentFields[parentName]; !ok {
 				m.ParentFields[parentName] = parentForeign
 			}
-
 			// --------------------------------
 
 			childForeign := m.Fields[v].ForeignKey
@@ -426,6 +429,7 @@ func getDataModelField(name string, field CollectionFieldConfig) *DataModelField
 				ModelName:  helper.ToCamelCase(parentCollection),
 				PrimaryKey: parentKey,
 				ForeignKey: name,
+				Many:       isArray,
 			}
 		}
 	}
