@@ -183,3 +183,80 @@ type WhatsappProvider interface {
 	DeliveryStatus(providerParams map[string]string, result NotificationResult) error
 	Balance() (*BalanceResponse, error)
 }
+
+// WhatsappTemplateManager is implemented by WhatsApp providers that can manage
+// message templates. Not every provider supports it; type-assert a
+// WhatsappProvider to check.
+type WhatsappTemplateManager interface {
+	ListTemplates(params WhatsappTemplateListParams) (*WhatsappTemplateList, error)
+	GetTemplate(id string) (*WhatsappTemplate, error)
+	CreateTemplate(template WhatsappTemplate) (*WhatsappTemplateResult, error)
+	// UpdateTemplate edits an existing template. Only category, components and
+	// parameterFormat can change; name and language are fixed once created.
+	UpdateTemplate(id string, template WhatsappTemplate) (*WhatsappTemplateResult, error)
+	// DeleteTemplate deletes a template by name (all languages), or only the
+	// one language version identified by id when id is set.
+	DeleteTemplate(name, id string) (*WhatsappTemplateResult, error)
+}
+
+// WhatsappTemplate is a WhatsApp message template, in the Meta Cloud API shape.
+type WhatsappTemplate struct {
+	ID              string                      `json:"id,omitempty"`
+	Name            string                      `json:"name,omitempty"`             // lowercase letters, digits and underscores
+	Language        string                      `json:"language,omitempty"`         // e.g. en, en_US, sw
+	Category        string                      `json:"category,omitempty"`         // MARKETING, UTILITY, AUTHENTICATION
+	Status          string                      `json:"status,omitempty"`           // APPROVED, PENDING, REJECTED, PAUSED, DISABLED (read-only)
+	ParameterFormat string                      `json:"parameter_format,omitempty"` // POSITIONAL ({{1}}) or NAMED ({{name}})
+	Components      []WhatsappTemplateComponent `json:"components,omitempty"`
+	RejectedReason  string                      `json:"rejected_reason,omitempty"` // read-only
+
+	// Structure is the provider-native template body (Infobip only). When set on
+	// create/update it is sent as-is instead of being built from Components, for
+	// features Components can't express (e.g. carousel). Filled on reads.
+	Structure map[string]interface{} `json:"structure,omitempty"`
+}
+
+// WhatsappTemplateComponent is one block of a template (HEADER, BODY, FOOTER, BUTTONS).
+type WhatsappTemplateComponent struct {
+	Type    string                   `json:"type"`             // HEADER, BODY, FOOTER, BUTTONS
+	Format  string                   `json:"format,omitempty"` // HEADER only: TEXT, IMAGE, VIDEO, DOCUMENT, LOCATION
+	Text    string                   `json:"text,omitempty"`
+	Example interface{}              `json:"example,omitempty"` // sample values, e.g. {"body_text": [["John", "1234"]]}
+	Buttons []map[string]interface{} `json:"buttons,omitempty"` // e.g. {"type": "QUICK_REPLY", "text": "Yes"}
+
+	// AUTHENTICATION templates only
+	AddSecurityRecommendation *bool `json:"add_security_recommendation,omitempty"` // BODY
+	CodeExpirationMinutes     *int  `json:"code_expiration_minutes,omitempty"`     // FOOTER
+}
+
+// WhatsappTemplateListParams filters and paginates ListTemplates. All fields are optional.
+type WhatsappTemplateListParams struct {
+	Name     string // matches templates whose name contains this value
+	Status   string
+	Category string
+	Language string
+	Limit    int
+	After    string // cursor from WhatsappTemplateList.Paging.Cursors.After
+	Before   string
+}
+
+// WhatsappTemplateList is a page of templates.
+type WhatsappTemplateList struct {
+	Data   []WhatsappTemplate `json:"data"`
+	Paging struct {
+		Cursors struct {
+			Before string `json:"before,omitempty"`
+			After  string `json:"after,omitempty"`
+		} `json:"cursors"`
+		Next     string `json:"next,omitempty"`
+		Previous string `json:"previous,omitempty"`
+	} `json:"paging"`
+}
+
+// WhatsappTemplateResult is returned by create, update and delete.
+type WhatsappTemplateResult struct {
+	Success  bool   `json:"success"`
+	ID       string `json:"id,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Category string `json:"category,omitempty"`
+}

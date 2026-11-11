@@ -133,6 +133,13 @@ func (y *YekongaData) SendWhatsapp(data setting.SendParams, config *config.Whats
 	return result, err
 }
 
+// WhatsappTemplates returns the template API (list, get, create, update,
+// delete) of the configured WhatsApp provider ("meta" or "infobip"). Templates
+// use the same Meta-style shape for both providers.
+func (y *YekongaData) WhatsappTemplates() (setting.WhatsappTemplateManager, error) {
+	return gateway.NewWhatsappTemplateManager(&y.Config.ApiGateway.Whatsapp)
+}
+
 // PaymentWebhookData is what a SetPaymentWebhook function receives.
 type PaymentWebhookData struct {
 	Event   *payment.WebhookEvent // authenticated notification; Event.Success reports a settled payment

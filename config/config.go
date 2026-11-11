@@ -17,6 +17,7 @@ const (
 	ProviderBeem    GatewayProvider = "beem"
 	ProviderInfobip GatewayProvider = "infobip"
 	ProviderAlibaba GatewayProvider = "alibaba"
+	ProviderMeta    GatewayProvider = "meta" // WhatsApp Business Cloud API (Meta direct)
 )
 
 type Permissions struct {
@@ -102,11 +103,15 @@ type SMSGatewayConfig struct { // SMS gateway configuration
 }
 
 type WhatsappGatewayConfig struct { // WhatsApp gateway configuration
-	Provider GatewayProvider `json:"provider"` // WhatsApp provider (e.g., infobip)
-	Sender   string          `json:"sender"`   // Sender ID or name for WhatsApp messages
-	Sandbox  string          `json:"sandbox"`  // Sandbox environment indicator
-	BaseURL  string          `json:"baseURL"`  // Base URL for the WhatsApp gateway API
-	APIKey   string          `json:"apiKey"`   // API key for authentication
+	Provider    GatewayProvider `json:"provider"`    // WhatsApp provider (infobip, meta)
+	Sender      string          `json:"sender"`      // Sender number (infobip) or Phone Number ID (meta)
+	Sandbox     string          `json:"sandbox"`     // Sandbox environment indicator
+	BaseURL     string          `json:"baseURL"`     // Base URL for the WhatsApp gateway API (meta: defaults to graph.facebook.com/v23.0)
+	APIKey      string          `json:"apiKey"`      // API key (infobip) or access token (meta)
+	SecretKey   string          `json:"secretKey"`   // meta: App Secret, used to verify webhook X-Hub-Signature-256
+	VerifyToken string          `json:"verifyToken"` // meta: token echoed back during webhook subscription verification
+
+	BusinessAccountID string `json:"businessAccountId"` // meta: WhatsApp Business Account (WABA) ID, required for template management
 }
 
 type PaymentProviderConfig struct { // One payment gateway (see gateway/payment Key* constants for credential names)
