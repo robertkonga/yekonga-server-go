@@ -1103,7 +1103,6 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 	switch action {
 	case CreateInputAction, ImportInputAction:
 		for _, k := range m.Model.ValidFields {
-			field, fieldExist := m.Model.Fields[k]
 			var v interface{} = nil
 
 			if k == "id" {
@@ -1121,6 +1120,11 @@ func (m *DataModelQuery) formatInputData(input datatype.DataMap, action InputAct
 			if k == "_id" {
 				v = helper.ObjectID(v)
 			}
+
+			// Looked up after the id -> _id rename: "_id" is never a schema
+			// field, so the generated ObjectID above isn't replaced by the
+			// "id" field's (nil) default.
+			field, fieldExist := m.Model.Fields[k]
 
 			if vi, exist := input[k]; exist {
 				if m.Model.fieldKindSets().id[k] {

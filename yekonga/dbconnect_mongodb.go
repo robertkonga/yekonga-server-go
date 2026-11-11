@@ -545,8 +545,15 @@ func (con *mongodbConnection) createMany(data []datatype.DataMap) (*[]datatype.D
 // the bytes storedDocument decodes: encoding a map twice can order nested
 // fields differently each time.
 func encodeForInsert(data datatype.DataMap) (bson.Raw, error) {
-	if _, ok := data["_id"]; !ok {
+	// A present-but-empty _id (nil or the zero ObjectID) would be stored as
+	// is, and the second such insert fails on the unique _id index.
+	switch id := data["_id"].(type) {
+	case nil:
 		data["_id"] = bson.NewObjectID()
+	case bson.ObjectID:
+		if id.IsZero() {
+			data["_id"] = bson.NewObjectID()
+		}
 	}
 
 	return bson.Marshal(data)
