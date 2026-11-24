@@ -48,6 +48,7 @@ A comprehensive, production-ready Go server framework that provides out-of-the-b
 - **Data Models** - Automatic data model generation from database schema
 - **Query Charts** - Analytics and data aggregation support
 - **OTP & SMS** - One-Time Password and SMS integration
+- **AI** - Chat with an AI model (Claude, OpenAI, Gemini, DeepSeek, Meta, Azure OpenAI) from routes, cloud functions and triggers
 - **Admin Dashboard** - Built-in admin dashboard support
 - **API Documentation** - Auto-generated API playground
 
@@ -63,6 +64,7 @@ A comprehensive, production-ready Go server framework that provides out-of-the-b
   - [GraphQL Mutations](#graphql-mutations)
   - [GraphQL Subscriptions](#graphql-subscriptions)
 - [Offline Sync (Cloud + Edge)](#offline-sync-cloud--edge)
+- [AI](#ai)
 - [Helper Functions Reference](#helper-functions-reference)
   - [Type Conversion](#type-conversion)
   - [Type Checking](#type-checking)
@@ -1206,6 +1208,100 @@ Each tenant's uploads go into its own folder inside `folderId`, named `<tenant n
 `GET /download/drive/:fileId` streams a Drive file through the server, so the Drive files don't need to be public. It is shown in the browser by default; add `?download` to save it, or `?title=report.pdf` to save it under that name.
 
 From Go, the same Drive calls are in the helper package: `helper.UploadGoogleDrive`, `helper.CreateGoogleDriveFolder`, `helper.ShareGoogleDriveFile` and `helper.DownloadGoogleDrive`.
+
+---
+
+## AI
+
+The server can talk to an AI model from routes, cloud functions and triggers. It is set up by `apiGateway.ai` in `config.json`:
+
+```json
+"apiGateway": {
+  "ai": {
+    "provider": "anthropic",
+    "apiKey": "<api key>",
+    "model": "claude-opus-5-5",
+    "system": "You are the assistant of the Acme shop.",
+    "maxTokens": 16000,
+    "effort": "medium"
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `provider` | One of the providers below (`anthropic` when empty), or one you added with `ai.RegisterFactory` |
+| `apiKey` | The provider's API key. Empty = the provider's environment variable (see below) |
+| `baseURL` | Overrides the provider's API endpoint. Required for `microsoft` |
+| `model` | Model used when a request names none. Only `anthropic` has a default (`claude-opus-5-5`); for the others set it here or on each request |
+| `system` | System prompt used when a request sets none |
+| `maxTokens` | Max tokens per reply; 0 = 16000 on `anthropic`, the provider's own default on the others |
+| `effort` | How hard the model works on a reply: `low`, `medium`, `high`, `xhigh` or `max`. Empty = the model's default. A model that doesn't support the level rejects the request |
+| `disableFallback` | `anthropic` only. By default, a request the model declines for safety reasons is retried by the API on the model Anthropic recommends (on the models that support it). Set this to turn that off, e.g. when `baseURL` points at a proxy that rejects the `fallbacks` parameter |
+
+| `provider` | Service | API key environment variable | Notes |
+|------------|---------|------------------------------|-------|
+| `anthropic` | Claude (Anthropic API) | `ANTHROPIC_API_KEY` | |
+| `openai` | OpenAI API | `OPENAI_API_KEY` | |
+| `google` | Gemini API | `GEMINI_API_KEY` | `effort` `max` is sent as `xhigh` |
+| `deepseek` | DeepSeek API | `DEEPSEEK_API_KEY` | |
+| `meta` | Meta Model API | `MODEL_API_KEY` | |
+| `microsoft` | Azure OpenAI | `AZURE_OPENAI_API_KEY` | `baseURL` is your resource's endpoint, `https://<resource>.openai.azure.com/openai/v1`, and `model` is the deployment name. `effort` `max` is sent as `xhigh` |
+
+One provider is active at a time. For example, DeepSeek:
+
+```json
+"apiGateway": {
+  "ai": {
+    "provider": "deepseek",
+    "apiKey": "<deepseek api key>",
+    "model": "deepseek-flash"
+  }
+}
+```
+
+```go
+import "github.com/robertkonga/yekonga-server-go/gateway/ai"
+
+app.Post("/ask", func(req *yekonga.Request, res *yekonga.Response) {
+    ctx := req.HttpRequest.Context() // stops the call when the client disconnects
+
+    // One prompt in, the reply's text out
+    text, err := app.AIAsk(ctx, "Write a one-line welcome message")
+
+    // A conversation, with per-request overrides of the config
+    reply, err := app.AIChat(ctx, ai.ChatRequest{
+        System: "Answer in Swahili.",
+        Messages: []ai.Message{
+            {Role: ai.RoleUser, Content: "Hi"},
+            {Role: ai.RoleAssistant, Content: "Habari! Nikusaidie nini?"},
+            {Role: ai.RoleUser, Content: "What are your opening hours?"},
+        },
+    })
+    // reply.Text, reply.Model, reply.StopReason, reply.Usage
+
+    // The same, receiving the reply piece by piece as it is written
+    reply, err = app.AIChatStream(ctx, request, func(text string) {
+        // e.g. forward text over a socket
+    })
+})
+```
+
+`reply.StopReason` is `end_turn` for a complete reply and `max_tokens` when it was cut short by `maxTokens`, whichever provider answered. Errors to check with `errors.Is` / `errors.As`:
+
+| Error | Meaning |
+|-------|---------|
+| `ai.ErrRefused` | The model declined to answer. The reply is still returned, with `RefusalCategory` set when the provider gives a reason |
+| `*ai.ProviderError` | The provider's API rejected the call: `HTTPStatus`, `Type`, `Message`, and `Retryable()` (rate limited or a server error) |
+| `ai.ErrInvalidRequest` | No messages, an empty message, a role other than `user` / `assistant`, or no model on a provider without a default |
+
+`app.AI()` returns the provider itself (`ai.Provider`). To use another AI service, implement `ai.Provider` and register it before the first call; `provider` in the config then selects it:
+
+```go
+ai.RegisterFactory("myprovider", func(cfg ai.Config) (ai.Provider, error) {
+    return &MyProvider{config: cfg}, nil
+})
+```
 
 ---
 

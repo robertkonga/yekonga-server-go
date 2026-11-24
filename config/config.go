@@ -127,6 +127,17 @@ type PaymentGatewayConfig struct { // Payment gateway configuration
 	Providers    []PaymentProviderConfig `json:"providers"`    // Enabled payment gateways
 }
 
+type AIGatewayConfig struct { // AI gateway configuration
+	Provider        string `json:"provider"`        // AI provider: anthropic (Claude; the default), openai, google (Gemini), deepseek, meta or microsoft (Azure OpenAI). Others can be added with ai.RegisterFactory
+	APIKey          string `json:"apiKey"`          // API key; empty = the provider's environment variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, DEEPSEEK_API_KEY, MODEL_API_KEY for meta, AZURE_OPENAI_API_KEY)
+	BaseURL         string `json:"baseURL"`         // Overrides the provider's API endpoint. Required for microsoft: https://<resource>.openai.azure.com/openai/v1
+	Model           string `json:"model"`           // Default model (microsoft: the deployment name). anthropic: empty = claude-opus-5-5; the other providers have no default, so set it here or on each request
+	System          string `json:"system"`          // Default system prompt, used when a request sets none
+	MaxTokens       int    `json:"maxTokens"`       // Max tokens per reply; 0 = 16000 on anthropic, the provider's own default on the others
+	Effort          string `json:"effort"`          // How hard the model works on a reply: low, medium, high, xhigh or max; empty = the model's default. A model that doesn't support the level rejects the request
+	DisableFallback bool   `json:"disableFallback"` // anthropic: don't let the API retry a request the model declined on another model (set it when baseURL points at a proxy that rejects the `fallbacks` parameter)
+}
+
 // SMTPConfig holds SMTP configuration
 type SMTPConfig struct {
 	Service  string `json:"service"`  // SMTP service provider
@@ -262,6 +273,7 @@ type ApiGateway struct { // API Gateway configuration for external services
 	SMS      SMSGatewayConfig      `json:"sms"`      // SMS gateway configuration
 	Whatsapp WhatsappGatewayConfig `json:"whatsapp"` // WhatsApp gateway configuration
 	Payment  PaymentGatewayConfig  `json:"payment"`  // Payment gateway configuration
+	AI       AIGatewayConfig       `json:"ai"`       // AI gateway configuration
 }
 
 type YekongaConfig struct {

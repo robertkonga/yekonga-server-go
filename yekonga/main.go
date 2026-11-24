@@ -17,6 +17,7 @@ import (
 
 	mainConfig "github.com/robertkonga/yekonga-server-go/config"
 	"github.com/robertkonga/yekonga-server-go/datatype"
+	"github.com/robertkonga/yekonga-server-go/gateway/ai"
 	"github.com/robertkonga/yekonga-server-go/gateway/payment"
 	"github.com/robertkonga/yekonga-server-go/helper"
 	"github.com/robertkonga/yekonga-server-go/helper/logger"
@@ -96,6 +97,9 @@ type YekongaData struct {
 	paymentControllerOnce  sync.Once
 	tenantPayments         map[string]*tenantPaymentEntry
 	tenantPaymentsMu       sync.Mutex
+	aiProvider             ai.Provider
+	aiProviderErr          error
+	aiProviderOnce         sync.Once
 	driveFolders           map[string]string // tenant ID -> its Google Drive upload folder ID
 	driveFoldersMu         sync.RWMutex
 	driveFolderFlight      singleflight.Group
