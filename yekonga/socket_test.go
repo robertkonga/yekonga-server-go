@@ -38,7 +38,7 @@ func TestBroadcastToTenant(t *testing.T) {
 	b := newTestSocketClient(n, "b", bson.NewObjectID()) // another tenant
 	admin := newTestSocketClient(n, "admin", nil)        // no tenant
 
-	n.broadcastToTenant(tenantA.Hex(), "database", datatype.DataMap{"action": "create", "model": "Order"})
+	n.BroadcastToTenant(tenantA.Hex(), "database", datatype.DataMap{"action": "create", "model": "Order"})
 
 	msgA, msgA2, msgB, msgAdmin := received(a), received(a2), received(b), received(admin)
 	if msgA == nil || msgA2 == nil || msgAdmin == nil {
@@ -60,7 +60,7 @@ func TestBroadcastToTenant(t *testing.T) {
 	}
 
 	// No tenant: everyone.
-	n.broadcastToTenant("", "database", datatype.DataMap{"action": "create", "model": "Setting"})
+	n.BroadcastToTenant("", "database", datatype.DataMap{"action": "create", "model": "Setting"})
 	for _, c := range []*Client{a, a2, b, admin} {
 		if received(c) == nil {
 			t.Errorf("client %s missed an event without a tenant", c.ID)

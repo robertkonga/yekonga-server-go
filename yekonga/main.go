@@ -214,6 +214,18 @@ func ServerLoadMultiple(configFile string, databaseFile string) {
 	ServerConfigMultiple(*config, databaseStructures)
 }
 
+func (y *YekongaData) Emit(action string, data any) {
+	y.socketServer.Of("/").Broadcast(action, data, nil)
+}
+
+func (y *YekongaData) EmitTo(room, action string, data any) {
+	y.socketServer.Of("/").SendToRoom(room, action, data, nil)
+}
+
+func (y *YekongaData) EmitToTenant(tenantId, action string, data any) {
+	y.socketServer.Of("/").BroadcastToTenant(tenantId, action, data)
+}
+
 func (y *YekongaData) Model(name string) *DataModel {
 	if mod, ok := y.models[name]; ok {
 		return mod

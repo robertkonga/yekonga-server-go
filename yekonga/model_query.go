@@ -1401,7 +1401,7 @@ func (m *DataModelQuery) emitDatabaseEvent(action string) {
 		tenantId = idString(m.getTenantId())
 	}
 
-	m.Model.App.socketServer.Of("/").broadcastToTenant(tenantId, "database", datatype.DataMap{
+	m.Model.App.socketServer.Of("/").BroadcastToTenant(tenantId, "database", datatype.DataMap{
 		"action": action,
 		"model":  m.Model.Name,
 	})

@@ -242,7 +242,6 @@ func (y *YekongaData) initializerOtherRoutes() {
 	})
 
 	y.Get("/tenant", func(req *Request, res *Response) {
-		tenantModelName := "Tenant"
 		client := req.Client()
 		host := client.OriginDomain()
 
@@ -251,15 +250,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 		var tenantName any
 
 		if req.App.Config.HasTenant {
-			tenant := req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-				"domain": host,
-			})
-
-			if helper.IsEmpty(tenant) {
-				tenant = req.App.ModelQuery(tenantModelName).SkipBeforeCommit().FindOne(datatype.DataMap{
-					"subdomain": host,
-				})
-			}
+			tenant, _ := y.tenantByHost(host)
 
 			if helper.IsNotEmpty(tenant) {
 				domain = host
@@ -342,19 +333,19 @@ func (y *YekongaData) initializerOtherRoutes() {
 			return
 		}
 
-		iconPath, cleanup := y.qrIconPath(req)
+		iconPath, cleanup := y.QrIconPath(req)
 		defer cleanup()
 
 		// GenerateQRWithIcon picks the format from the output extension.
 		file := filepath.Join(os.TempDir(), helper.UUID()+"."+ext)
 		defer os.Remove(file)
 
-		err := helper.GenerateQRWithIcon(data, iconPath, file)
+		_, err := helper.GenerateQRWithIcon(data, iconPath, file)
 		if err != nil && iconPath != "" {
 			// The favicon may be in a format that can't be decoded (e.g. .ico),
 			// so fall back to a plain QR code rather than failing the request.
 			console.Warn("qrcode icon", iconPath, err.Error())
-			err = helper.GenerateQRWithIcon(data, "", file)
+			_, err = helper.GenerateQRWithIcon(data, "", file)
 		}
 		if err != nil {
 			res.Status(http.StatusInternalServerError)
@@ -476,13 +467,15 @@ func (y *YekongaData) initializerOtherRoutes() {
 // qrIconPath returns a local file for the tenant's favicon (or the branding
 // favicon when there is no tenant), and a cleanup func for any temp download.
 // It returns "" when there is no usable favicon.
-func (y *YekongaData) qrIconPath(req *Request) (string, func()) {
+func (y *YekongaData) QrIconPath(req *Request) (string, func()) {
 	noop := func() {}
 
 	faviconUrl := y.Config.Branding.FaviconUrl
 	if tenantConfig := y.GetTenantConfig(req); tenantConfig != nil && tenantConfig.FaviconUrl != "" {
+		console.Error("faviconUrl", tenantConfig)
 		faviconUrl = tenantConfig.FaviconUrl
 	}
+
 	if faviconUrl == "" {
 		return "", noop
 	}

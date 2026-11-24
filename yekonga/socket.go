@@ -43,13 +43,6 @@ func NewSocketServer(y *YekongaData) *SocketServer {
 	root.OnConnect(func(c *Client) {
 		console.Log("New client connected: %s (namespace: /)", c.ID)
 		c.EmitToClient("message", "Welcome to the YekongaGo WebSocket server!")
-
-		// c.On("chat_message", func(data interface{}) {
-		// 	console.Log("Received === chat_message from %s: %s", c.id, data)
-		// })
-
-		// c.EmitToClient("message", "Welcome to the Go WebSocket server!")
-		// c.EmitToClient("message", datatype.DataMap{"message": "robert"})
 	})
 
 	root.On("subscribe", func(c *Client, content interface{}) {
@@ -152,7 +145,7 @@ type Client struct {
 	eventHandlers map[string]func(data interface{})
 	pingTicker    *time.Ticker
 	done          chan struct{} // signal to stop ping goroutine
-	closeDone     sync.Once      // guard against multiple close calls
+	closeDone     sync.Once     // guard against multiple close calls
 
 	ID        string
 	Namespace *Namespace
@@ -420,25 +413,31 @@ func (n *Namespace) Emit(event string, data interface{}, exclude *Client) {
 }
 
 func (n *Namespace) Broadcast(event string, data interface{}, exclude *Client) {
-	n.broadcastWhere(event, data, func(client *Client) bool { return client != exclude })
-}
+	n.BroadcastWhere(event, data, func(client *Client) bool {
+		if helper.IsEmpty(exclude) {
+			return true
+		}
 
-// broadcastToTenant sends an event to the clients of tenantId and to clients
-// without a tenant (e.g. main-domain admin screens). An empty tenantId sends
-// to everyone.
-func (n *Namespace) broadcastToTenant(tenantId string, event string, data interface{}) {
-	if tenantId == "" {
-		n.broadcastWhere(event, data, func(*Client) bool { return true })
-		return
-	}
-
-	n.broadcastWhere(event, data, func(client *Client) bool {
-		clientTenant := client.tenantId()
-		return clientTenant == "" || clientTenant == tenantId
+		return client != exclude
 	})
 }
 
-func (n *Namespace) broadcastWhere(event string, data interface{}, include func(*Client) bool) {
+// BroadcastToTenant sends an event to the clients of tenantId and to clients
+// without a tenant (e.g. main-domain admin screens). An empty tenantId sends
+// to everyone.
+func (n *Namespace) BroadcastToTenant(tenantId string, event string, data interface{}) {
+	if tenantId == "" {
+		n.BroadcastWhere(event, data, func(*Client) bool { return true })
+		return
+	}
+
+	n.BroadcastWhere(event, data, func(client *Client) bool {
+		clientTenant := client.tenantId()
+		return helper.IsEmpty(clientTenant) || clientTenant == tenantId
+	})
+}
+
+func (n *Namespace) BroadcastWhere(event string, data interface{}, include func(*Client) bool) {
 	if n == nil {
 		return
 	}

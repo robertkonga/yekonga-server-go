@@ -1,6 +1,6 @@
 module github.com/robertkonga/yekonga-server-go
 
-go 1.25
+go 1.26
 
 require (
 	cloud.google.com/go/auth v0.18.1 // indirect

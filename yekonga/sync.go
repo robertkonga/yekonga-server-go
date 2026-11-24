@@ -831,7 +831,7 @@ func (s *syncEngine) apply(change *syncChange) error {
 
 	if resolution.apply {
 		s.app.invalidateCaches(model.Name)
-		s.app.socketServer.Of("/").broadcastToTenant(logged.TenantId, "database", datatype.DataMap{
+		s.app.socketServer.Of("/").BroadcastToTenant(logged.TenantId, "database", datatype.DataMap{
 			"action": change.Action,
 			"model":  model.Name,
 		})

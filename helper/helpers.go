@@ -15,6 +15,7 @@ import (
 	"image/png"
 	"io"
 	"log"
+	"maps"
 	"math/rand"
 	"net"
 	"net/http"
@@ -110,27 +111,78 @@ func IsMapList(data interface{}) bool {
 	return false
 }
 
+// ToDataMap converts any map-like value into a DataMap.
+// It unwraps any depth of pointers/interfaces and supports named map types
+// (bson.M, datatype.DataMap, ...), and maps with non-string keys
+// (e.g. map[interface{}]interface{} from YAML).
+// It also accepts JSON ([]byte, json.RawMessage, string) holding an object.
+// Returns an empty DataMap if the input can't be converted.
 func ToDataMap(input interface{}) datatype.DataMap {
-	result := make(map[string]interface{})
+	// Fast paths: no reflection needed.
+	switch v := input.(type) {
+	case nil:
+		return datatype.DataMap{}
+	case datatype.DataMap:
+		return maps.Clone(v)
+	case map[string]interface{}:
+		return datatype.DataMap(maps.Clone(v))
+	case []byte:
+		return fromJSON(v)
+	case json.RawMessage:
+		return fromJSON(v)
+	case string:
+		return fromJSON([]byte(v))
+	}
 
 	value := reflect.ValueOf(input)
 
-	if value.Kind() != reflect.Map {
-		if value.Kind() == reflect.Ptr {
-			if !value.IsNil() {
-				value = value.Elem()
+	// Unwrap pointers and interfaces at any depth.
+	for value.IsValid() && (value.Kind() == reflect.Ptr || value.Kind() == reflect.Interface) {
+		if value.IsNil() {
+			return datatype.DataMap{}
+		}
+		value = value.Elem()
+	}
+
+	if !value.IsValid() || value.Kind() != reflect.Map {
+		// Last resort: structs etc. via JSON round-trip (respects json tags).
+		if value.IsValid() && value.Kind() == reflect.Struct {
+			if b, err := json.Marshal(value.Interface()); err == nil {
+				return fromJSON(b)
 			}
-		} else {
-			console.Error("input must be a map => input:", input)
 		}
+		console.Error("ToDataMap: input must be a map, got:", fmt.Sprintf("%T", input))
+		return datatype.DataMap{}
 	}
 
-	if value.Kind() == reflect.Map {
-		for _, key := range value.MapKeys() {
-			result[fmt.Sprintf("%v", key.Interface())] = value.MapIndex(key).Interface()
-		}
+	result := make(datatype.DataMap, value.Len())
+	iter := value.MapRange()
+	for iter.Next() {
+		result[keyToString(iter.Key())] = iter.Value().Interface()
 	}
+	return result
+}
 
+// keyToString turns any map key into a string, unwrapping interface keys.
+func keyToString(k reflect.Value) string {
+	for k.Kind() == reflect.Interface && !k.IsNil() {
+		k = k.Elem()
+	}
+	if k.Kind() == reflect.String {
+		return k.String() // faster than Sprintf, and correct for named string types
+	}
+	return fmt.Sprintf("%v", k.Interface())
+}
+
+func fromJSON(b []byte) datatype.DataMap {
+	result := datatype.DataMap{}
+	if len(b) == 0 {
+		return result
+	}
+	if err := json.Unmarshal(b, &result); err != nil {
+		console.Error("ToDataMap: invalid JSON object:", err)
+		return datatype.DataMap{}
+	}
 	return result
 }
 
@@ -160,9 +212,12 @@ func ToInt(value interface{}) int {
 	} else if v, ok := value.(int); ok {
 		number = v
 	} else if IsNumeric(value) {
-		n, err := strconv.ParseInt(fmt.Sprintf("%v", value), 32, 64)
-		if err == nil {
+		text := fmt.Sprintf("%v", value)
+		// Base 10: other integer types (int32, int64, ...) print as decimal.
+		if n, err := strconv.ParseInt(text, 10, 64); err == nil {
 			number = int(n)
+		} else if f, err := strconv.ParseFloat(text, 64); err == nil {
+			number = int(f)
 		}
 	}
 
@@ -804,6 +859,65 @@ func LoadJSONFile(filename string) (map[string]interface{}, error) {
 	}
 
 	return data, nil
+}
+
+func IsIP(value string) bool {
+	value = strings.TrimSpace(value)
+
+	// First, check if it's a plain IPv4 or IPv6 address.
+	if net.ParseIP(value) != nil {
+		return true
+	}
+
+	// Otherwise, check if it contains an IP and port.
+	host, port, err := net.SplitHostPort(value)
+	if err != nil {
+		return false
+	}
+
+	if net.ParseIP(host) == nil {
+		return false
+	}
+
+	// Validate port (0–65535).
+	p, err := strconv.Atoi(port)
+	if err != nil || p < 0 || p > 65535 {
+		return false
+	}
+
+	return true
+}
+
+func HasIP(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+
+	// Add scheme if missing.
+	if !strings.Contains(value, "://") {
+		value = "//" + value
+	}
+
+	u, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+
+	host := u.Hostname()
+	if net.ParseIP(host) == nil {
+		return false
+	}
+
+	// Validate port if provided.
+	if port := u.Port(); port != "" {
+		p, err := strconv.Atoi(port)
+		if err != nil || p < 1 || p > 65535 {
+			return false
+		}
+	}
+
+	return true
 }
 
 func GetClientIP(req *http.Request) string {
@@ -2205,21 +2319,21 @@ func IsDevelopment() bool {
 	return !IsProduction()
 }
 
-func GenerateQR(content string, outputPath interface{}) error {
+func GenerateQR(content string, outputPath interface{}) ([]byte, error) {
 	return GenerateQRWithIcon(content, "", outputPath)
 }
 
 // GenerateQRWithIcon writes a QR code to outputPath, optionally with an icon in
 // the center. The format follows the output extension: ".svg" writes an SVG,
 // anything else writes a PNG. An empty outputPath writes a PNG with a random name.
-func GenerateQRWithIcon(content string, iconPath string, outputPath interface{}) error {
+func GenerateQRWithIcon(content string, iconPath string, outputPath interface{}) ([]byte, error) {
 	size := 512
 	padding := 10
 	// 1. Generate QR Code
 	// Use High recovery level (qrcode.High) because the icon will obstruct part of the data.
 	qr, err := qrcode.New(content, qrcode.High)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Remove default border
 	qr.DisableBorder = true
@@ -2237,18 +2351,19 @@ func GenerateQRWithIcon(content string, iconPath string, outputPath interface{})
 		data, err = qrToPNG(qr, iconPath, size, padding)
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	os.MkdirAll(filepath.Dir(output), os.ModePerm)
-
-	// Save to file
-	if err := os.WriteFile(output, data, 0644); err != nil {
-		console.Warn("Create", output, err.Error())
-		return err
+	if IsNotEmpty(outputPath) {
+		os.MkdirAll(filepath.Dir(output), os.ModePerm)
+		// Save to file
+		if err := os.WriteFile(output, data, 0644); err != nil {
+			console.Warn("Create", output, err.Error())
+			return nil, err
+		}
 	}
 
-	return nil
+	return data, nil
 }
 
 func qrToPNG(qr *qrcode.QRCode, iconPath string, size int, padding int) ([]byte, error) {

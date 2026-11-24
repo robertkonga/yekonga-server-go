@@ -22,7 +22,10 @@ type ServiceConfig struct {
 	Name        string
 	DisplayName string
 	Description string
+	Username    string
+	EnvVars     map[string]string
 }
+
 type YekongaService struct {
 	runServiceCallback ServiceCallback
 	exitChan           chan struct{}
@@ -39,6 +42,8 @@ func ServiceSetup(config ServiceConfig, callback ServiceCallback) {
 		Name:        config.Name,
 		DisplayName: config.DisplayName,
 		Description: config.Description,
+		UserName:    config.Username,
+		EnvVars:     config.EnvVars,
 	}
 
 	prg := &YekongaService{
