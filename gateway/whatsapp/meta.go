@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -369,7 +370,11 @@ func buildMetaMessage(params setting.SendParams) (map[string]interface{}, error)
 		if len(placeholders) == 0 {
 			placeholders = params.Placeholders
 		}
-		return metaTemplate(templateName, c.Language, placeholders), nil
+		msg := metaTemplate(templateName, c.Language, placeholders)
+		if c.TemplateData != nil {
+			addMetaTemplateExtras(msg, c.TemplateData.Header, c.TemplateData.Buttons)
+		}
+		return msg, nil
 	}
 
 	// 3. Media
@@ -408,6 +413,66 @@ func metaText(text string) map[string]interface{} {
 			"preview_url": false,
 			"body":        text,
 		},
+	}
+}
+
+// addMetaTemplateExtras adds a template message's header and button
+// parameters as Cloud API components: the header first, buttons last.
+func addMetaTemplateExtras(msg map[string]interface{}, header *setting.TemplateHeader, buttons []setting.TemplateButton) {
+	template, _ := msg["template"].(map[string]interface{})
+	if template == nil {
+		return
+	}
+	components, _ := template["components"].([]map[string]interface{})
+
+	if header != nil {
+		var parameter map[string]interface{}
+		switch kind := strings.ToLower(header.Type); kind {
+		case "text":
+			if helper.IsNotEmpty(header.Placeholder) {
+				parameter = map[string]interface{}{"type": "text", "text": header.Placeholder}
+			}
+		case "image", "video", "document":
+			if helper.IsNotEmpty(header.MediaURL) {
+				media := map[string]interface{}{"link": header.MediaURL}
+				if kind == "document" && helper.IsNotEmpty(header.Filename) {
+					media["filename"] = header.Filename
+				}
+				parameter = map[string]interface{}{"type": kind, kind: media}
+			}
+		case "location":
+			if header.Latitude != nil && header.Longitude != nil {
+				parameter = map[string]interface{}{"type": "location", "location": map[string]interface{}{
+					"latitude": *header.Latitude, "longitude": *header.Longitude,
+				}}
+			}
+		}
+		if parameter != nil {
+			components = append([]map[string]interface{}{{"type": "header", "parameters": []map[string]interface{}{parameter}}}, components...)
+		}
+	}
+
+	for _, b := range buttons {
+		var subType string
+		var parameter map[string]interface{}
+		switch strings.ToUpper(b.Type) {
+		case "URL":
+			subType, parameter = "url", map[string]interface{}{"type": "text", "text": b.Parameter}
+		case "QUICK_REPLY":
+			subType, parameter = "quick_reply", map[string]interface{}{"type": "payload", "payload": b.Parameter}
+		case "COPY_CODE":
+			subType, parameter = "copy_code", map[string]interface{}{"type": "coupon_code", "coupon_code": b.Parameter}
+		default:
+			continue
+		}
+		components = append(components, map[string]interface{}{
+			"type": "button", "sub_type": subType, "index": strconv.Itoa(b.Index),
+			"parameters": []map[string]interface{}{parameter},
+		})
+	}
+
+	if len(components) > 0 {
+		template["components"] = components
 	}
 }
 

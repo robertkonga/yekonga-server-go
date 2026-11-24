@@ -126,7 +126,30 @@ type Content struct {
 
 // TemplateData represents template data structure
 type TemplateData struct {
-	Body TemplateBody `json:"body"`
+	Body    TemplateBody     `json:"body"`
+	Header  *TemplateHeader  `json:"header,omitempty"`
+	Buttons []TemplateButton `json:"buttons,omitempty"`
+}
+
+// TemplateHeader fills a template's header (Infobip shape): the TEXT
+// header's {{1}}, or the link of its IMAGE, VIDEO or DOCUMENT.
+type TemplateHeader struct {
+	Type        string   `json:"type"`                  // TEXT, IMAGE, VIDEO, DOCUMENT, LOCATION
+	Placeholder string   `json:"placeholder,omitempty"` // TEXT
+	MediaURL    string   `json:"mediaUrl,omitempty"`    // IMAGE, VIDEO, DOCUMENT
+	Filename    string   `json:"filename,omitempty"`    // DOCUMENT
+	Latitude    *float64 `json:"latitude,omitempty"`    // LOCATION
+	Longitude   *float64 `json:"longitude,omitempty"`   // LOCATION
+}
+
+// TemplateButton fills one button that takes a value: a URL button's
+// {{1}} suffix, a QUICK_REPLY's payload or a COPY_CODE's code. Infobip
+// takes them in the template's order; Meta needs Index, the button's
+// position among all the template's buttons.
+type TemplateButton struct {
+	Type      string `json:"type"` // URL, QUICK_REPLY, COPY_CODE
+	Parameter string `json:"parameter"`
+	Index     int    `json:"-"`
 }
 
 // TemplateBody represents template body with placeholders
