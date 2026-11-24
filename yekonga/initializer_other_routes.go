@@ -304,7 +304,7 @@ func (y *YekongaData) initializerOtherRoutes() {
 		filename := req.Param("filename")
 		ext := req.Param("ext")
 		title := req.Query("title")
-		console.Log(filename, ext, title)
+		// console.Log(filename, ext, title)
 
 		publicDir, _ := helper.GetPublicPath()
 		file := path.Join(publicDir, "tmp", filename+"."+ext)
@@ -472,7 +472,7 @@ func (y *YekongaData) QrIconPath(req *Request) (string, func()) {
 
 	faviconUrl := y.Config.Branding.FaviconUrl
 	if tenantConfig := y.GetTenantConfig(req); tenantConfig != nil && tenantConfig.FaviconUrl != "" {
-		console.Error("faviconUrl", tenantConfig)
+		// console.Error("faviconUrl", tenantConfig)
 		faviconUrl = tenantConfig.FaviconUrl
 	}
 
